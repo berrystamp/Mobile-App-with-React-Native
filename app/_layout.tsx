@@ -1,5 +1,6 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
+import { registerRootComponent } from 'expo';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from "react";
 import 'react-native-reanimated';
@@ -36,7 +37,7 @@ export function MainApp() {
   );
 }
 
-export default function RootLayout() {
+export function RootLayout() {
   
    const [loading, setLoading] = useState(true);
 
@@ -49,3 +50,4 @@ export default function RootLayout() {
   return loading ? <SplashScreen /> : <MainApp />;
 
 }
+export default registerRootComponent(RootLayout);
