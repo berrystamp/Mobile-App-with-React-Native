@@ -21,6 +21,15 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
+    "splash": {
+      "image": "./assets/splash-light.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F2F2F2",
+      "dark": {
+        "image": "./assets/splash-dark.png",
+        "backgroundColor": "#4B3A99"
+      }
+    },
     "web": {
       "output": "static",
       "favicon": "./assets/images/favicon.png"
@@ -38,7 +47,8 @@
             "backgroundColor": "#000000"
           }
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true,
