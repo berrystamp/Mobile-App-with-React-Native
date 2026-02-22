@@ -1,5 +1,6 @@
 import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { Platform, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { router } from 'expo-router';
 
 import { HelloWave } from '@/components/hello-wave';
 import ParallaxScrollView from '@/components/parallax-scroll-view';
@@ -21,6 +22,27 @@ export default function HomeScreen() {
         <ThemedText type="title">Welcome!</ThemedText>
         <HelloWave />
       </ThemedView>
+      {/* ── Screen previews (dev navigation) ── */}
+      <ThemedView style={styles.stepContainer}>
+        <ThemedText type="subtitle">🖼 Screen Previews</ThemedText>
+        {(
+          [
+            { label: 'Verify Account 0.1', route: '/verify-account' },
+            { label: 'Verify Account 0.2 (OTP)', route: '/verify-otp' },
+            { label: 'Interests', route: '/interests' },
+          ] as const
+        ).map(({ label, route }) => (
+          <TouchableOpacity
+            key={route}
+            style={styles.navButton}
+            onPress={() => router.push(route as never)}
+            activeOpacity={0.75}
+          >
+            <ThemedText style={styles.navButtonText}>{label}</ThemedText>
+          </TouchableOpacity>
+        ))}
+      </ThemedView>
+
       <ThemedView style={styles.stepContainer}>
         <ThemedText type="subtitle">Step 1: Try it</ThemedText>
         <ThemedText>
@@ -94,5 +116,17 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     position: 'absolute',
+  },
+  navButton: {
+    backgroundColor: '#2F2D8C',
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginTop: 8,
+  },
+  navButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+    fontSize: 14,
   },
 });

@@ -22,6 +22,11 @@ export function MainApp() {
       <Stack>
         <Stack.Screen name="login/index" options={{ headerShown: false }} />
         <Stack.Screen name="choose-account/index" options={{ headerShown: false }} />
+        <Stack.Screen name="sign-up" options={{ headerShown: false }} />
+        <Stack.Screen name="verify-account" options={{ headerShown: false }} />
+        <Stack.Screen name="verify-otp" options={{ headerShown: false }} />
+        <Stack.Screen name="interests" options={{ headerShown: false }} />
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="home/index" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
       </Stack>
