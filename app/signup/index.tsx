@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useRouter } from "expo-router";
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { FloatingLabelInput } from '@/components/floating-label-input';
@@ -17,6 +18,7 @@ const NAVY = '#2F2D8C';
 const INDIGO = '#6B6BD6';
 
 export default function SignUpScreen() {
+const router = useRouter();
   const [fullName, setFullName] = useState('');
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
@@ -139,7 +141,7 @@ export default function SignUpScreen() {
           {/* Footer Links */}
           <Text style={styles.loginText}>
             Already have an account?{' '}
-            <Text style={styles.link}>Log in</Text>
+            <Text style={styles.link} onClick={()=> router.push("/login")}>Log in</Text>
           </Text>
 
           <Text style={styles.termsText}>

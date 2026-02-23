@@ -4,7 +4,7 @@ import { registerRootComponent } from 'expo';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from "react";
 import 'react-native-reanimated';
-import SplashScreen from "./SplashScreen";
+import Loading from "../components/Loading";
 
 import { AuthProvider } from '@/context/AuthContext';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -21,9 +21,10 @@ export function MainApp() {
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <AuthProvider>
       <Stack>
+<Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="login/index" options={{ headerShown: false }} />
         <Stack.Screen name="choose-account/index" options={{ headerShown: false }} />
-        <Stack.Screen name="sign-up" options={{ headerShown: false }} />
+        <Stack.Screen name="signup/index" options={{ headerShown: false }} />
         <Stack.Screen name="verify-account" options={{ headerShown: false }} />
         <Stack.Screen name="verify-otp" options={{ headerShown: false }} />
         <Stack.Screen name="interests" options={{ headerShown: false }} />
@@ -37,17 +38,16 @@ export function MainApp() {
   );
 }
 
-export function RootLayout() {
+export default function RootLayout() {
   
    const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setTimeout(() => {
       setLoading(false);
-    }, 2500); 
+    }, 500); 
   }, []);
 
-  return loading ? <SplashScreen /> : <MainApp />;
+  return loading ? <Loading /> : <MainApp />;
 
 }
-export default registerRootComponent(RootLayout);

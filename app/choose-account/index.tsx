@@ -1,15 +1,17 @@
 import { AccountCard } from "@/components/AccountCard";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import React from "react";
+import { useRouter } from "expo-router";
 import {
   StatusBar,
   StyleSheet,
-  Text,
+  Text, 
   useColorScheme,
   View
 } from "react-native";
 
 const ChooseAccountScreen = () => {
+const router = useRouter();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
 
@@ -37,6 +39,7 @@ const ChooseAccountScreen = () => {
       </Text>
 
       {/* Cards */}
+	<a href="/signup" style={{textDecorationLine: 'none'}}>
       <AccountCard
         icon={
           <Ionicons name="cart-outline" size={24} color={theme.purple} />
@@ -44,8 +47,9 @@ const ChooseAccountScreen = () => {
         title="Customer"
         description="Get 10% off your first order as you signed up"
         theme={theme}
-      />
-
+      /></a>
+	
+	<a href="/signup" style={{textDecorationLine: 'none'}}>
       <AccountCard
         icon={
           <MaterialCommunityIcons
@@ -57,8 +61,9 @@ const ChooseAccountScreen = () => {
         title="Designer"
         description="Set up your shop, sell your designs and earn with ease"
         theme={theme}
-      />
+      /></a>
 
+	<a href="/signup" style={{textDecorationLine: 'none'}}>
       <AccountCard
         icon={
           <MaterialCommunityIcons
@@ -70,7 +75,7 @@ const ChooseAccountScreen = () => {
         title="Printer"
         description="Sign up and get linked up with customers around you"
         theme={theme}
-      />
+      /></a>
     </View>
   );
 };
