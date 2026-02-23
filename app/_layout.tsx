@@ -1,5 +1,6 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
+import { registerRootComponent } from 'expo';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from "react";
 import 'react-native-reanimated';
@@ -22,6 +23,11 @@ export function MainApp() {
       <Stack>
         <Stack.Screen name="login/index" options={{ headerShown: false }} />
         <Stack.Screen name="choose-account/index" options={{ headerShown: false }} />
+        <Stack.Screen name="sign-up" options={{ headerShown: false }} />
+        <Stack.Screen name="verify-account" options={{ headerShown: false }} />
+        <Stack.Screen name="verify-otp" options={{ headerShown: false }} />
+        <Stack.Screen name="interests" options={{ headerShown: false }} />
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="home/index" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
       </Stack>
@@ -31,7 +37,7 @@ export function MainApp() {
   );
 }
 
-export default function RootLayout() {
+export function RootLayout() {
   
    const [loading, setLoading] = useState(true);
 
@@ -44,3 +50,4 @@ export default function RootLayout() {
   return loading ? <SplashScreen /> : <MainApp />;
 
 }
+export default registerRootComponent(RootLayout);
