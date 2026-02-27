@@ -23,6 +23,13 @@ export function MainApp() {
         <Stack.Screen name="login/index" options={{ headerShown: false }} />
         <Stack.Screen name="choose-account/index" options={{ headerShown: false }} />
         <Stack.Screen name="sign-up" options={{ headerShown: false }} />
+        <Stack.Screen name="PrinterDesignerSignUp" options={{ headerShown: false }} />
+        <Stack.Screen name="PrinterDesignerVerify-otp" options={{ headerShown: false }} />
+        <Stack.Screen name="ForgotPasswordVerify-otp" options={{ headerShown: false }} />
+        <Stack.Screen name="PrinterDesignVerify-account" options={{ headerShown: false }} />
+        <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
+        <Stack.Screen name="reset-password" options={{ headerShown: false }} />
+        <Stack.Screen name="reset-password-success" options={{ headerShown: false, presentation: 'transparentModal' }} />
         <Stack.Screen name="verify-account" options={{ headerShown: false }} />
         <Stack.Screen name="verify-otp" options={{ headerShown: false }} />
         <Stack.Screen name="interests" options={{ headerShown: false }} />

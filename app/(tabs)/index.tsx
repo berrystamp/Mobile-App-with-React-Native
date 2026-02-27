@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
-import { Platform, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
+import { Platform, StyleSheet, TouchableOpacity } from 'react-native';
 
 import { HelloWave } from '@/components/hello-wave';
 import ParallaxScrollView from '@/components/parallax-scroll-view';
@@ -28,8 +28,16 @@ export default function HomeScreen() {
         {(
           [
             { label: 'Verify Account 0.1', route: '/verify-account' },
+            { label: 'sign up', route: '/sign-up' },
             { label: 'Verify Account 0.2 (OTP)', route: '/verify-otp' },
             { label: 'Interests', route: '/interests' },
+            { label: 'forgot password', route: '/forgot-password' },
+            { label: 'forgot password verify-otp', route: '/ForgotPasswordVerify-otp' },
+            { label: 'reset password success', route: '/reset-password-success' },
+            { label: 'reset password ', route: '/reset-password' },
+            { label: 'Printer Design Verify', route: '/PrinterDesignVerify-account' },
+            { label: 'Printer Design Verify otp', route: '/PrinterDesignerVerify-otp' },
+            { label: 'Printer Designer Sign Up', route: '/PrinterDesignerSignUp' },
           ] as const
         ).map(({ label, route }) => (
           <TouchableOpacity

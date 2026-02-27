@@ -7,6 +7,7 @@ import {
   TouchableWithoutFeedback,
   View,
 } from 'react-native';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 
 interface FloatingLabelInputProps extends TextInputProps {
   label: string;
@@ -24,6 +25,10 @@ export function FloatingLabelInput({
   const [isFocused, setIsFocused] = useState(false);
   const animatedValue = useRef(new Animated.Value(value ? 1 : 0)).current;
   const inputRef = useRef<TextInput>(null);
+  const isDark = useColorScheme() === 'dark';
+  const bgColor = isDark ? '#1E1E3A' : '#fff';
+  const borderColor = isFocused ? '#6B6BD6' : (isDark ? '#3A3A6A' : '#DEDEDE');
+  const textColor = isDark ? '#EEEEF8' : '#1a1a2e';
 
   const handleFocus = (e: any) => {
     setIsFocused(true);
@@ -59,7 +64,7 @@ export function FloatingLabelInput({
 
   const labelColor = animatedValue.interpolate({
     inputRange: [0, 1],
-    outputRange: ['#aaaaaa', '#6B6BD6'],
+    outputRange: [isDark ? '#666688' : '#aaaaaa', '#6B6BD6'],
   });
 
   return (
@@ -67,7 +72,7 @@ export function FloatingLabelInput({
       <View
         style={[
           styles.container,
-          { borderColor: isFocused ? '#6B6BD6' : '#DEDEDE' },
+          { borderColor, backgroundColor: bgColor },
         ]}
       >
         <Animated.Text
@@ -77,7 +82,7 @@ export function FloatingLabelInput({
               top: labelTop,
               fontSize: labelFontSize,
               color: labelColor,
-              backgroundColor: '#fff',
+              backgroundColor: bgColor,
               paddingHorizontal: 4,
             },
           ]}
@@ -87,11 +92,11 @@ export function FloatingLabelInput({
         <View style={styles.inputRow}>
           <TextInput
             ref={inputRef}
-            style={styles.input}
+            style={[styles.input, { color: textColor }]}
             value={value}
             onFocus={handleFocus}
             onBlur={handleBlur}
-            placeholderTextColor="#aaa"
+            placeholderTextColor={isDark ? '#555575' : '#aaa'}
             {...props}
           />
           {rightIcon && <View style={styles.iconWrapper}>{rightIcon}</View>}
@@ -108,7 +113,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     marginBottom: 18,
     position: 'relative',
-    backgroundColor: '#fff',
   },
   label: {
     position: 'absolute',
@@ -122,7 +126,6 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: 15,
-    color: '#1a1a2e',
     paddingVertical: 0,
     paddingTop: 20,
     paddingBottom: 10,
