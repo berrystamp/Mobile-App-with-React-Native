@@ -200,7 +200,7 @@ const LoginScreen = () => {
         )}
 
         {/* Forgot Password */}
-        <TouchableOpacity style={styles.forgotRow} onPress={() => {}}>
+        <TouchableOpacity style={styles.forgotRow} onPress={() => router.push("/forgot-password")}>
           <View style={styles.checkbox}>
             <View style={styles.checkboxInner} />
           </View>
@@ -266,7 +266,7 @@ const LoginScreen = () => {
           <Text style={[styles.signupPrompt, { color: isDark ? "#888" : "#666" }]}>
             Already have an account?{" "}
           </Text>
-          <TouchableOpacity onPress={() => router.push("/home")}>
+          <TouchableOpacity onPress={() => router.push("/choose-account")}>
             <Text style={styles.signupLink}>Sign up</Text>
           </TouchableOpacity>
         </View>

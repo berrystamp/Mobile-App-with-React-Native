@@ -12,6 +12,7 @@ const SplashScreen = () => {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
 
+
   return (
     <View style={styles.container}>
       <StatusBar
@@ -31,15 +32,6 @@ const SplashScreen = () => {
         style={StyleSheet.absoluteFill}
       />
 
-      <Image
-        source={
-          isDark
-            ? require("../assets/splash-dark.png")
-            : require("../assets/splash-light.png")
-        }
-        style={styles.image}
-        resizeMode="contain"
-      />
     </View>
   );
 };

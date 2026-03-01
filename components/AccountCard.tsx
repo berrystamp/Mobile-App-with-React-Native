@@ -1,4 +1,5 @@
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useRouter } from "expo-router";
 
 type AccountCardProps = {
   icon: React.ReactNode;
@@ -13,6 +14,7 @@ export const AccountCard = ({
   description,
   theme,
 }: AccountCardProps) => {
+const router = useRouter();
   return (
     <TouchableOpacity
       activeOpacity={0.8}

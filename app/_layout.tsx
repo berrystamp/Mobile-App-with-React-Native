@@ -3,13 +3,13 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from "react";
 import 'react-native-reanimated';
-import SplashScreen from "./SplashScreen";
+import Loading from "../components/Loading";
 
 import { AuthProvider } from '@/context/AuthContext';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export const unstable_settings = {
-  anchor: '(tabs)',
+  anchor: 'index',
 };
 
 export function MainApp() {
@@ -20,6 +20,7 @@ export function MainApp() {
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <AuthProvider>
       <Stack>
+<Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="login/index" options={{ headerShown: false }} />
         <Stack.Screen name="choose-account/index" options={{ headerShown: false }} />
         <Stack.Screen name="sign-up" options={{ headerShown: false }} />
@@ -33,7 +34,6 @@ export function MainApp() {
         <Stack.Screen name="verify-account" options={{ headerShown: false }} />
         <Stack.Screen name="verify-otp" options={{ headerShown: false }} />
         <Stack.Screen name="interests" options={{ headerShown: false }} />
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="home/index" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
       </Stack>
@@ -50,9 +50,9 @@ export default function RootLayout() {
   useEffect(() => {
     setTimeout(() => {
       setLoading(false);
-    }, 2500); 
+    }, 500); 
   }, []);
 
-  return loading ? <SplashScreen /> : <MainApp />;
+  return loading ? <Loading /> : <MainApp />;
 
 }

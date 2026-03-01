@@ -117,7 +117,7 @@ export default function ForgotPasswordScreen() {
               !isValid && styles.proceedButtonDisabled,
             ]}
             activeOpacity={0.85}
-            onPress={() => router.push('/ForgotPasswordVerify-otp')}
+            onPress={() => router.push('/forgot-password-verify-otp')}
           >
             <Text style={styles.proceedButtonText}>Proceed</Text>
           </TouchableOpacity>
