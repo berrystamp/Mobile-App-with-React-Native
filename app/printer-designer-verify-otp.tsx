@@ -3,14 +3,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
-  Keyboard,
-  KeyboardAvoidingView,
-  Platform,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    Keyboard,
+    KeyboardAvoidingView,
+    Platform,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -19,7 +19,7 @@ const INDIGO = '#6B6BD6';
 const OTP_LENGTH = 5;
 const RESEND_SECONDS = 60;
 
-export default function VerifyOtpScreen() {
+export default function PrinterDesignerVerifyOtpScreen() {
   const [otp, setOtp] = useState<string[]>(Array(OTP_LENGTH).fill(''));
   const [focusedIndex, setFocusedIndex] = useState(0);
   const [seconds, setSeconds] = useState(RESEND_SECONDS);

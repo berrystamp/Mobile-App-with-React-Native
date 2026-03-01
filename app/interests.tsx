@@ -9,8 +9,29 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 
 const NAVY = '#2F2D8C';
+
+const lightTheme = {
+  bg: '#FFFFFF',
+  textPrimary: '#1a1a2e',
+  textMuted: '#888',
+  iconColor: '#1a1a2e',
+  chipBg: '#F2F2F5',
+  chipBorder: '#E4E4EC',
+  chipText: '#333',
+};
+
+const darkTheme = {
+  bg: '#12122A',
+  textPrimary: '#EEEEF8',
+  textMuted: '#888899',
+  iconColor: '#EEEEF8',
+  chipBg: '#1E1E3A',
+  chipBorder: '#2E2E50',
+  chipText: '#CCCCDD',
+};
 
 const ALL_INTERESTS = [
   'Nature',
@@ -42,6 +63,8 @@ const ALL_INTERESTS = [
 
 export default function InterestsScreen() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const isDark = useColorScheme() === 'dark';
+  const t = isDark ? darkTheme : lightTheme;
 
   function toggle(item: string) {
     setSelected(prev => {
@@ -52,10 +75,10 @@ export default function InterestsScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: t.bg }]}>
       {/* Back button */}
       <TouchableOpacity style={styles.backButton} onPress={() => router.back()} hitSlop={10}>
-        <Ionicons name="arrow-back" size={22} color="#1a1a2e" />
+        <Ionicons name="arrow-back" size={22} color={t.iconColor} />
       </TouchableOpacity>
 
       <ScrollView
@@ -65,9 +88,9 @@ export default function InterestsScreen() {
       >
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.title}>What are your{'\n'}interests</Text>
-          <Text style={styles.subtitle}>
-            Choose your interests have a seamless experience on Berrytamp with personalize results
+          <Text style={[styles.title, { color: t.textPrimary }]}>What are your{'\n'}interests</Text>
+          <Text style={[styles.subtitle, { color: t.textMuted }]}>
+            Choose your interests have a seamless experience on Berrystamp with personalize results
           </Text>
         </View>
 
@@ -79,11 +102,15 @@ export default function InterestsScreen() {
             return (
               <TouchableOpacity
                 key={`${item}-${index}`}
-                style={[styles.chip, isSelected && styles.chipSelected]}
+                style={[
+                  styles.chip,
+                  { backgroundColor: t.chipBg, borderColor: t.chipBorder },
+                  isSelected && styles.chipSelected,
+                ]}
                 onPress={() => toggle(item)}
                 activeOpacity={0.75}
               >
-                <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>
+                <Text style={[styles.chipText, { color: t.chipText }, isSelected && styles.chipTextSelected]}>
                   {item}
                 </Text>
               </TouchableOpacity>
@@ -93,7 +120,7 @@ export default function InterestsScreen() {
       </ScrollView>
 
       {/* Submit button */}
-      <View style={styles.footer}>
+      <View style={[styles.footer, { backgroundColor: t.bg }]}>
         <TouchableOpacity
           style={[styles.submitButton, selected.size === 0 && styles.submitButtonDisabled]}
           activeOpacity={0.85}
@@ -112,7 +139,6 @@ export default function InterestsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
   },
   backButton: {
     marginTop: 4,
@@ -131,13 +157,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#1a1a2e',
     lineHeight: 36,
     marginBottom: 12,
   },
   subtitle: {
     fontSize: 14,
-    color: '#888',
     lineHeight: 22,
   },
   chipsWrap: {
@@ -149,9 +173,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 10,
     borderRadius: 20,
-    backgroundColor: '#F2F2F5',
     borderWidth: 1,
-    borderColor: '#E4E4EC',
   },
   chipSelected: {
     backgroundColor: NAVY,
@@ -159,7 +181,6 @@ const styles = StyleSheet.create({
   },
   chipText: {
     fontSize: 14,
-    color: '#333',
     fontWeight: '500',
   },
   chipTextSelected: {
@@ -169,7 +190,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
     paddingBottom: 28,
     paddingTop: 12,
-    backgroundColor: '#FFFFFF',
   },
   submitButton: {
     backgroundColor: NAVY,

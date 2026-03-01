@@ -1,14 +1,14 @@
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import { router } from 'expo-router';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
 import Svg, { Circle, Line, Polygon, Rect } from 'react-native-svg';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 
 const NAVY = '#2F2D8C';
 const INDIGO = '#6B6BD6';
 const INDIGO_FAINT = '#C5C5F0';
 
-function EnvelopeIllustration() {
+function PrinterDesignVerifyAccount() {
   return (
     <Svg width="200" height="160" viewBox="0 0 200 160">
       {/* Decorative dots */}
@@ -53,7 +53,7 @@ export default function VerifyAccountScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: t.bg }]}>
       {/* Centered illustration + copy */}
       <View style={styles.content}>
-        <EnvelopeIllustration />
+        <PrinterDesignVerifyAccount />
 
         <Text style={styles.title}>Welcome to Berrystamp</Text>
 
@@ -68,7 +68,7 @@ export default function VerifyAccountScreen() {
         <TouchableOpacity
           style={styles.proceedButton}
           activeOpacity={0.85}
-          onPress={() => router.push('/verify-otp' as never)}
+          onPress={() => router.push('/PrinterDesignerVerify-otp' as never)}
         >
           <Text style={styles.proceedButtonText}>Proceed</Text>
         </TouchableOpacity>

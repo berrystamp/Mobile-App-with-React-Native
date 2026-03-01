@@ -3,14 +3,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
-  Keyboard,
-  KeyboardAvoidingView,
-  Platform,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    Keyboard,
+    KeyboardAvoidingView,
+    Platform,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -19,7 +19,7 @@ const INDIGO = '#6B6BD6';
 const OTP_LENGTH = 5;
 const RESEND_SECONDS = 60;
 
-export default function VerifyOtpScreen() {
+export default function ForgotPasswordVerifyOtpScreen() {
   const [otp, setOtp] = useState<string[]>(Array(OTP_LENGTH).fill(''));
   const [focusedIndex, setFocusedIndex] = useState(0);
   const [seconds, setSeconds] = useState(RESEND_SECONDS);
@@ -91,7 +91,7 @@ export default function VerifyOtpScreen() {
 
         <View style={styles.content}>
           {/* Header */}
-          <Text style={[styles.title, { color: t.textPrimary }]}>Verify Account</Text>
+          <Text style={[styles.title, { color: t.textPrimary }]}>Forgot Password</Text>
           <Text style={[styles.subtitle, { color: t.textMuted }]}>
             Enter the code sent to your email address
           </Text>
@@ -145,10 +145,7 @@ export default function VerifyOtpScreen() {
             style={[styles.proceedButton, !filled && styles.proceedButtonDisabled]}
             activeOpacity={0.85}
             disabled={!filled}
-            onPress={() => {
-              Keyboard.dismiss();
-              // TODO: navigate to next screen after OTP confirmed
-            }}
+            onPress={() => router.push('/reset-password')}
           >
             <Text style={styles.proceedButtonText}>Proceed</Text>
           </TouchableOpacity>

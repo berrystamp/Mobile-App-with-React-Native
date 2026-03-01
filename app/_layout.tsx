@@ -1,6 +1,5 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
-import { registerRootComponent } from 'expo';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from "react";
 import 'react-native-reanimated';
@@ -25,6 +24,13 @@ export function MainApp() {
         <Stack.Screen name="login/index" options={{ headerShown: false }} />
         <Stack.Screen name="choose-account/index" options={{ headerShown: false }} />
         <Stack.Screen name="signup/index" options={{ headerShown: false }} />
+        <Stack.Screen name="printer-designer-sign-up" options={{ headerShown: false }} />
+        <Stack.Screen name="printer-designer-verify-otp" options={{ headerShown: false }} />
+        <Stack.Screen name="forgot-password-verify-otp" options={{ headerShown: false }} />
+        <Stack.Screen name="printer-design-verify-account" options={{ headerShown: false }} />
+        <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
+        <Stack.Screen name="reset-password" options={{ headerShown: false }} />
+        <Stack.Screen name="reset-password-success" options={{ headerShown: false, presentation: 'transparentModal' }} />
         <Stack.Screen name="verify-account" options={{ headerShown: false }} />
         <Stack.Screen name="verify-otp" options={{ headerShown: false }} />
         <Stack.Screen name="interests" options={{ headerShown: false }} />
