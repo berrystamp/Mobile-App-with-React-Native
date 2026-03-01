@@ -247,10 +247,15 @@ export default function ResetPasswordScreen() {
               !isValid && styles.submitButtonDisabled,
             ]}
             activeOpacity={0.85}
-            onPress={() => router.push('/reset-password-success')}
-
+            disabled={!isValid}
+            onPress={() => {
+              if (!isValid) {
+                return;
+              }
+              router.push('/reset-password-success');
+            }}
           >
-            <Text style={styles.submitButtonText}>Verify Email</Text>
+            <Text style={styles.submitButtonText}>Reset Password</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
