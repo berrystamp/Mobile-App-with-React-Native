@@ -273,7 +273,7 @@ export default function PrinterDesignerSignUp() {
 
           <Text style={[styles.termsText, { color: t.textMuted }]}>
             {'By signing up, you agree to our '}
-            <Text style={styles.link}>terms of services</Text>
+            <Text style={styles.link}>terms of service</Text>
             {'\nand that you have read our '}
             <Text style={styles.link}>privacy policy</Text>
           </Text>
