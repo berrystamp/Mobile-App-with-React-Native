@@ -132,7 +132,7 @@ const LoginScreen = () => {
     try {
       setLoading(true);
       await login(data.email, data.password);
-      router.replace("/home");
+      router.replace("/(tabs)");
     } catch (error: any) {
       console.log(error?.response?.data || error.message);
     } finally {

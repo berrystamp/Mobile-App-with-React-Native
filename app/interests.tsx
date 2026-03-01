@@ -126,7 +126,7 @@ export default function InterestsScreen() {
           activeOpacity={0.85}
           disabled={selected.size === 0}
           onPress={() => {
-            // TODO: navigate to home/dashboard after submitting interests
+            router.push('/(tabs)');
           }}
         >
           <Text style={styles.submitButtonText}>Submit and proceed</Text>

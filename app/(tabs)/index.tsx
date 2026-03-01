@@ -1,140 +1,178 @@
-import { Image } from 'expo-image';
-import { router } from 'expo-router';
-import { Platform, StyleSheet, TouchableOpacity } from 'react-native';
+import { ArtistCard } from '@/components/ArtistCard';
+import { DesignCard } from '@/components/DesignCard';
+import { ErrorMessage } from '@/components/ErrorMessage';
+import { Header } from '@/components/Header';
+import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { SectionHeader } from '@/components/SectionHeader';
+import { useHomeData } from '@/hooks/useHomeData';
+import { Artist } from '@/types';
+import { useRouter } from 'expo-router';
+import React from 'react';
+import {
+  FlatList,
+  RefreshControl,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  useColorScheme,
+  View,
+} from 'react-native';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+const HomeScreen = () => {
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+  const router = useRouter();
 
-export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      {/* ── Screen previews (dev navigation) ── */}
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">🖼 Screen Previews</ThemedText>
-        {(
-          [
-            { label: 'Verify Account 0.1', route: '/verify-account' },
-            { label: 'sign up', route: '/sign-up' },
-            { label: 'Verify Account 0.2 (OTP)', route: '/verify-otp' },
-            { label: 'Interests', route: '/interests' },
-            { label: 'forgot password', route: '/forgot-password' },
-            { label: 'forgot password verify-otp', route: '/ForgotPasswordVerify-otp' },
-            { label: 'reset password success', route: '/reset-password-success' },
-            { label: 'reset password ', route: '/reset-password' },
-            { label: 'Printer Design Verify', route: '/PrinterDesignVerify-account' },
-            { label: 'Printer Design Verify otp', route: '/PrinterDesignerVerify-otp' },
-            { label: 'Printer Designer Sign Up', route: '/PrinterDesignerSignUp' },
-          ] as const
-        ).map(({ label, route }) => (
-          <TouchableOpacity
-            key={route}
-            style={styles.navButton}
-            onPress={() => router.push(route as never)}
-            activeOpacity={0.75}
-          >
-            <ThemedText style={styles.navButtonText}>{label}</ThemedText>
-          </TouchableOpacity>
-        ))}
-      </ThemedView>
+  const {
+    topArtists,
+    trendingDesigns,
+    recommendedDesigns,
+    isLoading,
+    error,
+    refreshing,
+    refresh,
+    toggleFavorite,
+    retry,
+  } = useHomeData();
 
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+  const theme = {
+    background: isDark ? '#121212' : '#F3F3F3',
+    card: isDark ? '#1E1E1E' : '#FFFFFF',
+  };
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+  if (isLoading && !refreshing) {
+    return (
+      <View style={[styles.loadingContainer, { backgroundColor: theme.background }]}>
+        <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
+        <LoadingSpinner message="Loading amazing designs..." />
+      </View>
+    );
+  }
+
+  if (error && !refreshing) {
+    return (
+      <View style={[styles.loadingContainer, { backgroundColor: theme.background }]}>
+        <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
+        <ErrorMessage message={error} onRetry={retry} />
+      </View>
+    );
+  }
+
+  const renderArtist = ({ item }: { item: Artist }) => (
+    <ArtistCard
+      artist={item}
+      onPress={() => router.push(`/artist/${item.id}`)}
+    />
   );
-}
+
+  return (
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
+      <Header />
+
+      <ScrollView
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={refresh}
+            tintColor="#4B3A99"
+            colors={['#4B3A99']}
+          />
+        }
+      >
+        {/* Top Artists Section */}
+        <View style={styles.section}>
+          <SectionHeader
+            title="Top Artists"
+            onViewAllPress={() => router.push('/artists')}
+          />
+          <FlatList
+            data={topArtists}
+            renderItem={renderArtist}
+            keyExtractor={(item) => item.id}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.artistsList}
+          />
+        </View>
+
+        {/* Trending Designs Section */}
+        <View style={styles.section}>
+          <SectionHeader
+            title="Trending Designs"
+            onViewAllPress={() => router.push('/designs/trending')}
+          />
+          <FlatList
+            data={trendingDesigns.slice(0, 3)}
+            renderItem={({ item }) => (
+              <DesignCard
+                design={item}
+                width={140}
+                onPress={() => router.push(`/design/${item.id}`)}
+                onFavoriteToggle={toggleFavorite}
+                showPrice={false}
+              />
+            )}
+            keyExtractor={(item) => item.id}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.designsList}
+          />
+        </View>
+
+        {/* Just for You Section */}
+        <View style={[styles.section, styles.lastSection]}>
+          <SectionHeader
+            title="Just for you"
+            onViewAllPress={() => router.push('/designs/recommended')}
+          />
+          <View style={styles.gridContainer}>
+            {recommendedDesigns.map((design) => (
+              <DesignCard
+                key={design.id}
+                design={design}
+                onPress={() => router.push(`/design/${design.id}`)}
+                onFavoriteToggle={toggleFavorite}
+              />
+            ))}
+          </View>
+        </View>
+      </ScrollView>
+    </View>
+  );
+};
+
+export default HomeScreen;
 
 const styles = StyleSheet.create({
-  titleContainer: {
+  container: {
+    flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  section: {
+    paddingHorizontal: 20,
+    marginTop: 24,
+  },
+  lastSection: {
+    paddingBottom: 100,
+  },
+  artistsList: {
+    paddingRight: 20,
+  },
+  designsList: {
+    paddingRight: 20,
+    gap: 12,
+  },
+  gridContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-  },
-  navButton: {
-    backgroundColor: '#2F2D8C',
-    borderRadius: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    marginTop: 8,
-  },
-  navButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
-    fontSize: 14,
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
   },
 });

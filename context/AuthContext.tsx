@@ -1,71 +1,32 @@
-import * as SecureStore from "expo-secure-store";
-import React, { createContext, useContext, useEffect, useState } from "react";
-import { Platform } from "react-native";
+import { useAuth as useAuthHook } from '@/hooks/useAuth';
+import { User } from '@/types';
+import React, { createContext, ReactNode, useContext } from 'react';
 
-type AuthContextType = {
-  user: any;
-  login: (token: string, userData: any) => Promise<void>;
+interface AuthContextType {
+  user: User | null;
+  isLoading: boolean;
+  isAuthenticated: boolean;
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
-};
+  checkAuth: () => Promise<void>;
+}
 
-const getItem = async (key: string) => {
-  if (Platform.OS === "web") {
-    return localStorage.getItem(key);
-  }
-  return SecureStore.getItemAsync(key);
-};
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const setItem = async (key: string, value: string) => {
-  if (Platform.OS === "web") {
-    localStorage.setItem(key, value);
-    return;
-  }
-  return SecureStore.setItemAsync(key, value);
-};
-
-const deleteItem = async (key: string) => {
-  if (Platform.OS === "web") {
-    localStorage.removeItem(key);
-    return;
-  }
-  return SecureStore.deleteItemAsync(key);
-};
-
-export const AuthContext = createContext<AuthContextType>({} as AuthContextType);
-
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<any>(null);
-
-  useEffect(() => {
-    restoreSession();
-  }, []);
-
-  const restoreSession = async () => {
-    const token = await getItem("access_token");
-    if (token) {
-      setUser({ token });
-    }
-  };
-
-  const login = async (token: string, userData: any) => {
-    await setItem("access_token", token);
-    setUser(userData);
-  };
-
-  const logout = async () => {
-    await deleteItem("access_token");
-    setUser(null);
-  };
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const auth = useAuthHook();
 
   return (
-    <AuthContext.Provider value={{ user, login, logout }}>
+    <AuthContext.Provider value={auth}>
       {children}
     </AuthContext.Provider>
   );
-};
+}
 
-export const useAuth = () => {
+export function useAuth() {
   const context = useContext(AuthContext);
-  if (!context) throw new Error("useAuth must be used inside AuthProvider");
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
   return context;
-};
+}

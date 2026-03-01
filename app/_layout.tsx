@@ -3,7 +3,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from "react";
 import 'react-native-reanimated';
-import Loading from "../components/Loading";
+import { LoadingSpinner } from "../components/LoadingSpinner";
 
 import { AuthProvider } from '@/context/AuthContext';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -34,7 +34,6 @@ export function MainApp() {
         <Stack.Screen name="verify-account" options={{ headerShown: false }} />
         <Stack.Screen name="verify-otp" options={{ headerShown: false }} />
         <Stack.Screen name="interests" options={{ headerShown: false }} />
-        <Stack.Screen name="home/index" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
       </Stack>
       <StatusBar style="auto" />
@@ -53,6 +52,6 @@ export default function RootLayout() {
     }, 500); 
   }, []);
 
-  return loading ? <Loading /> : <MainApp />;
+  return loading ? <LoadingSpinner message="Loading..." /> : <MainApp />;
 
 }
