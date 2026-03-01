@@ -141,7 +141,7 @@ const router = useRouter();
           {/* Footer Links */}
           <Text style={styles.loginText}>
             Already have an account?{' '}
-            <Text style={styles.link} onClick={()=> router.push("/login")}>Log in</Text>
+            <Text style={styles.link} onPress={()=> router.push("/login")}>Log in</Text>
           </Text>
 
           <Text style={styles.termsText}>
