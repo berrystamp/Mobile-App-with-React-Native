@@ -128,19 +128,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 7,
   },
-  brandIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  brandText: {
-    fontSize: 14,
-    fontWeight: '700',
-    letterSpacing: 0.2,
-  },
   closeButton: {
     padding: 2,
   },
