@@ -90,7 +90,7 @@ export default function InterestsScreen() {
         <View style={styles.header}>
           <Text style={[styles.title, { color: t.textPrimary }]}>What are your{'\n'}interests</Text>
           <Text style={[styles.subtitle, { color: t.textMuted }]}>
-            Choose your interests have a seamless experience on Berrytamp with personalize results
+            Choose your interests have a seamless experience on Berrystamp with personalize results
           </Text>
         </View>
 
