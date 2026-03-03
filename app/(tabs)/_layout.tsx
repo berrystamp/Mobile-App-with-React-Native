@@ -1,3 +1,5 @@
+import { Header } from '@/components/Header';
+import { AuthProvider } from '@/context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import React from 'react';
@@ -15,6 +17,8 @@ export default function TabsLayout() {
   };
 
   return (
+    <AuthProvider>
+      <Header />
     <Tabs
       screenOptions={{
         headerShown: false,
@@ -23,9 +27,10 @@ export default function TabsLayout() {
         tabBarStyle: {
           backgroundColor: theme.tabBar,
           borderTopWidth: 1,
+          marginBottom: 10,
           borderTopColor: isDark ? '#2A2A2A' : '#F0F0F0',
           height: 60,
-          paddingBottom: 8,
+          paddingBottom: 20,
           paddingTop: 8,
         },
         tabBarLabelStyle: {
@@ -80,5 +85,6 @@ export default function TabsLayout() {
         }}
       />
     </Tabs>
+    </AuthProvider>
   );
 }

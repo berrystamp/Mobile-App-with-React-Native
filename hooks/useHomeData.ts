@@ -25,7 +25,7 @@ export function useHomeData() {
         ApiService.getRecommendedDesigns(10),
       ]);
 
-      // Handle paginated response format from backend
+      
       const artists = artistsData.content || artistsData.data || artistsData;
       const trending = trendingData.content || trendingData.data || trendingData;
       const recommended = recommendedData.content || recommendedData.data || recommendedData;
@@ -44,7 +44,7 @@ export function useHomeData() {
 
   const toggleFavorite = useCallback(async (designId: number) => {
     try {
-      await ApiService.toggleFavorite(designId);
+      await ApiService.toggleFavorite(designId.toString());
       
      
       setTrendingDesigns(prev => 
@@ -64,7 +64,6 @@ export function useHomeData() {
       );
     } catch (err) {
       console.error('Error toggling favorite:', err);
-      // Optionally show a toast/alert to user
     }
   }, []);
 

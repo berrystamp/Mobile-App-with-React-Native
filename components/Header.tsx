@@ -7,7 +7,7 @@ interface HeaderProps {
   onSearchPress?: () => void;
   onNotificationPress?: () => void;
 }
-
+ 
 export const Header: React.FC<HeaderProps> = ({ 
   onSearchPress, 
   onNotificationPress 

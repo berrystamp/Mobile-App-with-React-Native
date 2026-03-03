@@ -20,7 +20,7 @@ export function useAuth() {
     const inAuthGroup = segments[0] === '(auth)';
 
     if (!isAuthenticated && !inAuthGroup) {
-      router.replace('/login');
+      //router.replace('/login');
     } else if (isAuthenticated && inAuthGroup) {
       router.replace('/(tabs)');
     }
