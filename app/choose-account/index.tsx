@@ -1,7 +1,6 @@
 import { AccountCard } from "@/components/AccountCard";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import React from "react";
-import { Link } from "expo-router";
 import { useRouter } from "expo-router";
 import {
   StatusBar,
@@ -46,7 +45,7 @@ const router = useRouter();
       </Pressable>
 
       {/* Designer */}
-      <Pressable onPress={() => router.push("/signup")}>
+      <Pressable onPress={() => router.push("/(tabs)/cart")}>
         <AccountCard
           icon={
             <MaterialCommunityIcons
