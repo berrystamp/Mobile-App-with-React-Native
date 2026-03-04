@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, usePathname } from 'expo-router'; // 1. Import usePathname
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, useColorScheme, View } from 'react-native';
 
@@ -15,6 +15,15 @@ export const Header: React.FC<HeaderProps> = ({
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const router = useRouter();
+  
+  // 2. Get the current route path
+  const pathname = usePathname(); 
+
+  // 3. Return null if we are on the cart page
+  // Note: Adjust '/cart' if your route is nested differently (e.g., '/(tabs)/cart')
+  if (pathname === '/cart') {
+    return null;
+  }
 
   const theme = {
     background: isDark ? '#121212' : '#FFFFFF',
