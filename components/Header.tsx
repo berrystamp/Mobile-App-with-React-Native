@@ -21,7 +21,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   // 3. Return null if we are on the cart page
   // Note: Adjust '/cart' if your route is nested differently (e.g., '/(tabs)/cart')
-  if (pathname === '/cart' || pathname === '/select-printer') {
+  if (pathname === '/cart' || pathname === '/printers' || pathname === '/products' || pathname === '/chat' || pathname === '/select-printer' || pathname === '/checkout') {
     return null;
   }
 

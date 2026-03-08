@@ -18,7 +18,7 @@ useEffect(() => {
 
     const timer = setTimeout(async () => {
 
-        router.replace("/(tabs)/cart");
+        router.replace("/(auth)/choose-account");
       
     }, 2500);
 return () => {

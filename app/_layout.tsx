@@ -6,7 +6,8 @@ import React, { useEffect, useState } from "react";
 import 'react-native-reanimated';
 import { LoadingSpinner } from "../components/LoadingSpinner";
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import "./global.css"
+import "./global.css";
+
 export const unstable_settings = {
   anchor: 'index',
 };
@@ -14,38 +15,27 @@ export const unstable_settings = {
 export function MainApp() {
   const colorScheme = useColorScheme();
   
-  
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <AuthProvider>
-      <Stack>
-<Stack.Screen name="index" options={{ headerShown: false }} />
-        
-        <Stack.Screen name="choose-account/index" options={{ headerShown: false }} />
-        <Stack.Screen name="signup/index" options={{ headerShown: false }} />
-        <Stack.Screen name="printer-designer-sign-up" options={{ headerShown: false }} />
-        <Stack.Screen name="login/index" options={{ headerShown: false }} />
-        <Stack.Screen name="printer-designer-verify-otp" options={{ headerShown: false }} />
-        <Stack.Screen name="forgot-password-verify-otp" options={{ headerShown: false }} />
-        <Stack.Screen name="printer-design-verify-account" options={{ headerShown: false }} />
-        <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
-        <Stack.Screen name="reset-password" options={{ headerShown: false }} />
-        <Stack.Screen name="reset-password-success" options={{ headerShown: false, presentation: 'transparentModal' }} />
-        <Stack.Screen name="verify-account" options={{ headerShown: false }} />
-        <Stack.Screen name="verify-otp" options={{ headerShown: false }} />
-        <Stack.Screen name="interests" options={{ headerShown: false }} />
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-      </Stack>
-      <StatusBar style="auto" />
-     </AuthProvider>
+        <Stack screenOptions={{ headerShown: false }}>
+          {/* Main Initial Screen */}
+          <Stack.Screen name="index" />
+          
+          {/* Route Groups */}
+          <Stack.Screen name="(auth)" />
+          <Stack.Screen name="(tabs)" />
+          
+          
+        </Stack>
+        <StatusBar style="auto" />
+      </AuthProvider>
     </ThemeProvider>
   );
 }
 
 export default function RootLayout() {
-  
-   const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setTimeout(() => {
@@ -54,5 +44,4 @@ export default function RootLayout() {
   }, []);
 
   return loading ? <LoadingSpinner message="Loading..." /> : <MainApp />;
-
 }

@@ -125,7 +125,7 @@ export default function ForgotPasswordVerifyOtpScreen() {
 
           {/* Resend row */}
           <View style={styles.resendRow}>
-            <Text style={[styles.resendText, { color: t.textSecondary }]}>Didn't get the code? </Text>
+            <Text style={[styles.resendText, { color: t.textSecondary }]}>Didn&apos;t get the code? </Text>
             <TouchableOpacity onPress={handleResend} disabled={!canResend}>
               <Text style={[styles.resendLink, !canResend && styles.resendDisabled]}>
                 Resend

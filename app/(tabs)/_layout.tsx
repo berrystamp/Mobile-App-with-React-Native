@@ -39,6 +39,7 @@ export default function TabsLayout() {
             },
           }}
         >
+          {/* Visible Tabs */}
           <Tabs.Screen
             name="index"
             options={{
@@ -85,11 +86,48 @@ export default function TabsLayout() {
             }}
           />
           
-          {/* Hidden Screen */}
+          {/* ======================================= */}
+          {/* Hidden Screens (Deep Links / Sub-pages) */}
+          {/* ======================================= */}
+          
           <Tabs.Screen
             name="select-printer"
             options={{
-              href: null, // This completely hides the tab icon from the bar
+              href: null, 
+            }}
+          />
+
+          {/* On-Demand Printers Page */}
+          <Tabs.Screen
+            name="printers"
+            options={{
+              href: null, 
+              tabBarStyle: { display: 'none' }, // Hides the tab bar on this screen
+            }}
+          />
+
+          {/* Chat / Negotiation Page */}
+          <Tabs.Screen
+            name="chat"
+            options={{
+              href: null, 
+              tabBarStyle: { display: 'none' }, // Hides the tab bar so chat input is visible
+            }}
+          />
+
+          {/* Products Overview Page */}
+          <Tabs.Screen
+            name="products"
+            options={{
+              href: null, 
+              tabBarStyle: { display: 'none' }, // Hides the tab bar on this screen
+            }}
+          />
+          <Tabs.Screen
+            name="checkout"
+            options={{
+              href: null, 
+              tabBarStyle: { display: 'none' }, // Hides the tab bar on this screen
             }}
           />
         </Tabs>
