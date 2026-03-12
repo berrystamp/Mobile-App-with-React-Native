@@ -1,14 +1,15 @@
-import { Header } from '@/components/Header';
+import Header from '@/components/common/Header';
 import { AuthProvider } from '@/context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
-import { Tabs } from 'expo-router';
+import { Tabs, useRouter, Stack } from 'expo-router';
+import BottomNavigation from '@/components/common/BottomNavigation';
 import React from 'react';
 import { useColorScheme, View } from 'react-native';
 
 export default function TabsLayout() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
-
+const router = useRouter();
   const theme = {
     background: isDark ? '#121212' : '#FFFFFF',
     tabBar: isDark ? '#1E1E1E' : '#FFFFFF',
@@ -19,118 +20,32 @@ export default function TabsLayout() {
   return (
     <AuthProvider>
       <View style={{ flex: 1, backgroundColor: theme.background }}>
-        <Header />
-        <Tabs
-          screenOptions={{
-            headerShown: false,
-            tabBarActiveTintColor: theme.activeTint,
-            tabBarInactiveTintColor: theme.inactiveTint,
-            tabBarStyle: {
-              backgroundColor: theme.tabBar,
-              borderTopWidth: 1,
-              borderTopColor: isDark ? '#2A2A2A' : '#F0F0F0',
-              height: 65, 
-              paddingBottom: 10, 
-              paddingTop: 8,
-            },
-            tabBarLabelStyle: {
-              fontSize: 12,
-              fontWeight: '500',
-            },
-          }}
-        >
-          {/* Visible Tabs */}
-          <Tabs.Screen
-            name="index"
-            options={{
-              title: 'Home',
-              tabBarIcon: ({ color, size }) => (
-                <Ionicons name="home-outline" size={size} color={color} />
-              ),
-            }}
-          />
-          <Tabs.Screen
-            name="messages"
-            options={{
-              title: 'Messages',
-              tabBarIcon: ({ color, size }) => (
-                <Ionicons name="mail-outline" size={size} color={color} />
-              ),
-            }}
-          />
-          <Tabs.Screen
-            name="favorites"
-            options={{
-              title: 'Favorites',
-              tabBarIcon: ({ color, size }) => (
-                <Ionicons name="heart-outline" size={size} color={color} />
-              ),
-            }}
-          />
-          <Tabs.Screen
-            name="cart"
-            options={{
-              title: 'Cart',
-              tabBarIcon: ({ color, size }) => (
-                <Ionicons name="cart-outline" size={size} color={color} />
-              ),
-            }}
-          />
-          <Tabs.Screen
-            name="profile"
-            options={{
-              title: 'Profile',
-              tabBarIcon: ({ color, size }) => (
-                <Ionicons name="person-outline" size={size} color={color} />
-              ),
-            }}
-          />
+        <Header
+        type="main"
+        onSearchPress={() => router.push('Search')}
+        onNotificationPress={() => console.log('Notifications')}
+      />
+        <Stack screenOptions={{ headerShown: false }}>
+  
+          <Stack.Screen name="(tabs)/index" />
           
-          {/* ======================================= */}
-          {/* Hidden Screens (Deep Links / Sub-pages) */}
-          {/* ======================================= */}
-          
-          <Tabs.Screen
-            name="select-printer"
-            options={{
-              href: null, 
-            }}
-          />
-
-          {/* On-Demand Printers Page */}
-          <Tabs.Screen
-            name="printers"
-            options={{
-              href: null, 
-              tabBarStyle: { display: 'none' }, // Hides the tab bar on this screen
-            }}
-          />
-
-          {/* Chat / Negotiation Page */}
-          <Tabs.Screen
-            name="chat"
-            options={{
-              href: null, 
-              tabBarStyle: { display: 'none' }, // Hides the tab bar so chat input is visible
-            }}
-          />
-
-          {/* Products Overview Page */}
-          <Tabs.Screen
-            name="products"
-            options={{
-              href: null, 
-              tabBarStyle: { display: 'none' }, // Hides the tab bar on this screen
-            }}
-          />
-          <Tabs.Screen
-            name="checkout"
-            options={{
-              href: null, 
-              tabBarStyle: { display: 'none' }, // Hides the tab bar on this screen
-            }}
-          />
-        </Tabs>
+          {/* Route Groups */}
+          <Stack.Screen name="/cart" />
+          <Stack.Screen name="/chat" />
+<Stack.Screen name="/checkout" />
+          <Stack.Screen name="/favorites" />
+<Stack.Screen name="/Filter" />
+          <Stack.Screen name="/messages" />
+<Stack.Screen name="/printers" />
+          <Stack.Screen name="/product" />
+<Stack.Screen name="/profile" />
+          <Stack.Screen name="/Search" />
+<Stack.Screen name="/select-printer" />
+        </Stack>
+	<BottomNavigation 
+        activeRoute="Home"
+        onNavigate={(route) => console.log('Navigate to:', route)}
+      />
       </View>
     </AuthProvider>
   );
