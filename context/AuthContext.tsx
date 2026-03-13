@@ -1,13 +1,14 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { router } from 'expo-router';
+import { router, useSegments } from 'expo-router';
 import { User } from '@/types'; 
+import ApiService from '@/services/apiClient'; // Import your API service
 
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (email: string, password: string, rememberMe: boolean, profileType: string) => Promise<{ success: boolean; error?: string }>;
+  login: (email: string, password: string, rememberMe?: boolean, profileType?: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
 }
@@ -18,6 +19,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const segments = useSegments(); // Used to know what screen we are currently on
 
   useEffect(() => {
     checkAuth();
@@ -29,14 +31,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const token = await AsyncStorage.getItem('userToken');
       const userData = await AsyncStorage.getItem('userData');
       
+      const inAuthGroup = segments[0] === '(auth)';
+
       if (token && userData) {
+        // Token exists, log them in
         setUser(JSON.parse(userData));
         setIsAuthenticated(true);
-        // Redirect immediately if token is found in local storage
-        router.replace('/(tabs)');
+        // Redirect to tabs if they are not already there
+        if (segments[0] !== '(tabs)') {
+           router.replace('/(tabs)');
+        }
+      } else {
+        // No token found. If they aren't already in the auth screens, send them to login
+        setIsAuthenticated(false);
+        setUser(null);
+        if (!inAuthGroup) {
+          router.replace('/(auth)/login'); // Adjust this path if your login screen is named differently
+        }
       }
     } catch (error) {
       console.error('Failed to restore auth state', error);
+      router.replace('/(auth)/login');
     } finally {
       setIsLoading(false);
     }
@@ -44,33 +59,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string, rememberMe: boolean = true, profileType: string = "CUSTOMER"): Promise<{ success: boolean; error?: string }> => {
     try {
-      const payload = {
-        email: email.trim(),
-        password: password,
-        rememberMe: rememberMe 
-      };
+      // Use your ApiService here instead of raw fetch
+      const result = await ApiService.login(email, password, profileType);
 
-      const response = await fetch('https://berrystamp-backend-dev-4cn29.ondigitalocean.app/api/v1/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'profileType': profileType 
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const result = await response.json();
-      console.log("Login Response:", result);
-
-      // Extract from your specific backend response structure
-      if (response.ok && result.requestSuccessful && result.responseBody?.token) {
-        const token = result.responseBody.token;
+      if (result.requestSuccessful && result.responseBody?.token) {
         const loggedInUser = result.responseBody.user;
 
-        // Save to local storage
-        await AsyncStorage.setItem('userToken', token);
-        await AsyncStorage.setItem('userData', JSON.stringify(loggedInUser));
-        
         setUser(loggedInUser);
         setIsAuthenticated(true);
         
@@ -81,23 +75,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         return { 
             success: false, 
-            // Fallback to responseMessage as defined in your JSON
             error: result.responseMessage || result.message || 'Invalid email or password.' 
         };
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Login error:', error);
-      return { success: false, error: 'Network Error. Unable to reach the server.' };
+      // Axios wraps errors, so we can check for a response payload
+      const errorMessage = error.response?.data?.responseMessage || error.response?.data?.message || 'Network Error. Unable to reach the server.';
+      return { success: false, error: errorMessage };
     }
   };
 
   const logout = async () => {
     try {
-      await AsyncStorage.removeItem('userToken');
-      await AsyncStorage.removeItem('userData');
+      // Use your ApiService to clear storage
+      await ApiService.logout();
       setUser(null);
       setIsAuthenticated(false);
-      router.replace('/login'); // Send user back to login upon logging out
+      router.replace('/(auth)/login'); // Send user back to login upon logging out
     } catch (error) {
       console.error('Failed to log out', error);
     }

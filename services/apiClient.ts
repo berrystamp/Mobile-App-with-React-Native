@@ -1,9 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AxiosRequestConfig } from 'axios';
-import api from './api'; // Import the instance from above
+import api from './api';
 
 class ApiService {
-  // Auth methods
+  // --- Auth Methods ---
   async login(email: string, password: string, profileType: string = 'CUSTOMER') {
     const payload = { 
       email: email.trim(), 
@@ -11,14 +11,12 @@ class ApiService {
       rememberMe: true 
     };
 
-    // Note: profileType is required as a header per your backend specs
     const response = await api.post('/auth/login', payload, {
       headers: { profileType }
     });
 
     const result = response.data;
 
-    // Based on your response: result.responseBody contains { token, user }
     if (result.requestSuccessful && result.responseBody?.token) {
       await AsyncStorage.setItem('userToken', result.responseBody.token);
       await AsyncStorage.setItem('userData', JSON.stringify(result.responseBody.user));
@@ -31,45 +29,60 @@ class ApiService {
     await AsyncStorage.removeItem('userToken');
     await AsyncStorage.removeItem('userData');
   }
+  async getUserProfile(profileId: string | number) {
+    const response = await api.get(`/berry/profiles/${profileId}`);
+    return response.data;
+  }
 
   // --- Cart Methods ---
   async getCartItems() {
     const response = await api.get('/cart-items');
-    return response.data; // Axios returns data in the .data property
+    return response.data; 
   }
 
   async deleteCartItem(itemId: string) {
-    return await api.delete(`/cart-items/${itemId}`);
+    const response = await api.delete(`/cart-items/${itemId}`);
+    return response.data;
   }
 
   async clearCart() {
-    return await api.delete('/cart-items');
+    const response = await api.delete('/cart-items');
+    return response.data;
   }
 
   async updateCartQuantity(designId: string, mockId: string, quantity: number, colour: string, size: string) {
-    return await api.post(`/cart-items/${designId}/${mockId}`, {
-      quantity,
-      colour,
-      size
-    });
-  }
-  async getTopArtists(limit: number = 10) {
-    const response = await api.get('/artists/top', {
-      params: { limit },
+    const response = await api.post(`/cart-items/${designId}/${mockId}`, {
+      quantity, colour, size
     });
     return response.data;
   }
 
-  async getTrendingDesigns(limit: number = 10) {
+  // --- Data Fetching Methods ---
+  // Notice the params object now perfectly matches the Spring Boot Pageable expectation
+  
+  async getTopArtists(size: number = 10, page: number = 0) {
     const response = await api.get('/designs', {
-      params: { limit },
+      params: { page, size, sort: 'id,desc' }, 
+      headers: {
+        'profileType': 'CUSTOMER' 
+      }
     });
     return response.data;
   }
 
-  async getRecommendedDesigns(limit: number = 10) {
+  async getTrendingDesigns(size: number = 10, page: number = 0) {
+    const response = await api.get('/designs/all/designer', {
+      params: { page, size, sort: 'id,desc' },
+    });
+    return response.data;
+  }
+
+  async getRecommendedDesigns(size: number = 10, page: number = 0) {
     const response = await api.get('/designs', {
-      params: { limit },
+      params: { page, size, sort: 'id,desc' },
+      headers: {
+        'profileType': 'CUSTOMER' 
+      }
     });
     return response.data;
   }

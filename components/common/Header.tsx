@@ -1,10 +1,21 @@
-// src/components/common/Header.jsx
+// src/components/common/Header.tsx
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, useColorScheme } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-const Header = ({ 
-  type = 'main', // 'main', 'search', 'back'
+export interface HeaderProps {
+  type?: 'main' | 'search' | 'back';
+  title?: string;
+  onSearchPress?: () => void;
+  onNotificationPress?: () => void;
+  onBackPress?: () => void;
+  rightAction?: boolean;
+  rightActionText?: string;
+  onRightAction?: () => void;
+}
+
+const Header: React.FC<HeaderProps> = ({ 
+  type = 'main',
   title,
   onSearchPress,
   onNotificationPress,
@@ -13,24 +24,35 @@ const Header = ({
   rightActionText,
   onRightAction,
 }) => {
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+
+  const theme = {
+    background: isDark ? '#121212' : '#FFFFFF',
+    text: isDark ? '#FFFFFF' : '#000000',
+    border: isDark ? '#2A2A2A' : '#F0F0F0',
+    brand: '#4A3F8F',
+  };
+
   if (type === 'main') {
     return (
-      <View style={styles.headerMain}>
+      <View style={[styles.headerMain, { backgroundColor: theme.background }]}>
         <View style={styles.logoContainer}>
-          <View style={styles.logoIcon}>
-            <View style={styles.logoShape} />
+          <View style={[styles.logoIcon, { backgroundColor: theme.brand }]}>
+            {/* Make sure the cutout matches the background theme */}
+            <View style={[styles.logoShape, { backgroundColor: theme.background }]} />
           </View>
-          <Text style={styles.logoText}>Berrystamp</Text>
+          <Text style={[styles.logoText, { color: theme.text }]}>Berrystamp</Text>
         </View>
         <View style={styles.headerIcons}>
           {onSearchPress && (
             <TouchableOpacity style={styles.iconBtn} onPress={onSearchPress}>
-              <Ionicons name="search-outline" size={24} color="#000" />
+              <Ionicons name="search-outline" size={24} color={theme.text} />
             </TouchableOpacity>
           )}
           {onNotificationPress && (
             <TouchableOpacity style={styles.iconBtn} onPress={onNotificationPress}>
-              <Ionicons name="notifications-outline" size={24} color="#000" />
+              <Ionicons name="notifications-outline" size={24} color={theme.text} />
             </TouchableOpacity>
           )}
         </View>
@@ -40,17 +62,21 @@ const Header = ({
 
   if (type === 'back') {
     return (
-      <View style={styles.headerBack}>
+      <View style={[
+        styles.headerBack, 
+        { backgroundColor: theme.background, borderBottomColor: theme.border }
+      ]}>
         <TouchableOpacity onPress={onBackPress} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={24} color="#000" />
+          <Ionicons name="arrow-back" size={24} color={theme.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>{title}</Text>
-        {rightAction && (
+        <Text style={[styles.headerTitle, { color: theme.text }]}>{title}</Text>
+        {rightAction ? (
           <TouchableOpacity onPress={onRightAction}>
             <Text style={styles.rightActionText}>{rightActionText}</Text>
           </TouchableOpacity>
+        ) : (
+          <View style={{ width: 60 }} />
         )}
-        {!rightAction && <View style={{ width: 60 }} />}
       </View>
     );
   }
@@ -66,7 +92,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 50,
     paddingBottom: 16,
-    backgroundColor: '#FFF',
   },
   logoContainer: {
     flexDirection: 'row',
@@ -75,7 +100,6 @@ const styles = StyleSheet.create({
   logoIcon: {
     width: 32,
     height: 32,
-    backgroundColor: '#4A3F8F',
     borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
@@ -84,14 +108,12 @@ const styles = StyleSheet.create({
   logoShape: {
     width: 20,
     height: 20,
-    backgroundColor: '#FFF',
     borderRadius: 10,
     transform: [{ rotate: '45deg' }],
   },
   logoText: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#000',
   },
   headerIcons: {
     flexDirection: 'row',
@@ -108,7 +130,6 @@ const styles = StyleSheet.create({
     paddingTop: 50,
     paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
   },
   backBtn: {
     padding: 4,
@@ -116,11 +137,10 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#000',
   },
   rightActionText: {
     fontSize: 14,
-    color: '#4A3F8F',
+    color: '#4A3F8F', // Keeping brand color constant for action text
     fontWeight: '500',
   },
 });

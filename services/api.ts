@@ -1,7 +1,7 @@
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { router } from "expo-router"; // Added for automatic redirection
 
-// Using your dedicated DigitalOcean backend URL
 const API_BASE_URL = 'https://berrystamp-backend-dev-4cn29.ondigitalocean.app/api/v1';
 
 const api = axios.create({
@@ -23,6 +23,22 @@ api.interceptors.request.use(async (config) => {
   return Promise.reject(error);
 });
 
-
+// Response interceptor: Listen for expired tokens (401 Unauthorized)
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    // If the API says our token is invalid/expired
+    if (error.response && error.response.status === 401) {
+      console.warn("Token expired or invalid, redirecting to login...");
+      await AsyncStorage.removeItem('userToken');
+      await AsyncStorage.removeItem('userData');
+      
+      // Automatically redirect to login
+      // Adjust path if your login screen is named differently
+      router.replace('/(auth)/login'); 
+    }
+    return Promise.reject(error);
+  }
+);
 
 export default api;

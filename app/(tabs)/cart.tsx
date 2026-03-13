@@ -3,7 +3,7 @@ import { Image, ScrollView, Text, View, TouchableOpacity, useColorScheme, Modal,
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import ApiService from '@/services/apiClient';
 export interface CartItemType {
   id: string; 
   designId: string; 
@@ -18,7 +18,6 @@ export interface CartItemType {
   checked: boolean;
 }
 
-const API_BASE_URL = 'https://berrystamp-backend-dev-4cn29.ondigitalocean.app/api/v1';
 
 export default function CartScreen() {
   const router = useRouter();
@@ -51,16 +50,6 @@ export default function CartScreen() {
       { id: 'rd1', name: 'My Mind Mug', author: 'Mohh_Jumah', price: 3000, image: require('@/assets/images/item1.png') },
       { id: 'rd2', name: 'We Meuuve Slang design', author: 'Mohh_Jumah', price: 3000, image: require('@/assets/images/item2.png') },
   ]);
-  // Auth Helper: Replace with your actual auth token retrieval logic
-  const token =  AsyncStorage.getItem('userToken');
-  const getAuthHeaders = () => {
-    console.log(token)
-    console.log("getting")
-    return {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}` 
-    };
-  };
 
   // ==========================================
   // BACKEND INTEGRATION HANDLERS
@@ -72,12 +61,10 @@ export default function CartScreen() {
     const fetchCartData = async () => {
       setIsLoading(true);
       try {
-        const response = await fetch(`${API_BASE_URL}/cart-items`, {
-          headers: getAuthHeaders()
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
+        const response = await ApiService.getCartItems();
+        console.log(response)
+        if (response.requestSuccessful) {
+          const data = await response.responseBody;
           
           // MAP THE BACKEND JSON TO OUR UI STATE
           const formattedItems = data.map((item: any) => {
@@ -118,15 +105,8 @@ export default function CartScreen() {
   // 2. Clear Entire Cart (DELETE /api/v1/cart-items)
   const handleClearCart = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/cart-items`, { 
-          method: 'DELETE',
-          headers: getAuthHeaders()
-        });
-        if (response.ok) {
-          setCartItems([]);
-        } else {
-          Alert.alert("Error", "Failed to clear cart.");
-        }
+        const response = await ApiService.clearCart();
+      if (!response) throw new Error("Failed to delete");
       } catch (error) {
         console.error("Error clearing cart:", error);
       }
@@ -138,12 +118,8 @@ export default function CartScreen() {
       setCartItems(prev => prev.filter(item => item.id !== itemId));
 
       try {
-        const response = await fetch(`${API_BASE_URL}/cart-items/${itemId}`, { 
-          method: 'DELETE',
-          headers: getAuthHeaders()
-        });
-        
-        if (!response.ok) throw new Error("Failed to delete");
+        const response = await ApiService.deleteCartItem(itemId)
+        if (!response) throw new Error("Failed to delete");
       } catch (error) {
         setCartItems(previousItems); // Rollback if failed
         Alert.alert("Error", "Could not remove item. Please try again.");
@@ -162,17 +138,10 @@ export default function CartScreen() {
       setCartItems(prev => prev.map(i => i.id === itemId ? { ...i, quantity: newQuantity } : i));
 
       try {
-        const response = await fetch(`${API_BASE_URL}/cart-items/${item.designId}/${item.mockId}`, { 
-           method: 'POST',
-           headers: getAuthHeaders(),
-           body: JSON.stringify({ 
-             quantity: newQuantity,
-             colour: item.colour || "", 
-             size: item.size || ""
-           })
-        });
+        const response = await ApiService.updateCartQuantity(item.designId, item.mockId,newQuantity,item.colour,item.size)
+        // fetch(`${API_BASE_URL}/cart-items/${item.designId}/${item.mockId}`,);
 
-        if (!response.ok) throw new Error("Failed to update quantity");
+        if (!response) throw new Error("Failed to update quantity");
       } catch (error) {
         setCartItems(previousItems); // Rollback if failed
         console.error("Error updating quantity:", error);
