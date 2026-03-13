@@ -1,4 +1,4 @@
-import ApiService from '@/services/api';
+import ApiService from '@/services/apiClient'; // This now refers to your unified ApiService.ts
 import { Artist, Design } from '@/types';
 import { useCallback, useEffect, useState } from 'react';
 
@@ -19,23 +19,30 @@ export function useHomeData() {
       }
       setError(null);
 
-      const [artistsData, trendingData, recommendedData] = await Promise.all([
+      // Fetching data from the unified ApiService
+      const [artistsRes, trendingRes, recommendedRes] = await Promise.all([
         ApiService.getTopArtists(10),
         ApiService.getTrendingDesigns(10),
         ApiService.getRecommendedDesigns(10),
       ]);
 
-      
-      const artists = artistsData.content || artistsData.data || artistsData;
-      const trending = trendingData.content || trendingData.data || trendingData;
-      const recommended = recommendedData.content || recommendedData.data || recommendedData;
+      /**
+       * Backend structure handling:
+       * Drilling into responseBody if it exists, otherwise falling back to content/data 
+       * to ensure compatibility with different API response patterns.
+       */
+      const artists = artistsRes.responseBody?.content || artistsRes.content || artistsRes.data || artistsRes;
+      const trending = trendingRes.responseBody?.content || trendingRes.content || trendingRes.data || trendingRes;
+      const recommended = recommendedRes.responseBody?.content || recommendedRes.content || recommendedRes.data || recommendedRes;
 
-      setTopArtists(artists);
-      setTrendingDesigns(trending);
-      setRecommendedDesigns(recommended);
+      setTopArtists(Array.isArray(artists) ? artists : []);
+      setTrendingDesigns(Array.isArray(trending) ? trending : []);
+      setRecommendedDesigns(Array.isArray(recommended) ? recommended : []);
+      
     } catch (err: any) {
       console.error('Error fetching home data:', err);
-      setError(err.response?.data?.message || 'Failed to load data. Please try again.');
+      // Handling Axios error objects or generic error messages
+      setError(err.responseMessage || err.message || 'Failed to load data. Please try again.');
     } finally {
       setIsLoading(false);
       setRefreshing(false);
@@ -43,29 +50,34 @@ export function useHomeData() {
   }, []);
 
   const toggleFavorite = useCallback(async (designId: number) => {
+    const originalTrending = [...trendingDesigns];
+    const originalRecommended = [...recommendedDesigns];
+
+    // Optimistic UI Update
+    const updateList = (list: Design[]) => 
+      list.map(design => 
+        design.id === designId 
+          ? { ...design, liked: !design.liked, likes: design.liked ? Math.max(0, design.likes - 1) : design.likes + 1 }
+          : design
+      );
+
+    setTrendingDesigns(prev => updateList(prev));
+    setRecommendedDesigns(prev => updateList(prev));
+
     try {
-      await ApiService.toggleFavorite(designId.toString());
+      const response = await ApiService.toggleFavorite(designId.toString());
       
-     
-      setTrendingDesigns(prev => 
-        prev.map(design => 
-          design.id === designId 
-            ? { ...design, liked: !design.liked, likes: design.liked ? design.likes - 1 : design.likes + 1 }
-            : design
-        )
-      );
-      
-      setRecommendedDesigns(prev => 
-        prev.map(design => 
-          design.id === designId 
-            ? { ...design, liked: !design.liked, likes: design.liked ? design.likes - 1 : design.likes + 1 }
-            : design
-        )
-      );
+      // If the backend specifically indicates failure, roll back the UI
+      if (response && response.requestSuccessful === false) {
+        throw new Error(response.responseMessage);
+      }
     } catch (err) {
       console.error('Error toggling favorite:', err);
+      // Rollback UI state on error
+      setTrendingDesigns(originalTrending);
+      setRecommendedDesigns(originalRecommended);
     }
-  }, []);
+  }, [trendingDesigns, recommendedDesigns]);
 
   const refresh = useCallback(() => {
     fetchHomeData(true);

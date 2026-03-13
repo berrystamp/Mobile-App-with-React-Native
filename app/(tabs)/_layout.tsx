@@ -1,5 +1,4 @@
 import { Header } from '@/components/Header';
-import { AuthProvider } from '@/context/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import React from 'react';
@@ -17,7 +16,7 @@ export default function TabsLayout() {
   };
 
   return (
-    <AuthProvider>
+    
       <View style={{ flex: 1, backgroundColor: theme.background }}>
         <Header />
         <Tabs
@@ -132,6 +131,5 @@ export default function TabsLayout() {
           />
         </Tabs>
       </View>
-    </AuthProvider>
   );
 }

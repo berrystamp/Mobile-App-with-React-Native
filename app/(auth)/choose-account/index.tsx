@@ -7,6 +7,7 @@ import {
   useColorScheme,
   View,
   TouchableOpacity,
+  Image,
 } from "react-native";
 
 export default function ChooseAccountScreen() {
@@ -14,8 +15,7 @@ export default function ChooseAccountScreen() {
   const isDark = colorScheme === "dark";
   const router = useRouter();
 
-  const [activeTab, setActiveTab] = useState<"login" | "register">("register");
-  // We use the exact uppercase strings your backend requires
+  // Track selected role. Defaulting to customer.
   const [selectedRole, setSelectedRole] = useState<"CUSTOMER" | "DESIGNER" | "PRINTER">("CUSTOMER");
 
   const theme = {
@@ -33,40 +33,31 @@ export default function ChooseAccountScreen() {
   };
 
   return (
-    <View className="flex-1 px-6 pt-20 pb-8" style={{ backgroundColor: theme.background }}>
+    <View className="flex-1 px-6 pt-24 pb-10" style={{ backgroundColor: theme.background }}>
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
 
-      <Text className="text-[22px] font-bold text-center text-[#1A1A1A] dark:text-white mb-8">
+      {/* Main Title */}
+      <Text className="text-[26px] font-bold text-center text-[#1A1A1A] dark:text-white mb-10">
         Welcome to Berrystamp!
       </Text>
 
-      <View className="flex-row justify-center items-center gap-x-8 mb-10">
-        <TouchableOpacity 
-          className="items-center gap-y-2"
-          onPress={() => {
-            setActiveTab("login");
-            router.push("/login");
-          }}
-        >
-          <Text className={`text-[15px] font-medium ${activeTab === "login" ? "text-[#4B3A99] dark:text-[#7A6AE6]" : "text-[#7A7A7A] dark:text-gray-400"}`}>
-            Login
-          </Text>
-          {activeTab === "login" && <View className="w-8 h-[2px] rounded-full" style={{ backgroundColor: theme.purple }} />}
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          className="items-center gap-y-2"
-          onPress={() => setActiveTab("register")}
-        >
-          <Text className={`text-[15px] font-medium ${activeTab === "register" ? "text-[#4B3A99] dark:text-[#7A6AE6]" : "text-[#7A7A7A] dark:text-gray-400"}`}>
-            Register
-          </Text>
-          {activeTab === "register" && <View className="w-12 h-[2px] rounded-full" style={{ backgroundColor: theme.purple }} />}
-        </TouchableOpacity>
+      {/* Overlapping Avatars (as seen in Figma) */}
+      <View className="flex-row justify-center items-center mb-10 relative h-16">
+         {/* You will need to add these local images to your assets folder, or use URLs */}
+         <View className="w-12 h-12 rounded-full border-2 border-white dark:border-[#121212] overflow-hidden absolute left-[38%] z-10 bg-gray-200">
+             {/* <Image source={require('@/assets/images/avatar1.png')} className="w-full h-full" /> */}
+         </View>
+         <View className="w-16 h-16 rounded-full border-2 border-white dark:border-[#121212] overflow-hidden absolute z-20 bg-gray-300">
+             {/* <Image source={require('@/assets/images/avatar2.png')} className="w-full h-full" /> */}
+         </View>
+         <View className="w-12 h-12 rounded-full border-2 border-white dark:border-[#121212] overflow-hidden absolute right-[38%] z-10 bg-gray-400 items-center justify-center">
+             <Text className="text-white font-bold text-lg">B</Text>
+         </View>
       </View>
 
-      <View className="flex-1 w-full flex-col gap-y-5">
+      <View className="flex-1 w-full flex-col gap-y-4 mt-6">
         
+        {/* Customer Card */}
         <TouchableOpacity
           activeOpacity={0.8}
           onPress={() => setSelectedRole("CUSTOMER")}
@@ -82,6 +73,7 @@ export default function ChooseAccountScreen() {
           </View>
         </TouchableOpacity>
 
+        {/* Designer Card */}
         <TouchableOpacity
           activeOpacity={0.8}
           onPress={() => setSelectedRole("DESIGNER")}
@@ -97,6 +89,7 @@ export default function ChooseAccountScreen() {
           </View>
         </TouchableOpacity>
 
+        {/* Printer Card */}
         <TouchableOpacity
           activeOpacity={0.8}
           onPress={() => setSelectedRole("PRINTER")}

@@ -3,7 +3,7 @@ import { Image, ScrollView, Text, View, TouchableOpacity, useColorScheme, Modal,
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
-
+import AsyncStorage from '@react-native-async-storage/async-storage';
 export interface CartItemType {
   id: string; 
   designId: string; 
@@ -51,10 +51,11 @@ export default function CartScreen() {
       { id: 'rd1', name: 'My Mind Mug', author: 'Mohh_Jumah', price: 3000, image: require('@/assets/images/item1.png') },
       { id: 'rd2', name: 'We Meuuve Slang design', author: 'Mohh_Jumah', price: 3000, image: require('@/assets/images/item2.png') },
   ]);
-
   // Auth Helper: Replace with your actual auth token retrieval logic
+  const token =  AsyncStorage.getItem('userToken');
   const getAuthHeaders = () => {
-    const token = "YOUR_ACTUAL_AUTH_TOKEN"; 
+    console.log(token)
+    console.log("getting")
     return {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${token}` 
@@ -67,6 +68,7 @@ export default function CartScreen() {
 
   // 1. Fetch Cart Items (GET /api/v1/cart-items)
   useEffect(() => {
+    
     const fetchCartData = async () => {
       setIsLoading(true);
       try {
