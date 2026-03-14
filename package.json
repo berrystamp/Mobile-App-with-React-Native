@@ -2,7 +2,6 @@
   "name": "mobile-app-with-react-native",
   "main": "expo-router/entry",
   "version": "1.0.0",
-
   "metro": {
     "config": "metro.config.cjs"
   },
@@ -22,8 +21,8 @@
     "@expo/vector-icons": "^15.0.3",
     "@hookform/resolvers": "^5.2.2",
     "@react-native-async-storage/async-storage": "2.2.0",
-    "@react-native-community/datetimepicker": "8.4.4",
-    "@react-native-community/slider": "^5.1.2",
+    "@react-native-community/datetimepicker": "^8.4.4",
+    "@react-native-community/slider": "5.0.1",
     "@react-navigation/bottom-tabs": "^7.4.0",
     "@react-navigation/elements": "^2.6.3",
     "@react-navigation/native": "^7.1.33",
@@ -71,4 +70,3 @@
   },
   "private": true
 }
-

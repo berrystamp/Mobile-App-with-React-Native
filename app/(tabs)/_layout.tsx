@@ -25,11 +25,18 @@ export default function TabsLayout() {
         <Stack.Screen name="/favorites" />
         <Stack.Screen name="/Filter" />
         <Stack.Screen name="/messages" />
+        <Stack.Screen name="/item-specification" />
         <Stack.Screen name="/printers" />
         <Stack.Screen name="/product" />
+        <Stack.Screen name="/product-details" />
+        <Stack.Screen name="/products" />
+        <Stack.Screen name="/print-now" />
+        <Stack.Screen name="/print-specification" />
         <Stack.Screen name="/profile" />
         <Stack.Screen name="/Search" />
+        <Stack.Screen name="/select-print-type" />
         <Stack.Screen name="/select-printer" />
+        <Stack.Screen name="/delivery-date" />
       </Stack>
       
       {/* activeRoute is removed because it now figures it out automatically! */}

@@ -1,92 +1,93 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, Image, TouchableOpacity, useColorScheme, Modal, useWindowDimensions } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Image, ScrollView, Text, TouchableOpacity, View, useColorScheme } from 'react-native';
+import { Feather, Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import ActionFeedbackModal from '@/components/common/ActionFeedbackModal';
 
-const PRODUCTS = [
-  { id: '1', name: 'Long Sleeve men Shirt', specs: 'M, White & Black, Front', price: 5000, qty: 2, image: require('@/assets/images/item1.png') },
-  { id: '2', name: 'Long Sleeve men Shirt', specs: 'M, White & Black, Front', price: 5000, qty: 2, image: require('@/assets/images/item2.png') },
-  { id: '3', name: 'Long Sleeve men Shirt', specs: 'M, White & Black, Front', price: 5000, qty: 2, image: require('@/assets/images/item3.png') },
-  { id: '4', name: 'Long Sleeve men Shirt', specs: 'M, White & Black, Front', price: 5000, qty: 2, image: require('@/assets/images/item4.png') },
+type MockupItem = {
+  id: string;
+  name: string;
+  price: number;
+  image: any;
+};
+
+const AVATAR_IMAGE = require('@/assets/images/item1.png');
+
+const MOCKUP_ITEMS: MockupItem[] = [
+  { id: '1', name: 'Long Sleeve Men Shirt', price: 5000, image: require('@/assets/images/item1.png') },
+  { id: '2', name: 'Body fit', price: 5000, image: require('@/assets/images/item2.png') },
+  { id: '3', name: 'Round neck', price: 5000, image: require('@/assets/images/item3.png') },
+  { id: '4', name: 'Casual round neck', price: 5000, image: require('@/assets/images/item4.png') },
+  { id: '5', name: 'Tote Bag', price: 5000, image: require('@/assets/images/item5.png') },
+  { id: '6', name: 'Iphone 13 pouch', price: 5000, image: require('@/assets/images/item2.png') },
+  { id: '7', name: 'Knapsack Bag', price: 5000, image: require('@/assets/images/item3.png') },
+  { id: '8', name: 'Long Sleeve Men Shirt', price: 5000, image: require('@/assets/images/item4.png') },
 ];
 
 export default function ProductsScreen() {
   const router = useRouter();
   const isDark = useColorScheme() === 'dark';
-  const { height: screenHeight } = useWindowDimensions();
-  const [isDetailVisible, setDetailVisible] = useState(false);
+  const [feedback, setFeedback] = useState<{ title: string; message: string } | null>(null);
 
   return (
-    <View className="flex-1 bg-gray-50 dark:bg-[#121212]">
-      {/* Header */}
-      <View className="w-full flex-row items-center justify-between px-6 pt-14 pb-4 bg-white dark:bg-[#121212]">
-        <TouchableOpacity onPress={() => router.back()} className="-ml-2"><Ionicons name="arrow-back" size={24} color={isDark ? "#FFFFFF" : "#000000"} /></TouchableOpacity>
-        <Text className="text-[#333333] dark:text-white text-lg font-bold">Products</Text>
-        <TouchableOpacity><Ionicons name="ellipsis-vertical" size={20} color={isDark ? "#FFFFFF" : "#000000"} /></TouchableOpacity>
-      </View>
+    <View className="flex-1 bg-[#F1F1F1] dark:bg-[#121212]">
+      <View className="w-full flex-row items-center justify-between px-6 pb-4 pt-14">
+        <TouchableOpacity onPress={() => router.back()} className="-ml-1 h-10 w-10 items-start justify-center">
+          <Ionicons name="arrow-back" size={24} color={isDark ? '#FFFFFF' : '#2F2F2F'} />
+        </TouchableOpacity>
 
-      <ScrollView className="flex-1 px-4 py-2" contentContainerStyle={{ paddingBottom: 40 }}>
-        {PRODUCTS.map((item) => (
-          <View key={item.id} className="flex-row items-center py-4 border-b border-gray-200 dark:border-gray-800">
-            <View className="w-16 h-16 bg-gray-100 rounded-lg mr-4 p-1"><Image source={item.image} resizeMode="contain" className="w-full h-full" /></View>
-            <View className="flex-1 justify-center">
-                <View className="flex-row justify-between"><Text className="text-[#333333] dark:text-white font-bold text-sm">{item.name}</Text><Text className="text-[#828282] dark:text-gray-400 text-sm">x{item.qty}</Text></View>
-                <Text className="text-[#828282] dark:text-gray-400 text-xs mt-0.5">{item.specs}</Text>
-                <View className="flex-row justify-between items-center mt-2">
-                    <Text className="text-[#333333] dark:text-white font-bold text-sm">₦{(item.price).toLocaleString()}</Text>
-                    <TouchableOpacity onPress={() => setDetailVisible(true)}><Text className="text-[#2D71E3] font-semibold text-sm">See Details</Text></TouchableOpacity>
-                </View>
-            </View>
-          </View>
-        ))}
-      </ScrollView>
-
-      {/* MODAL: Product Detail */}
-      <Modal animationType="slide" transparent={true} visible={isDetailVisible} onRequestClose={() => setDetailVisible(false)}>
-        <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' }}>
-          <View style={{ maxHeight: screenHeight * 0.9, paddingBottom: 40 }} className="bg-white dark:bg-[#1E1E1E] rounded-t-[32px] px-6 w-full shadow-lg">
-            
-            <View className="flex-row justify-between items-center w-full pt-6 pb-2">
-                <View className="flex-1 items-center pl-6"><Text className="text-lg font-semibold text-[#333333] dark:text-white">Product Detail</Text></View>
-                <TouchableOpacity onPress={() => setDetailVisible(false)}><Ionicons name="close" size={24} color={isDark ? "#FFF" : "#333"} /></TouchableOpacity>
-            </View>
-
-            <View className="items-center w-full mt-4 mb-6">
-                <View className="w-32 h-32 bg-gray-100 dark:bg-gray-800 rounded-lg p-2 mb-4">
-                    <Image source={require('@/assets/images/item1.png')} resizeMode="contain" className="w-full h-full" />
-                </View>
-                <Text className="text-lg font-bold text-[#333333] dark:text-white">Long Sleeve men Shirt</Text>
-            </View>
-
-            <View className="flex-row justify-between w-full mt-2">
-                {/* Left Column */}
-                <View className="flex-1 pr-4">
-                    <Text className="text-[#333333] dark:text-white font-bold text-sm mb-2">Material specification</Text>
-                    <Text className="text-[#828282] dark:text-gray-400 text-xs mb-1">Colour : Blue</Text>
-                    <Text className="text-[#828282] dark:text-gray-400 text-xs mb-1">Size : Medium size</Text>
-                    <Text className="text-[#828282] dark:text-gray-400 text-xs mb-4">Quantity : 3 pieces</Text>
-
-                    <Text className="text-[#333333] dark:text-white font-bold text-sm mb-2">Item availability</Text>
-                    <Text className="text-[#828282] dark:text-gray-400 text-xs">From: The printer&apos;s inventory</Text>
-                </View>
-
-                {/* Right Column */}
-                <View className="flex-1 pl-2">
-                    <Text className="text-[#333333] dark:text-white font-bold text-sm mb-2">Printing Preferences</Text>
-                    <Text className="text-[#828282] dark:text-gray-400 text-xs mb-1">Preferred printing type</Text>
-                    <Text className="text-[#333333] dark:text-white text-xs font-semibold mb-3">Screen printing</Text>
-
-                    <Text className="text-[#828282] dark:text-gray-400 text-xs mb-1">Total Budget</Text>
-                    <Text className="text-[#2D71E3] font-bold text-xs mb-3">₦8000 - ₦10,000</Text>
-
-                    <Text className="text-[#828282] dark:text-gray-400 text-xs mb-1">Preferred delivery date</Text>
-                    <Text className="text-[#333333] dark:text-white text-xs font-semibold">20-12-2022</Text>
-                </View>
-            </View>
-            <View className="w-12 h-1 bg-gray-300 dark:bg-gray-600 rounded-full mt-10 self-center" />
+        <View className="ml-1 mr-auto flex-row items-center">
+          <Image source={AVATAR_IMAGE} className="h-12 w-12 rounded-full" />
+          <View className="ml-3">
+            <Text className="text-[34px] font-semibold text-[#2F2F2F] dark:text-white">Japan Night</Text>
+            <Text className="text-[26px] text-[#535353] dark:text-[#D4D4D4]">Designed by Berrystamp</Text>
           </View>
         </View>
-      </Modal>
+
+        <View className="ml-2 flex-row items-center">
+          <TouchableOpacity
+            onPress={() => setFeedback({ title: 'Added to favourites', message: 'This design has been saved to your favourites.' })}
+            className="mx-1 h-9 w-9 items-center justify-center"
+          >
+            <Ionicons name="heart-outline" size={24} color={isDark ? '#FFFFFF' : '#2F2F2F'} />
+          </TouchableOpacity>
+          <TouchableOpacity className="h-9 w-9 items-center justify-center">
+            <Feather name="share-2" size={22} color={isDark ? '#FFFFFF' : '#2F2F2F'} />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <ScrollView className="flex-1 px-5" contentContainerStyle={{ paddingBottom: 24 }} showsVerticalScrollIndicator={false}>
+        <View className="flex-row flex-wrap justify-between">
+          {MOCKUP_ITEMS.map((item) => (
+            <TouchableOpacity
+              key={item.id}
+              onPress={() => router.push('/product-details')}
+              className="mb-4 w-[48.6%] overflow-hidden rounded-2xl bg-[#EBEBEB] dark:bg-[#1F1F1F]"
+            >
+              <View className="h-[175px] items-center justify-center px-3 pt-3">
+                <Image source={item.image} className="h-full w-full" resizeMode="contain" />
+              </View>
+
+              <View className="px-3 pb-3 pt-2">
+                <Text numberOfLines={1} className="text-[26px] text-[#3B3B3B] dark:text-white">
+                  {item.name}
+                </Text>
+                <Text className="mt-1 text-[30px] font-medium text-[#2F2F2F] dark:text-white">
+                  ₦{item.price.toLocaleString()}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </ScrollView>
+
+      <ActionFeedbackModal
+        visible={Boolean(feedback)}
+        title={feedback?.title ?? ''}
+        message={feedback?.message ?? ''}
+        onClose={() => setFeedback(null)}
+      />
     </View>
   );
 }
