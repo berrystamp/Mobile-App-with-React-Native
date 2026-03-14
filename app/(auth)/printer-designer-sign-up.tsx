@@ -1,18 +1,17 @@
-import { useState } from 'react';
-import {
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native';
-import { useRouter } from "expo-router";
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { FloatingLabelInput } from '@/components/floating-label-input';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { useState } from 'react';
+import {
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const BRAND_BLUE = '#5B8DEF';
 const NAVY = '#2F2D8C';
@@ -47,10 +46,9 @@ const STRENGTH_LABELS: Record<StrengthLevel, string> = {
   strong: 'Strong',
 };
 
-export default function SignUpScreen() {
-const router = useRouter();
+export default function PrinterDesignerSignUp() {
   const [fullName, setFullName] = useState('');
-  const [username, setUsername] = useState('');
+  const [brandname, setBrandname] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -59,7 +57,7 @@ const router = useRouter();
   const [sendUpdates, setSendUpdates] = useState(false);
   const [touched, setTouched] = useState({
     fullName: false,
-    username: false,
+    brandname: false,
     email: false,
     password: false,
     confirmPassword: false,
@@ -72,7 +70,7 @@ const router = useRouter();
 
   const errors = {
     fullName: touched.fullName && fullName.trim() === '' ? 'Full name is required' : null,
-    username: touched.username && username.trim() === '' ? 'Username is required' : null,
+    brandname: touched.brandname && brandname.trim() === '' ? 'Brand name is required' : null,
     email: touched.email
       ? email.trim() === '' ? 'Email is required'
         : !EMAIL_REGEX.test(email.trim()) ? 'Enter a valid email address'
@@ -93,7 +91,7 @@ const router = useRouter();
 
   const isFormValid =
     fullName.trim() !== '' &&
-    username.trim() !== '' &&
+    brandname.trim() !== '' &&
     EMAIL_REGEX.test(email.trim()) &&
     password.length >= 6 &&
     strength !== 'weak' &&
@@ -104,7 +102,7 @@ const router = useRouter();
   }
 
   function handleSignUp() {
-    setTouched({ fullName: true, username: true, email: true, password: true, confirmPassword: true });
+    setTouched({ fullName: true, brandname: true, email: true, password: true, confirmPassword: true });
     if (!isFormValid) return;
     // TODO: call sign-up API
   }
@@ -125,7 +123,7 @@ const router = useRouter();
             <Text style={[styles.title, { color: t.textPrimary }]}>
               Welcome to <Text style={styles.brandName}>Berrystamp.</Text>
             </Text>
-            <Text style={[styles.subtitle, { color: t.textPrimary }]}>Let's get to know you more</Text>
+            <Text style={[styles.subtitle, { color: t.textPrimary }]}>Let&apos;s get to know you more</Text>
           </View>
 
           {/* Form Fields */}
@@ -140,14 +138,14 @@ const router = useRouter();
           {errors.fullName ? <Text style={[styles.errorText, { color: t.errorColor }]}>{errors.fullName}</Text> : null}
 
           <FloatingLabelInput
-            label="Enter Username"
-            value={username}
-            onChangeText={setUsername}
-            onBlur={() => mark('username')}
+            label="Enter Brand Name"
+            value={brandname}
+            onChangeText={setBrandname}
+            onBlur={() => mark('brandname')}
             autoCapitalize="none"
             autoCorrect={false}
           />
-          {errors.username ? <Text style={[styles.errorText, { color: t.errorColor }]}>{errors.username}</Text> : null}
+          {errors.brandname ? <Text style={[styles.errorText, { color: t.errorColor }]}>{errors.brandname}</Text> : null}
 
           <FloatingLabelInput
             label="Enter Email"
@@ -270,12 +268,12 @@ const router = useRouter();
           {/* Footer Links */}
           <Text style={[styles.loginText, { color: t.textSecondary }]}>
             Already have an account?{' '}
-            <Text style={styles.link} onPress={()=> router.push("/login")}>Log in</Text>
+            <Text style={styles.link}>Log in</Text>
           </Text>
 
           <Text style={[styles.termsText, { color: t.textMuted }]}>
             {'By signing up, you agree to our '}
-            <Text style={styles.link}>terms of services</Text>
+            <Text style={styles.link}>terms of service</Text>
             {'\nand that you have read our '}
             <Text style={styles.link}>privacy policy</Text>
           </Text>
