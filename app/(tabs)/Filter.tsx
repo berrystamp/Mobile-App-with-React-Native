@@ -1,4 +1,3 @@
-// src/screens/FilterScreen.jsx
 import React, { useState } from 'react';
 import { View, ScrollView, TouchableOpacity, Text, StyleSheet } from 'react-native';
 import Header from '@/components/common/Header';
@@ -6,17 +5,16 @@ import CheckboxList from '@/components/filter/CheckboxList';
 import PriceRangeSlider from '@/components/filter/PriceRangeSlider';
 import SortOptions from '@/components/filter/SortOptions';
 import { productCategories, designCategories, sortOptions } from '../data/mockData';
-
-import { useRouter } from "expo-router";
+import { useRouter } from 'expo-router';
 
 const FilterScreen = () => {
-  const [selectedProductCategories, setSelectedProductCategories] = useState([
+  const [selectedProductCategories, setSelectedProductCategories] = useState<string[]>([
     'Clothing/Apparel',
     'Face Mask',
   ]);
-const router = useRouter();
-  const [selectedDesignCategories, setSelectedDesignCategories] = useState([]);
-  const [priceRange, setPriceRange] = useState([0, 9000]);
+  const router = useRouter();
+  const [selectedDesignCategories, setSelectedDesignCategories] = useState<string[]>([]);
+  const [priceRange, setPriceRange] = useState<[number, number]>([0, 9000]);
   const [sortBy, setSortBy] = useState('Recently added');
 
   const handleClear = () => {
@@ -36,19 +34,15 @@ const router = useRouter();
     router.back();
   };
 
-  const toggleProductCategory = (category) => {
+  const toggleProductCategory = (category: string) => {
     setSelectedProductCategories((prev) =>
-      prev.includes(category)
-        ? prev.filter((c) => c !== category)
-        : [...prev, category]
+      prev.includes(category) ? prev.filter((item) => item !== category) : [...prev, category],
     );
   };
 
-  const toggleDesignCategory = (category) => {
+  const toggleDesignCategory = (category: string) => {
     setSelectedDesignCategories((prev) =>
-      prev.includes(category)
-        ? prev.filter((c) => c !== category)
-        : [...prev, category]
+      prev.includes(category) ? prev.filter((item) => item !== category) : [...prev, category],
     );
   };
 
@@ -78,16 +72,9 @@ const router = useRouter();
           onToggle={toggleDesignCategory}
         />
 
-        <PriceRangeSlider
-          range={priceRange}
-          onRangeChange={setPriceRange}
-        />
+        <PriceRangeSlider range={priceRange} onRangeChange={setPriceRange} />
 
-        <SortOptions
-          options={sortOptions}
-          selected={sortBy}
-          onSelect={setSortBy}
-        />
+        <SortOptions options={sortOptions} selected={sortBy} onSelect={setSortBy} />
 
         <View style={{ height: 100 }} />
       </ScrollView>

@@ -1,55 +1,32 @@
-// src/components/lists/HorizontalList.tsx
-import React from 'react';
-import { 
-  View, 
-  Text, 
-  TouchableOpacity, 
-  FlatList, 
-  StyleSheet, 
-  useColorScheme,
-  ListRenderItem,
-  StyleProp,
-  ViewStyle
-} from 'react-native';
+import React, { ReactElement } from 'react';
+import { View, Text, TouchableOpacity, FlatList, StyleSheet, ViewStyle } from 'react-native';
 
-// 1. Define the props using a generic type T
-export interface HorizontalListProps<T> {
+interface HorizontalListProps<T extends { id: string | number }> {
   title: string;
   data: T[];
-  renderItem: ListRenderItem<T>;
+  renderItem: ({ item }: { item: T }) => ReactElement | null;
   onViewAll?: () => void;
   showViewAll?: boolean;
-  contentContainerStyle?: StyleProp<ViewStyle>;
+  contentContainerStyle?: ViewStyle;
 }
 
-// 2. Use a standard function definition to support the generic type <T>
-function HorizontalList<T extends { id: string | number }>({ 
-  title, 
-  data, 
-  renderItem, 
+const HorizontalList = <T extends { id: string | number }>({
+  title,
+  data,
+  renderItem,
   onViewAll,
   showViewAll = false,
   contentContainerStyle,
-}: HorizontalListProps<T>): React.ReactElement {
-  
-  // 3. Set up theme hooks
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
-
-  const theme = {
-    text: isDark ? '#FFFFFF' : '#000000',
-    brand: '#4A3F8F', // Keep viewAll text in the brand color
-  };
-
+}: HorizontalListProps<T>) => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={[styles.title, { color: theme.text }]}>{title}</Text>
-        {showViewAll && (
+        <Text style={styles.title}>{title}</Text>
+        {showViewAll ? (
           <TouchableOpacity onPress={onViewAll}>
             <Text style={[styles.viewAll, { color: theme.brand }]}>View all</Text>
           </TouchableOpacity>
-        )}
+        ) : null}
       </View>
       <FlatList
         data={data}

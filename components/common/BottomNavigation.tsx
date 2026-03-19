@@ -1,6 +1,6 @@
 // src/components/common/BottomNavigation.tsx
 import React from 'react';
-import { View, TouchableOpacity, StyleSheet, useColorScheme } from 'react-native';
+import { StyleSheet, TouchableOpacity, View, useColorScheme } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, usePathname, Href } from "expo-router"; // Add usePathname
 
@@ -19,9 +19,8 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
   onNavigate 
 }) => {
   const router = useRouter();
-  const pathname = usePathname(); // Get the current active path
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
+  const pathname = usePathname();
+  const isDark = useColorScheme() === 'dark';
 
   const theme = {
     background: isDark ? '#1E1E1E' : '#FFFFFF',
@@ -50,26 +49,16 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
   };
 
   return (
-    <View style={[
-      styles.container, 
-      { backgroundColor: theme.background, borderTopColor: theme.border }
-    ]}>
-      {navItems.map((item) => {
-        const isActive = checkIsActive(item.link as string);
+    <View style={[styles.container, { backgroundColor: isDark ? '#121212' : '#FFF', borderTopColor: isDark ? '#262626' : '#F0F0F0' }]}> 
+      {NAV_ITEMS.map((item) => {
+        const isActive = resolvedActiveRoute === item.name;
 
         return (
-          <TouchableOpacity
-            key={item.name}
-            style={styles.navItem}
-            onPress={() => {
-              if (onNavigate) onNavigate(item.name);
-              router.replace(item.link);
-            }}
-          >
+          <TouchableOpacity key={item.name} style={styles.navItem} onPress={() => router.push(item.route)}>
             <Ionicons
               name={isActive ? item.icon : item.iconOutline}
               size={24}
-              color={isActive ? theme.activeTint : theme.inactiveTint}
+              color={isActive ? '#4A3298' : isDark ? '#B8B3C7' : '#9994A6'}
             />
           </TouchableOpacity>
         );

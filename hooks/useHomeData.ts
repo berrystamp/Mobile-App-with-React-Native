@@ -1,4 +1,5 @@
-import ApiService from '@/services/apiClient'; // This now refers to your unified ApiService.ts
+import { extractArtistsFromDesigns, normalizeDesignListResponse } from '@/lib/designs';
+import ApiService from '@/services/api';
 import { Artist, Design } from '@/types';
 import { useCallback, useEffect, useState } from 'react';
 
@@ -26,19 +27,13 @@ export function useHomeData() {
         ApiService.getRecommendedDesigns(10),
       ]);
 
-      /**
-       * Backend structure handling:
-       * Drilling into responseBody if it exists, otherwise falling back to content/data 
-       * to ensure compatibility with different API response patterns.
-       */
-      const artists = artistsRes.responseBody?.content || artistsRes.content || artistsRes.data || artistsRes;
-      const trending = trendingRes.responseBody?.content || trendingRes.content || trendingRes.data || trendingRes;
-      const recommended = recommendedRes.responseBody?.content || recommendedRes.content || recommendedRes.data || recommendedRes;
+      const artistSourceDesigns = normalizeDesignListResponse(artistsData);
+      const trending = normalizeDesignListResponse(trendingData);
+      const recommended = normalizeDesignListResponse(recommendedData);
 
-      setTopArtists(Array.isArray(artists) ? artists : []);
-      setTrendingDesigns(Array.isArray(trending) ? trending : []);
-      setRecommendedDesigns(Array.isArray(recommended) ? recommended : []);
-      
+      setTopArtists(extractArtistsFromDesigns(artistSourceDesigns));
+      setTrendingDesigns(trending);
+      setRecommendedDesigns(recommended);
     } catch (err: any) {
       console.error('Error fetching home data:', err);
       // Handling Axios error objects or generic error messages
@@ -65,12 +60,31 @@ export function useHomeData() {
     setRecommendedDesigns(prev => updateList(prev));
 
     try {
-      const response = await ApiService.toggleFavorite(designId.toString());
-      
-      // If the backend specifically indicates failure, roll back the UI
-      if (response && response.requestSuccessful === false) {
-        throw new Error(response.responseMessage);
-      }
+      await ApiService.toggleFavorite(String(designId));
+
+      setTrendingDesigns((prev) =>
+        prev.map((design) =>
+          design.id === designId
+            ? {
+                ...design,
+                liked: !design.liked,
+                likes: design.liked ? Math.max(0, design.likes - 1) : design.likes + 1,
+              }
+            : design,
+        ),
+      );
+
+      setRecommendedDesigns((prev) =>
+        prev.map((design) =>
+          design.id === designId
+            ? {
+                ...design,
+                liked: !design.liked,
+                likes: design.liked ? Math.max(0, design.likes - 1) : design.likes + 1,
+              }
+            : design,
+        ),
+      );
     } catch (err) {
       console.error('Error toggling favorite:', err);
       // Rollback UI state on error

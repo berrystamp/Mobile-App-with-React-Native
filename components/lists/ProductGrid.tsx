@@ -1,4 +1,3 @@
-// src/components/lists/ProductGrid.tsx
 import React from 'react';
 import { View, Text, StyleSheet, Dimensions, useColorScheme } from 'react-native';
 import ProductCard from '../cards/ProductCard';
@@ -7,37 +6,26 @@ const { width } = Dimensions.get('window');
 // Calculate card width accounting for padding and gap
 const CARD_WIDTH = (width - 48) / 2;
 
-// 1. Define Props with generic type T
-export interface ProductGridProps<T> {
+interface ProductItem {
+  id: string | number;
+  title: string;
+  artist: string;
+  price: string;
+  image: string;
+}
+
+interface ProductGridProps {
   title?: string;
-  data: T[];
-  onProductPress?: (product: T) => void;
+  data: ProductItem[];
+  onProductPress?: (item: ProductItem) => void;
   onFavoritePress?: (id: string | number) => void;
   showTitle?: boolean;
 }
 
-// 2. Generic function component
-function ProductGrid<T extends { id: string | number }>({ 
-  title, 
-  data, 
-  onProductPress, 
-  onFavoritePress,
-  showTitle = true,
-}: ProductGridProps<T>): React.ReactElement {
-  
-  // 3. Setup dynamic theme
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
-
-  const theme = {
-    text: isDark ? '#FFFFFF' : '#000000',
-  };
-
+const ProductGrid = ({ title, data, onProductPress, onFavoritePress, showTitle = true }: ProductGridProps) => {
   return (
     <View style={styles.container}>
-      {showTitle && title && (
-        <Text style={[styles.title, { color: theme.text }]}>{title}</Text>
-      )}
+      {showTitle && title ? <Text style={styles.title}>{title}</Text> : null}
       <View style={styles.grid}>
         {data.map((item) => (
           <View key={item.id} style={{ width: CARD_WIDTH }}>
@@ -45,6 +33,7 @@ function ProductGrid<T extends { id: string | number }>({
               product={item}
               onPress={() => onProductPress?.(item)}
               onFavoritePress={onFavoritePress}
+              cardWidth={CARD_WIDTH}
             />
           </View>
         ))}

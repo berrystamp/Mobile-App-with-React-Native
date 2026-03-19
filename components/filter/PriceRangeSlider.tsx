@@ -1,15 +1,22 @@
-// src/components/filter/PriceRangeSlider.jsx
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Slider from '@react-native-community/slider';
 
-const PriceRangeSlider = ({ 
-  range, 
-  onRangeChange, 
-  min = 0, 
+interface PriceRangeSliderProps {
+  range: [number, number];
+  onRangeChange: (range: [number, number]) => void;
+  min?: number;
+  max?: number;
+  label?: string;
+}
+
+const PriceRangeSlider = ({
+  range,
+  onRangeChange,
+  min = 0,
   max = 9000,
   label = 'Price Range',
-}) => {
+}: PriceRangeSliderProps) => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>

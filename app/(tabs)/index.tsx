@@ -1,178 +1,163 @@
-import React, { useState, useEffect } from 'react';
-import { View, ScrollView, StyleSheet, useColorScheme, ActivityIndicator } from 'react-native';
+import { ArtistCard } from '@/components/ArtistCard';
+import { DesignCard } from '@/components/DesignCard';
+import { ErrorMessage } from '@/components/ErrorMessage';
+import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { SectionHeader } from '@/components/SectionHeader';
+import { useHomeData } from '@/hooks/useHomeData';
 import { useRouter } from 'expo-router';
-import { useAuth } from "../../context/AuthContext";
-import HorizontalList from '@/components/lists/HorizontalList';
-import ProductGrid from '@/components/lists/ProductGrid';
-import ArtistCard from '@/components/cards/ArtistCard';
-import TrendingCard from '@/components/cards/TrendingCard';
-import { topArtists, trendingDesigns, products } from '../data/mockData';
-import ApiService from '@/services/apiClient';
-import  Header  from '@/components/common/Header'; 
+import React from 'react';
+import {
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  useColorScheme,
+} from 'react-native';
 
-export interface Artist {
-  id: string | number;
-  name: string;
-  avatar: string;
-  rating: number;
-  [key: string]: any; 
-}
-
-export interface Design {
-  id: string | number;
-  title: string;
-  image: string;
-  artist: string;
-  [key: string]: any;
-}
-
-export interface Product {
-  id: string | number;
-  title: string;
-  price: string | number; 
-  image: string;
-  artist: string;
-  [key: string]: any;
-}
-
-const HomeScreen = () => {
+export default function HomeScreen() {
   const router = useRouter();
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
-  const themeBgColor = isDark ? '#121212' : '#FFFFFF';
+  const isDark = useColorScheme() === 'dark';
+  const {
+    topArtists,
+    trendingDesigns,
+    recommendedDesigns,
+    isLoading,
+    error,
+    refreshing,
+    refresh,
+    toggleFavorite,
+    retry,
+  } = useHomeData();
 
-  // --- State ---
-  const [artistsData, setArtistsData] = useState<any[] | null>(null);
-  const [trendingData, setTrendingData] = useState<any[] | null>(null);
-  const [recommendedData, setRecommendedData] = useState<any[] | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-    const { logout } = useAuth();
-  // --- Fetch Data ---
-  useEffect(() => {
-    let isMounted = true; 
+  const theme = {
+    background: isDark ? '#121212' : '#FFFFFF',
+    text: isDark ? '#FFFFFF' : '#1A1A1A',
+    subtext: isDark ? '#B8B8B8' : '#6B6B6B',
+  };
 
-    const fetchData = async () => {
-      try {
-        const [artistsRes, trendingRes, recommendedRes] = await Promise.all([
-          ApiService.getTopArtists(),
-          ApiService.getTrendingDesigns(),
-          ApiService.getRecommendedDesigns()
-        ]);
-        console.log(JSON.stringify(artistsRes.responseBody.content))
-        console.log(JSON.stringify(trendingRes.responseBody.content))
-        console.log(JSON.stringify(recommendedRes.responseBody.content))
-        if (isMounted) {
-          // Extracts the array from Spring Boot's 'content' object
-          setArtistsData(artistsRes.responseBody.content || artistsRes);
-          setTrendingData(trendingRes.responseBody.content || trendingRes);
-          setRecommendedData(recommendedRes.responseBody.content || recommendedRes);
-        }
-      } catch (error: any) {
-        console.error('--- API ERROR DETECTED ---');
-        console.error('Message:', error.message);
-        if (error.response) {
-          console.error('Backend Status:', error.response.status);
-          console.error('Backend Data:', error.response.data);
-        }
-        console.error('Falling back to mock data...');
-      } finally {
-        if (isMounted) setIsLoading(false);
-      }
-    };
+  if (isLoading) {
+    return <LoadingSpinner message="Loading designs..." />;
+  }
 
-    fetchData();
-
-    return () => { isMounted = false; };
-  }, []); 
-
-  // --- Handlers ---
-  const handleArtistPress = (artist: any) => console.log('Artist pressed:', artist.id);
-  const handleDesignPress = (design: any) => console.log('Design pressed:', design.id);
-  const handleProductPress = (product: any) => console.log('Product pressed:', product.id);
-  const handleFavoritePress = (id: string | number) => console.log('Favorite pressed:', id);
-
-  // --- Data Mappers ---
-  const mapArtistData = (item: any): Artist => ({
-    ...item,
-    id: item.id,
-    name: item.userName || item.name || 'Unknown Artist',
-    avatar: item.profilePic || item.profileImage?.url || item.avatar,
-    rating: item.insight?.rating?.avgStars || item.rating || 0,
-  });
-
-  const mapDesignData = (item: any): Design => ({
-    ...item,
-    id: item.id,
-    title: item.name || item.title || 'Untitled',
-    image: item.imageUrlFront || item.coverImage?.url || item.image,
-    artist: item.designer?.userName || item.designer?.name || item.artist || 'Unknown',
-  });
-
-  const mapProductData = (item: any): Product => ({
-    ...item,
-    id: item.id,
-    title: item.name || item.title || 'Untitled',
-    price: item.amount !== undefined ? `$${item.amount}` : item.price,
-    image: item.imageUrlFront || item.coverImage?.url || item.image,
-    artist: item.designer?.userName || item.designer?.name || item.artist || 'Unknown',
-  });
+  if (error) {
+    return <ErrorMessage message={error} onRetry={retry} />;
+  }
 
   return (
-    <>
-      <Header
-        onSearchPress={() => router.push('/(tabs)/Search')}
-        onNotificationPress={() => logout()}
-      />    
-      
-      <View style={[styles.container, { backgroundColor: themeBgColor }]}>
-        {isLoading ? (
-           <View style={styles.centerContainer}>
-             <ActivityIndicator size="large" color="#4B3A99" />
-           </View>
+    <ScrollView
+      style={[styles.container, { backgroundColor: theme.background }]}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
+      contentContainerStyle={styles.contentContainer}
+      showsVerticalScrollIndicator={false}>
+      <View style={styles.section}>
+        <SectionHeader title="Top artists" showViewAll={false} />
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
+          {topArtists.map((artist) => (
+            <ArtistCard
+              key={artist.id}
+              artist={artist}
+              onPress={() =>
+                router.push({
+                  pathname: '/products',
+                  params: {
+                    artistId: String(artist.id),
+                    artistName: `${artist.firstName} ${artist.lastName}`.trim(),
+                  },
+                })
+              }
+            />
+          ))}
+        </ScrollView>
+      </View>
+
+      <View style={styles.section}>
+        <SectionHeader title="Trending designs" showViewAll={false} />
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
+          {trendingDesigns.map((design) => (
+            <View key={design.id} style={styles.trendingCardWrap}>
+              <DesignCard
+                design={design}
+                width={220}
+                onFavoriteToggle={toggleFavorite}
+                onPress={() =>
+                  router.push({
+                    pathname: '/products',
+                    params: { designId: String(design.id) },
+                  })
+                }
+              />
+            </View>
+          ))}
+        </ScrollView>
+      </View>
+
+      <View style={styles.section}>
+        <SectionHeader title="Recommended for you" showViewAll={false} />
+        {recommendedDesigns.length === 0 ? (
+          <Text style={[styles.emptyText, { color: theme.subtext }]}>No designs available right now.</Text>
         ) : (
-          <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false} bounces={true}>
-            
-            <HorizontalList
-              title="Top Artists"
-              data={(artistsData && artistsData.length > 0 ? artistsData : topArtists).map(mapArtistData)}
-              renderItem={({ item }) => (
-                <ArtistCard artist={item} onPress={() => handleArtistPress(item)} />
-              )}
-            />
-
-            <HorizontalList
-              title="Trending Designs"
-              data={(trendingData && trendingData.length > 0 ? trendingData : trendingDesigns).map(mapDesignData)}
-              showViewAll
-              onViewAll={() => console.log('View all trending')}
-              renderItem={({ item }) => (
-                <TrendingCard
-                  design={item}
-                  onPress={() => handleDesignPress(item)}
-                  onFavoritePress={handleFavoritePress}
-                />
-              )}
-            />
-
-            <ProductGrid
-              title="Just for you"
-              data={(recommendedData && recommendedData.length > 0 ? recommendedData : products).map(mapProductData)}
-              onProductPress={handleProductPress}
-              onFavoritePress={handleFavoritePress}
-            />
-
-            <View style={{ height: 100 }} />
-          </ScrollView>
+          <View style={styles.grid}>
+            {recommendedDesigns.map((design) => (
+              <DesignCard
+                key={design.id}
+                design={design}
+                onFavoriteToggle={toggleFavorite}
+                onPress={() =>
+                  router.push({
+                    pathname: '/products',
+                    params: { designId: String(design.id) },
+                  })
+                }
+              />
+            ))}
+          </View>
         )}
       </View>
-    </>
+
+      <TouchableOpacity style={styles.searchShortcut} onPress={() => router.push('/Search')}>
+        <Text style={styles.searchShortcutText}>Search more designs</Text>
+      </TouchableOpacity>
+    </ScrollView>
   );
-};
+}
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  scrollView: { flex: 1 },
-  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' }
+  container: {
+    flex: 1,
+  },
+  contentContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 120,
+  },
+  section: {
+    marginBottom: 28,
+  },
+  horizontalList: {
+    paddingRight: 8,
+  },
+  trendingCardWrap: {
+    marginRight: 16,
+  },
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  emptyText: {
+    fontSize: 14,
+  },
+  searchShortcut: {
+    backgroundColor: '#4B3A99',
+    borderRadius: 16,
+    alignItems: 'center',
+    paddingVertical: 16,
+  },
+  searchShortcutText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+  },
 });
-
-export default HomeScreen;

@@ -1,52 +1,23 @@
-// src/components/cards/TrendingCard.tsx
 import React from 'react';
 import { View, Text, TouchableOpacity, Image, StyleSheet, useColorScheme } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-// 1. Define the shape of your design data
-export interface DesignType {
-  id: string | number;
-  image: string;
-  title: string;
-  artist: string;
-  [key: string]: any;
-}
-
-// 2. Define component props
-export interface TrendingCardProps {
-  design: DesignType;
+interface TrendingCardProps {
+  design: {
+    id: string | number;
+    image: string;
+    title: string;
+    artist: string;
+  };
   onPress?: () => void;
   onFavoritePress?: (id: string | number) => void;
 }
 
-const TrendingCard: React.FC<TrendingCardProps> = ({ 
-  design, 
-  onPress, 
-  onFavoritePress 
-}) => {
-  // 3. Setup dynamic theme for the fallback background
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
-
-  const theme = {
-    // This background only shows while the image is loading or if the URI is broken
-    fallbackBg: isDark ? '#1E1E1E' : '#EAEAEA', 
-  };
-
+const TrendingCard = ({ design, onPress, onFavoritePress }: TrendingCardProps) => {
   return (
-    <TouchableOpacity 
-      style={[styles.container, { backgroundColor: theme.fallbackBg }]} 
-      onPress={onPress}
-      activeOpacity={0.8}
-    >
-      {design.image ? (
-        <Image source={{ uri: design.image }} style={styles.image} />
-      ) : null}
-      
-      <TouchableOpacity 
-        style={styles.favoriteIcon}
-        onPress={() => onFavoritePress?.(design.id)}
-      >
+    <TouchableOpacity style={styles.container} onPress={onPress}>
+      <Image source={{ uri: design.image }} style={styles.image} />
+      <TouchableOpacity style={styles.favoriteIcon} onPress={() => onFavoritePress?.(design.id)}>
         <Ionicons name="heart-outline" size={24} color="#FFF" />
       </TouchableOpacity>
       

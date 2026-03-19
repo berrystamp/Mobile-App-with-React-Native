@@ -1,46 +1,272 @@
-import React, { useState } from 'react';
-import { Image, ScrollView, Text, TouchableOpacity, View, useColorScheme } from 'react-native';
-import { Feather, Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import ActionFeedbackModal from '@/components/common/ActionFeedbackModal';
-
-type MockupItem = {
-  id: string;
-  name: string;
-  price: number;
-  image: any;
-};
-
-const AVATAR_IMAGE = require('@/assets/images/item1.png');
-
-const MOCKUP_ITEMS: MockupItem[] = [
-  { id: '1', name: 'Long Sleeve Men Shirt', price: 5000, image: require('@/assets/images/item1.png') },
-  { id: '2', name: 'Body fit', price: 5000, image: require('@/assets/images/item2.png') },
-  { id: '3', name: 'Round neck', price: 5000, image: require('@/assets/images/item3.png') },
-  { id: '4', name: 'Casual round neck', price: 5000, image: require('@/assets/images/item4.png') },
-  { id: '5', name: 'Tote Bag', price: 5000, image: require('@/assets/images/item5.png') },
-  { id: '6', name: 'Iphone 13 pouch', price: 5000, image: require('@/assets/images/item2.png') },
-  { id: '7', name: 'Knapsack Bag', price: 5000, image: require('@/assets/images/item3.png') },
-  { id: '8', name: 'Long Sleeve Men Shirt', price: 5000, image: require('@/assets/images/item4.png') },
-];
+import { DesignCard } from '@/components/DesignCard';
+import { normalizeDesign, normalizeDesignListResponse } from '@/lib/designs';
+import ApiService from '@/services/api';
+import { Design, Mock } from '@/types';
+import { Ionicons } from '@expo/vector-icons';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Alert,
+  Image,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  useColorScheme,
+} from 'react-native';
 
 export default function ProductsScreen() {
   const router = useRouter();
+  const { artistId, artistName, designId, searchField } = useLocalSearchParams<{
+    artistId?: string;
+    artistName?: string;
+    designId?: string;
+    searchField?: string;
+  }>();
+
   const isDark = useColorScheme() === 'dark';
-  const [feedback, setFeedback] = useState<{ title: string; message: string } | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isAddingToCart, setIsAddingToCart] = useState(false);
+  const [products, setProducts] = useState<Design[]>([]);
+  const [selectedDesign, setSelectedDesign] = useState<Design | null>(null);
+  const [selectedMockId, setSelectedMockId] = useState<number | null>(null);
+  const [selectedColour, setSelectedColour] = useState<string>('');
+  const [error, setError] = useState<string | null>(null);
+
+  const theme = useMemo(
+    () => ({
+      background: isDark ? '#121212' : '#F8F8F8',
+      surface: isDark ? '#1E1E1E' : '#FFFFFF',
+      text: isDark ? '#FFFFFF' : '#111111',
+      subtext: isDark ? '#ABABAB' : '#777777',
+      border: isDark ? '#2A2A2A' : '#ECECEC',
+      accent: '#4B3A99',
+    }),
+    [isDark],
+  );
+
+  const selectedMock: Mock | undefined = useMemo(
+    () => selectedDesign?.mocks.find((mock) => mock.id === selectedMockId) || selectedDesign?.mocks[0],
+    [selectedDesign, selectedMockId],
+  );
+
+  const loadProducts = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      if (designId) {
+        const designResponse = await ApiService.fetchDesignById(Number(designId));
+        const normalizedDesign = normalizeDesign(designResponse?.responseBody || designResponse);
+        setProducts([normalizedDesign]);
+        setSelectedDesign(normalizedDesign);
+        setSelectedMockId(normalizedDesign.mocks[0]?.id || null);
+        setSelectedColour(normalizedDesign.mocks[0]?.colours?.[0] || '');
+        return;
+      }
+
+      const response = await ApiService.getDesigns({
+        page: 0,
+        size: 20,
+        designer: artistId ? Number(artistId) : undefined,
+        searchField: searchField || undefined,
+      });
+
+      const normalizedProducts = normalizeDesignListResponse(response);
+      setProducts(normalizedProducts);
+    } catch (err: any) {
+      console.error('Failed to load products', err);
+      setError(err.response?.data?.message || 'Unable to load products right now.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [artistId, designId, searchField]);
+
+  useEffect(() => {
+    loadProducts();
+  }, [loadProducts]);
+
+  const openDetails = (design: Design) => {
+    setSelectedDesign(design);
+    setSelectedMockId(design.mocks[0]?.id || null);
+    setSelectedColour(design.mocks[0]?.colours?.[0] || '');
+  };
+
+  const closeDetails = () => {
+    setSelectedDesign(null);
+    setSelectedMockId(null);
+    setSelectedColour('');
+  };
+
+  const handleMockSelect = (mock: Mock) => {
+    setSelectedMockId(mock.id);
+    setSelectedColour(mock.colours?.[0] || '');
+  };
+
+  const handleAddToCart = async () => {
+    if (!selectedDesign || !selectedMock) {
+      Alert.alert('Unavailable', 'This design does not have a selectable mock yet.');
+      return;
+    }
+
+    try {
+      setIsAddingToCart(true);
+      await ApiService.addToCart(selectedDesign.id, selectedMock.id, {
+        quantity: 1,
+        colour: selectedColour,
+      });
+      Alert.alert('Added to cart', `${selectedDesign.title} has been added to your cart.`, [
+        {
+          text: 'Continue shopping',
+          style: 'cancel',
+        },
+        {
+          text: 'Go to cart',
+          onPress: () => {
+            closeDetails();
+            router.push('/cart');
+          },
+        },
+      ]);
+    } catch (err: any) {
+      console.error('Add to cart failed', err);
+      Alert.alert('Could not add to cart', err.response?.data?.message || 'Please log in and try again.');
+    } finally {
+      setIsAddingToCart(false);
+    }
+  };
+
+  const title = artistName
+    ? `${artistName}'s products`
+    : searchField
+      ? `Search: ${searchField}`
+      : 'Products';
 
   return (
-    <View className="flex-1 bg-[#F1F1F1] dark:bg-[#121212]">
-      <View className="w-full flex-row items-center justify-between px-6 pb-4 pt-14">
-        <TouchableOpacity onPress={() => router.back()} className="-ml-1 h-10 w-10 items-start justify-center">
-          <Ionicons name="arrow-back" size={24} color={isDark ? '#FFFFFF' : '#2F2F2F'} />
+    <View style={[styles.container, { backgroundColor: theme.background }]}> 
+      <View style={[styles.header, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}> 
+        <TouchableOpacity onPress={() => (selectedDesign ? closeDetails() : router.back())} style={styles.headerIcon}>
+          <Ionicons name="arrow-back" size={24} color={theme.text} />
         </TouchableOpacity>
+        <View style={styles.headerTextWrap}>
+          <Text style={[styles.headerTitle, { color: theme.text }]} numberOfLines={1}>
+            {title}
+          </Text>
+          <Text style={[styles.headerSubtitle, { color: theme.subtext }]} numberOfLines={1}>
+            Tap a product to view details and add it to cart.
+          </Text>
+        </View>
+        <TouchableOpacity onPress={loadProducts} style={styles.headerIcon}>
+          <Ionicons name="refresh-outline" size={22} color={theme.text} />
+        </TouchableOpacity>
+      </View>
 
-        <View className="ml-1 mr-auto flex-row items-center">
-          <Image source={AVATAR_IMAGE} className="h-12 w-12 rounded-full" />
-          <View className="ml-3">
-            <Text className="text-[34px] font-semibold text-[#2F2F2F] dark:text-white">Japan Night</Text>
-            <Text className="text-[26px] text-[#535353] dark:text-[#D4D4D4]">Designed by Berrystamp</Text>
+      {isLoading ? (
+        <View style={styles.centerState}>
+          <Text style={{ color: theme.subtext }}>Loading products...</Text>
+        </View>
+      ) : error ? (
+        <View style={styles.centerState}>
+          <Text style={{ color: '#E15656', textAlign: 'center' }}>{error}</Text>
+        </View>
+      ) : products.length === 0 ? (
+        <View style={styles.centerState}>
+          <Text style={{ color: theme.subtext, textAlign: 'center' }}>No products were found for this artist yet.</Text>
+        </View>
+      ) : (
+        <ScrollView contentContainerStyle={styles.productList} showsVerticalScrollIndicator={false}>
+          <View style={styles.grid}>
+            {products.map((product) => (
+              <DesignCard key={product.id} design={product} onPress={() => openDetails(product)} />
+            ))}
+          </View>
+        </ScrollView>
+      )}
+
+      <Modal animationType="slide" transparent visible={!!selectedDesign} onRequestClose={closeDetails}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: theme.surface }]}> 
+            {selectedDesign ? (
+              <>
+                <View style={styles.modalHeader}>
+                  <Text style={[styles.modalTitle, { color: theme.text }]}>Product details</Text>
+                  <TouchableOpacity onPress={closeDetails}>
+                    <Ionicons name="close" size={24} color={theme.text} />
+                  </TouchableOpacity>
+                </View>
+
+                <ScrollView showsVerticalScrollIndicator={false}>
+                  <Image source={{ uri: selectedDesign.imagePath }} style={styles.heroImage} resizeMode="cover" />
+                  <Text style={[styles.designTitle, { color: theme.text }]}>{selectedDesign.title}</Text>
+                  <Text style={[styles.designMeta, { color: theme.subtext }]}>
+                    By {selectedDesign.designerName || `${selectedDesign.profile.firstName} ${selectedDesign.profile.lastName}`}
+                  </Text>
+                  <Text style={[styles.designDescription, { color: theme.subtext }]}>{selectedDesign.description}</Text>
+
+                  <Text style={[styles.sectionTitle, { color: theme.text }]}>Available mocks</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.mockRow}>
+                    {selectedDesign.mocks.map((mock) => {
+                      const isActive = selectedMock?.id === mock.id;
+                      return (
+                        <TouchableOpacity
+                          key={mock.id}
+                          style={[
+                            styles.mockChip,
+                            {
+                              borderColor: isActive ? theme.accent : theme.border,
+                              backgroundColor: isActive ? `${theme.accent}20` : 'transparent',
+                            },
+                          ]}
+                          onPress={() => handleMockSelect(mock)}>
+                          <Text style={{ color: theme.text, fontWeight: isActive ? '700' : '500' }}>{mock.name}</Text>
+                          <Text style={{ color: theme.subtext, marginTop: 4 }}>
+                            ₦{(mock.price || selectedDesign.amount || 0).toLocaleString()}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+
+                  {selectedMock?.colours?.length ? (
+                    <>
+                      <Text style={[styles.sectionTitle, { color: theme.text }]}>Colours</Text>
+                      <View style={styles.colourRow}>
+                        {selectedMock.colours.map((colour) => {
+                          const isActive = selectedColour === colour;
+                          return (
+                            <TouchableOpacity
+                              key={colour}
+                              style={[styles.colourChip, { borderColor: isActive ? theme.accent : theme.border }]}
+                              onPress={() => setSelectedColour(colour)}>
+                              <View style={[styles.colourSwatch, { backgroundColor: colour }]} />
+                              <Text style={{ color: theme.text, fontSize: 12 }}>{colour}</Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    </>
+                  ) : null}
+
+                  <View style={[styles.summaryCard, { backgroundColor: isDark ? '#171717' : '#F6F4FF' }]}> 
+                    <Text style={[styles.summaryTitle, { color: theme.text }]}>Order summary</Text>
+                    <Text style={[styles.summaryText, { color: theme.subtext }]}>Base price: ₦{(selectedMock?.price || selectedDesign.amount || 0).toLocaleString()}</Text>
+                    <Text style={[styles.summaryText, { color: theme.subtext }]}>Mock availability: {selectedMock?.availableQty ?? 'N/A'}</Text>
+                    {selectedDesign.tags?.length ? (
+                      <Text style={[styles.summaryText, { color: theme.subtext }]}>Tags: {selectedDesign.tags.join(', ')}</Text>
+                    ) : null}
+                  </View>
+                </ScrollView>
+
+                <TouchableOpacity
+                  style={[styles.addButton, { backgroundColor: theme.accent, opacity: isAddingToCart ? 0.7 : 1 }]}
+                  disabled={isAddingToCart}
+                  onPress={handleAddToCart}>
+                  <Text style={styles.addButtonText}>{isAddingToCart ? 'Adding...' : 'Add to cart'}</Text>
+                </TouchableOpacity>
+              </>
+            ) : null}
           </View>
         </View>
 
@@ -91,3 +317,152 @@ export default function ProductsScreen() {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingTop: 54,
+    paddingBottom: 16,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+  },
+  headerIcon: {
+    width: 40,
+    alignItems: 'center',
+  },
+  headerTextWrap: {
+    flex: 1,
+    paddingHorizontal: 8,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  headerSubtitle: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  centerState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  productList: {
+    padding: 16,
+    paddingBottom: 120,
+  },
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    maxHeight: '90%',
+    padding: 20,
+    paddingBottom: 28,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  heroImage: {
+    width: '100%',
+    height: 240,
+    borderRadius: 20,
+    marginBottom: 16,
+  },
+  designTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  designMeta: {
+    fontSize: 14,
+    marginBottom: 12,
+  },
+  designDescription: {
+    fontSize: 14,
+    lineHeight: 22,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginTop: 20,
+    marginBottom: 12,
+  },
+  mockRow: {
+    paddingRight: 8,
+  },
+  mockChip: {
+    minWidth: 132,
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginRight: 12,
+  },
+  colourRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  colourChip: {
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  colourSwatch: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 1,
+    borderColor: '#D0D0D0',
+  },
+  summaryCard: {
+    borderRadius: 18,
+    padding: 16,
+    marginTop: 20,
+  },
+  summaryTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  summaryText: {
+    fontSize: 13,
+    lineHeight: 20,
+  },
+  addButton: {
+    borderRadius: 18,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginTop: 18,
+  },
+  addButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+});
