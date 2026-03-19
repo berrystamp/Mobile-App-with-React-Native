@@ -1,172 +1,155 @@
-import { Feather, Ionicons } from "@expo/vector-icons";
-import { useRouter, useLocalSearchParams } from "expo-router";
-import React, { useState, useEffect, useRef } from "react";
+import { Feather, Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Image,
   KeyboardAvoidingView,
+  Modal,
   Platform,
+  Pressable,
+  SafeAreaView,
   ScrollView,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  useColorScheme,
   View,
-  ActivityIndicator,
-  Modal,
-} from "react-native";
+} from 'react-native';
 
-export interface ChatMessage {
-  id: string;
-  senderId: "me" | "printer"; 
-  type: "text" | "product_bundle" | "offer"; 
-  text?: string;
-  timestamp: string;
-}
+import {
+  chatMessagesByThread,
+  messageThreads,
+  type ChatMessage,
+  type ConversationSummary,
+} from '@/app/data/messages';
+import { AvatarBadge } from '@/components/messages/AvatarBadge';
+
+const OFFER_DETAILS = {
+  title: 'Screen printing on items (Long Sleeve and tote)',
+  description:
+    'Printer will source the long sleeve shirts while tote bags will be picked up from the customer. Delivery timeline is within three working days after approval.',
+  amount: '₦10,000',
+  source: 'Long sleeve by printer, tote bag supplied by customer',
+  logistics: 'Pickup logistics requested',
+};
 
 export default function ChatScreen() {
   const router = useRouter();
-  const { printerId } = useLocalSearchParams(); 
-  const isDark = useColorScheme() === "dark";
-  
-  const [message, setMessage] = useState("");
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  
-  // Modal States
-  const [isOfferModalVisible, setOfferModalVisible] = useState(false);
-  const [isCartSummaryModalVisible, setCartSummaryModalVisible] = useState(false);
-  const [isRejectModalVisible, setRejectModalVisible] = useState(false);
-  
   const scrollViewRef = useRef<ScrollView>(null);
+  const { conversationId } = useLocalSearchParams<{ conversationId?: string }>();
 
-  // ==========================================
-  // BACKEND INTEGRATION HANDLERS
-  // ==========================================
+  const conversation = useMemo<ConversationSummary>(() => {
+    const found = messageThreads.find((thread) => thread.id === conversationId);
+    return found ?? messageThreads[0];
+  }, [conversationId]);
+
+  const [messages, setMessages] = useState<ChatMessage[]>(
+    chatMessagesByThread[conversation.id] ?? [],
+  );
+  const [draft, setDraft] = useState('');
+  const [showConversationActions, setShowConversationActions] = useState(false);
+  const [showOfferDetail, setShowOfferDetail] = useState(false);
 
   useEffect(() => {
-    const fetchMessages = async () => {
-      // --- SIMULATED BACKEND DATA ---
-      setTimeout(() => {
-        setMessages([
-          { id: "msg_1", senderId: "me", type: "product_bundle", timestamp: "12:01 PM" },
-          { id: "msg_2", senderId: "me", type: "text", text: "Hi, Good day.\nI'd like to hire you for printing service", timestamp: "12:02 PM" },
-          { id: "msg_3", senderId: "printer", type: "text", text: "Hi Mohh_Jumah. i used AlphaWorld app to come up wth the animation", timestamp: "12:02 PM" },
-          { id: "msg_4", senderId: "printer", type: "offer", timestamp: "12:05 PM" },
-        ]);
-        setIsLoading(false);
-      }, 800);
-    };
-    fetchMessages();
-  }, [printerId]);
+    setMessages(chatMessagesByThread[conversation.id] ?? []);
+  }, [conversation.id]);
 
-  const handleSendMessage = async () => {
-    if (!message.trim()) return;
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      scrollViewRef.current?.scrollToEnd({ animated: false });
+    }, 80);
+
+    return () => clearTimeout(timer);
+  }, [messages]);
+
+  const handleSend = () => {
+    const trimmed = draft.trim();
+    if (!trimmed) {
+      return;
+    }
+
     const newMessage: ChatMessage = {
-      id: Date.now().toString(),
-      senderId: "me",
-      type: "text",
-      text: message.trim(),
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      id: `local-${Date.now()}`,
+      type: 'text',
+      author: 'me',
+      text: trimmed,
+      createdAtLabel: new Date().toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+      status: 'sent',
     };
 
-    setMessages((prev) => [...prev, newMessage]);
-    setMessage("");
-
-    // TODO: IMPLEMENT BACKEND SEND MESSAGE HERE
-
-    setTimeout(() => {
-        scrollViewRef.current?.scrollToEnd({ animated: true });
-    }, 100);
+    setMessages((current) => [...current, newMessage]);
+    setDraft('');
   };
 
-  // Flow: Accept Offer -> Show Cart Summary
-  const handleAcceptOfferClick = () => {
-      setOfferModalVisible(false);
-      setTimeout(() => setCartSummaryModalVisible(true), 300);
-  };
-
-  // Flow: Reject Offer -> Show Confirmation Dialog
-  const handleRejectOfferClick = () => {
-      setOfferModalVisible(false);
-      setTimeout(() => setRejectModalVisible(true), 300);
-  };
-
-  // Final Action: Proceed to Payment
-  const proceedToPayment = async () => {
-      // TODO: IMPLEMENT BACKEND PAYMENT / CHECKOUT INITIALIZATION HERE
-      console.log("Proceeding to payment...");
-      setCartSummaryModalVisible(false);
-      router.push('/checkout');
-  };
-
-  // Final Action: Confirm Rejection
-  const confirmRejectOffer = async () => {
-      // TODO: IMPLEMENT BACKEND OFFER REJECTION HERE
-      console.log("Offer Rejected");
-      setRejectModalVisible(false);
-      // You might want to add a system message to the chat array here saying "Offer Rejected"
-  };
-
-  // ==========================================
-  // RENDERERS
-  // ==========================================
-
-  const renderMessage = (msg: ChatMessage) => {
-    if (msg.type === "product_bundle") {
+  const renderMessage = (message: ChatMessage) => {
+    if (message.type === 'bundle' && message.bundle) {
       return (
-        <View key={msg.id} className="self-end mb-6 w-[75%] bg-white dark:bg-[#1E1E1E] rounded-2xl rounded-tr-none border border-gray-100 dark:border-gray-800 p-3 shadow-sm">
-          <View className="flex-row flex-wrap justify-between mb-2">
-            <Image source={require("@/assets/images/item1.png")} className="w-[48%] h-24 bg-gray-100 rounded-lg mb-2" resizeMode="cover" />
-            <Image source={require("@/assets/images/item2.png")} className="w-[48%] h-24 bg-gray-100 rounded-lg mb-2" resizeMode="cover" />
-            <Image source={require("@/assets/images/item3.png")} className="w-[48%] h-24 bg-gray-100 rounded-lg" resizeMode="cover" />
-            <View className="w-[48%] h-24 bg-gray-800 rounded-lg items-center justify-center relative overflow-hidden">
-              <Image source={require("@/assets/images/item4.png")} className="w-full h-full opacity-50 absolute" resizeMode="cover" />
-              <Text className="text-white font-bold z-10">+2 Items</Text>
+        <View key={message.id} style={[styles.messageRow, styles.myRow]}>
+          <View style={styles.bundleCard}>
+            <View style={styles.bundleGrid}>
+              {message.bundle.items.map((item) => (
+                <View key={item.id} style={styles.bundleTile}>
+                  <Image source={item.image} style={styles.bundleImage} contentFit="cover" />
+                  {item.overlayText ? (
+                    <View style={styles.bundleOverlay}>
+                      <Text style={styles.bundleOverlayText}>{item.overlayText}</Text>
+                    </View>
+                  ) : null}
+                </View>
+              ))}
             </View>
-          </View>
-          <TouchableOpacity onPress={() => router.push("/products")} className="w-full py-2 items-center justify-center border-t border-gray-100 dark:border-gray-800 mt-1">
-            <Text className="text-[#3B2D85] dark:text-[#7A6AE6] font-semibold text-sm">View the 5 Products</Text>
-          </TouchableOpacity>
-        </View>
-      );
-    }
-
-    if (msg.type === "offer") {
-      return (
-        <View key={msg.id} className="self-start ml-10 mb-6 w-[80%] bg-white dark:bg-[#1E1E1E] rounded-2xl rounded-tl-none border border-gray-200 dark:border-gray-800 p-4 shadow-sm">
-          <View className="flex-row gap-x-2 mb-3 items-center">
-            <View className="w-8 h-8 border border-[#E5E5EA] bg-[#F8F8F8] dark:bg-gray-800 items-center justify-center rounded-lg">
-              <Ionicons name="document-text-outline" size={16} color="#3B2D85" />
-            </View>
-            <View className="flex-1">
-              <Text className="text-[#828282] dark:text-gray-400 text-xs">Offer from Mohh_Jumah</Text>
-              <Text className="text-[#333333] dark:text-white font-semibold text-xs mt-0.5" numberOfLines={1}>Screen printing on items (Long Sleeve, Bags, rou...)</Text>
-            </View>
-          </View>
-          <View className="flex-row items-center gap-x-3 mb-4">
-            <Text className="text-[#2D71E3] font-bold text-lg">₦10,000</Text>
-            <Text className="text-[#828282] dark:text-gray-400 text-xs">Due on 23/12/2022</Text>
-          </View>
-          <View className="flex-row justify-between gap-x-2">
-            <TouchableOpacity onPress={() => setOfferModalVisible(true)} className="flex-1 bg-[#3B2D85] py-2.5 rounded-lg items-center">
-              <Text className="text-white font-semibold text-sm">See details</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={handleRejectOfferClick} className="flex-1 bg-white border border-[#EB5757] py-2.5 rounded-lg items-center">
-              <Text className="text-[#EB5757] font-semibold text-sm">Reject Offer</Text>
+            <TouchableOpacity style={styles.bundleFooter} onPress={() => router.push('/(tabs)/products')}>
+              <Text style={styles.bundleFooterText}>{message.bundle.footerLabel}</Text>
             </TouchableOpacity>
           </View>
         </View>
       );
     }
 
-    const isMe = msg.senderId === "me";
+    if (message.type === 'offer' && message.offer) {
+      return (
+        <View key={message.id} style={[styles.messageRow, styles.otherRow]}>
+          <View style={styles.offerShell}>
+            <Text style={styles.offerCaption}>{message.offer.description}</Text>
+            <View style={styles.offerCard}>
+              <Image source={message.offer.image} style={styles.offerImage} contentFit="contain" />
+              <View style={styles.offerInfo}>
+                <Text style={styles.offerTitle}>{message.offer.title}</Text>
+                <Text style={styles.offerPrice}>{message.offer.priceLabel}</Text>
+              </View>
+              <TouchableOpacity style={styles.offerButton} onPress={() => setShowOfferDetail(true)}>
+                <Text style={styles.offerButtonText}>{message.offer.ctaLabel}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      );
+    }
+
+    const isMe = message.author === 'me';
+
     return (
-      <View key={msg.id} className={`flex-row items-end gap-x-2 mb-6 ${isMe ? 'self-end' : 'self-start'}`}>
-        {!isMe && <Image source={require("@/assets/images/item1.png")} className="w-8 h-8 rounded-full mb-2" />}
-        <View className={`${isMe ? 'bg-[#3B2D85] rounded-tr-none' : 'bg-white dark:bg-[#1E1E1E] border border-gray-100 dark:border-gray-800 rounded-tl-none'} rounded-2xl p-4 max-w-[80%] shadow-sm`}>
-          <Text className={`${isMe ? 'text-white' : 'text-[#333333] dark:text-white'} text-sm leading-5 font-bold`}>{msg.text}</Text>
-          <Text className={`${isMe ? 'text-[#D1CDE8] self-end' : 'text-[#828282] dark:text-gray-400'} text-[10px] mt-1 font-normal`}>
-            {isMe ? `Seen • ${msg.timestamp}` : `${msg.timestamp} • Seen`}
+      <View
+        key={message.id}
+        style={[styles.messageRow, isMe ? styles.myRow : styles.otherRow]}>
+        {!isMe ? (
+          <View style={styles.otherAvatarWrapper}>
+            <AvatarBadge
+              color={conversation.avatarColor}
+              emoji={conversation.avatarEmoji}
+              size={36}
+            />
+          </View>
+        ) : null}
+        <View style={[styles.textBubble, isMe ? styles.myBubble : styles.otherBubble]}>
+          <Text style={[styles.messageText, isMe ? styles.myMessageText : styles.otherMessageText]}>
+            {message.text}
+          </Text>
+          <Text style={[styles.messageMeta, isMe ? styles.myMeta : styles.otherMeta]}>
+            {isMe ? `${message.status === 'seen' ? 'Seen • ' : ''}${message.createdAtLabel}` : `${message.createdAtLabel}${message.status === 'seen' ? ' • Seen' : ''}`}
           </Text>
         </View>
       </View>
@@ -174,180 +157,490 @@ export default function ChatScreen() {
   };
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"} keyboardVerticalOffset={Platform.OS === "ios" ? 10 : 0} className="bg-gray-50 dark:bg-[#121212]">
-      {/* Header */}
-      <View className="flex-row items-center justify-between px-4 pt-14 pb-4 bg-white dark:bg-[#1E1E1E] shadow-sm z-10">
-        <View className="flex-row items-center gap-x-3">
-          <TouchableOpacity onPress={() => router.back()}><Ionicons name="arrow-back" size={24} color={isDark ? "#FFFFFF" : "#000000"} /></TouchableOpacity>
-          <Image source={require("@/assets/images/item2.png")} className="w-10 h-10 rounded-full" />
-          <View>
-            <Text className="text-[#333333] dark:text-white font-bold text-base">De_Sportman</Text>
-            <Text className="text-[#828282] dark:text-gray-400 text-xs">2hrs ago</Text>
-          </View>
-        </View>
-        <TouchableOpacity><Ionicons name="ellipsis-vertical" size={20} color={isDark ? "#FFFFFF" : "#000000"} /></TouchableOpacity>
-      </View>
-
-      {isLoading ? (
-        <View className="flex-1 justify-center items-center"><ActivityIndicator size="large" color="#3B2D85" /></View>
-      ) : (
-        <ScrollView
-          ref={scrollViewRef}
-          onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
-          onLayout={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
-          keyboardShouldPersistTaps="handled" 
-          className="flex-1 px-4 py-6"
-          contentContainerStyle={{ paddingBottom: 20 }}
-          showsVerticalScrollIndicator={false}
-        >
-          {messages.map(renderMessage)}
-        </ScrollView>
-      )}
-
-      {/* Input Area */}
-      <View className="px-4 py-3 bg-white dark:bg-[#1E1E1E] border-t border-gray-100 dark:border-gray-800 flex-row items-end gap-x-2">
-        <View className="flex-1 flex-row items-end bg-gray-50 dark:bg-[#2C2C2C] rounded-3xl px-4 py-1 gap-x-2 border border-gray-200 dark:border-gray-700 min-h-[48px] max-h-[120px]">
-          <Feather name="smile" size={20} color={isDark ? "#A0A0A0" : "#828282"} className="mb-2.5" />
-          <TextInput multiline={true} placeholder="Send message" placeholderTextColor={isDark ? "#A0A0A0" : "#828282"} value={message} onChangeText={setMessage} className="flex-1 text-[#333] dark:text-white font-bold py-3" style={{ maxHeight: 100 }} />
-          <Feather name="image" size={20} color={isDark ? "#A0A0A0" : "#828282"} className="mb-2.5" />
-          <Feather name="paperclip" size={20} color={isDark ? "#A0A0A0" : "#828282"} className="mb-2.5" />
-        </View>
-        <TouchableOpacity onPress={handleSendMessage} disabled={!message.trim()} className={`w-12 h-12 rounded-full items-center justify-center mb-0.5 ${message.trim() ? 'bg-[#3B2D85]' : 'bg-gray-400 dark:bg-gray-700'}`}>
-          <Ionicons name="send" size={18} color="white" className="ml-1" />
-        </TouchableOpacity>
-      </View>
-
-      {/* ========================================== */}
-      {/* MODAL 1: ORDER DETAIL (Review before accepting) */}
-      {/* ========================================== */}
-      <Modal animationType="slide" transparent={true} visible={isOfferModalVisible} onRequestClose={() => setOfferModalVisible(false)}>
-        <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' }}>
-          <View style={{ paddingBottom: Platform.OS === 'ios' ? 40 : 24, maxHeight: '90%' }} className="bg-white dark:bg-[#1E1E1E] rounded-t-[32px] px-6 pt-6 w-full shadow-lg">
-            <View className="flex-row justify-between items-center w-full mb-4 relative">
-                <Text className="text-lg font-bold text-[#333333] dark:text-white mx-auto">Order Detail</Text>
-                <TouchableOpacity onPress={() => setOfferModalVisible(false)} className="absolute right-0"><Ionicons name="close" size={24} color={isDark ? "#FFF" : "#333"} /></TouchableOpacity>
-            </View>
-            <Text className="text-[#828282] dark:text-gray-400 text-sm text-center mb-6 leading-5 px-4">Review information to ensure details is exactly as agreed with printer before accepting</Text>
-
-            <ScrollView showsVerticalScrollIndicator={false} className="w-full">
-                <View className="mb-4">
-                    <Text className="text-[#333333] dark:text-white font-bold text-sm mb-1">Order title</Text>
-                    <Text className="text-[#828282] dark:text-gray-400 text-xs leading-5">Screen printing on items (Hoodie and Towel)</Text>
-                </View>
-                <View className="mb-4">
-                    <Text className="text-[#333333] dark:text-white font-bold text-sm mb-1">Brief description of order agreed specifications</Text>
-                    <Text className="text-[#828282] dark:text-gray-400 text-xs leading-5">Printing design on hoodie and towel to be provided from my inventory. Hoodie should be blue colour in medium size at 10pieces in which 8 will be medium size and 2 will be small size. Same as towel.</Text>
-                </View>
-                <View className="mb-4">
-                    <Text className="text-[#333333] dark:text-white font-bold text-sm mb-1">Agreed amount</Text>
-                    <Text className="text-[#828282] dark:text-gray-400 text-xs leading-5">₦10,000</Text>
-                </View>
-                <View className="mb-4">
-                    <Text className="text-[#333333] dark:text-white font-bold text-sm mb-1">Selected agreed item source</Text>
-                    <Text className="text-[#828282] dark:text-gray-400 text-xs leading-5">Hoodie to be provided by printer and towel to be picked up from customer</Text>
-                </View>
-                <View className="mb-8">
-                    <Text className="text-[#333333] dark:text-white font-bold text-sm mb-1">Need pickup logistics</Text>
-                    <Text className="text-[#828282] dark:text-gray-400 text-xs leading-5">Yes</Text>
-                </View>
-
-                {/* Actions */}
-                <TouchableOpacity onPress={handleAcceptOfferClick} className="w-full bg-[#3B2D85] rounded-full py-4 items-center justify-center mb-3">
-                    <Text className="text-white font-bold text-sm">Accept offer</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={handleRejectOfferClick} className="w-full bg-white dark:bg-[#1E1E1E] border border-[#EB5757] rounded-full py-4 items-center justify-center mb-6">
-                    <Text className="text-[#EB5757] font-bold text-sm">Reject Offer</Text>
-                </TouchableOpacity>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
-      {/* ========================================== */}
-      {/* MODAL 2: CART SUMMARY (After Accepting)    */}
-      {/* ========================================== */}
-      <Modal animationType="slide" transparent={true} visible={isCartSummaryModalVisible} onRequestClose={() => setCartSummaryModalVisible(false)}>
-        <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' }}>
-          <View style={{ paddingBottom: Platform.OS === 'ios' ? 40 : 24 }} className="bg-white dark:bg-[#1E1E1E] rounded-t-[32px] px-6 pt-8 w-full shadow-lg relative mt-12">
-            
-
-
-            {/* Header */}
-            <View className="flex-row items-center w-full mb-8 relative">
-                       <Text className="text-lg font-semibold text-[#333333] dark:text-white mx-auto">
-                           Cart Summary
-                       </Text>
-                       <TouchableOpacity onPress={() => setCartSummaryModalVisible(false)} className="absolute right-0">
-                           <Ionicons name="close" size={24} color={isDark ? "#FFF" : "#333"} />
-                       </TouchableOpacity>
-                     
-                   </View>
-{/* 
-            <Text className="text-xl font-bold text-[#333333] dark:text-white text-center mb-8">Your Cart Summary</Text> */}
-
-            <View className="w-full mb-6">
-                <View className="flex-row justify-between items-center mb-4">
-                    <Text className="text-[#828282] dark:text-gray-400 text-sm">Design cost</Text>
-                    <Text className="text-[#333333] dark:text-white font-semibold text-sm">₦ 11,600</Text>
-                </View>
-                <View className="flex-row justify-between items-center mb-4">
-                    <Text className="text-[#828282] dark:text-gray-400 text-sm">Printing cost</Text>
-                    <Text className="text-[#333333] dark:text-white font-semibold text-sm">₦ 10,000</Text>
-                </View>
-                <View className="flex-row justify-between items-center mb-4 border-b border-gray-100 dark:border-gray-800 pb-6">
-                    <Text className="text-[#828282] dark:text-gray-400 text-sm">Pickup/delivery</Text>
-                    <Text className="text-[#333333] dark:text-white font-semibold text-sm">₦ 5,000</Text>
-                </View>
-
-                <View className="flex-row justify-between items-center mt-2">
-                    <Text className="text-[#333333] dark:text-white font-bold text-base">Total</Text>
-                    <Text className="text-[#333333] dark:text-white font-bold text-base">₦ 26,600</Text>
-                </View>
-            </View>
-
-            <TouchableOpacity onPress={proceedToPayment} className="w-full bg-[#3B2D85] rounded-full py-4 items-center justify-center mb-4">
-                <Text className="text-white font-bold text-sm">Proceed to Payment</Text>
+    <SafeAreaView style={styles.safeArea}>
+      <KeyboardAvoidingView
+        style={styles.safeArea}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <View style={styles.container}>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.iconButton}>
+              <Ionicons name="arrow-back" size={24} color="#2C2733" />
             </TouchableOpacity>
+            <View style={styles.headerIdentity}>
+              <AvatarBadge
+                color={conversation.avatarColor}
+                emoji={conversation.avatarEmoji}
+                size={40}
+              />
+              <View>
+                <Text style={styles.headerName}>{conversation.name}</Text>
+                <Text style={styles.headerMeta}>2hrs ago</Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              onPress={() => setShowConversationActions(true)}
+              style={styles.iconButton}>
+              <Ionicons name="ellipsis-vertical" size={20} color="#787381" />
+            </TouchableOpacity>
+          </View>
 
-            <View className="w-12 h-1 bg-gray-300 dark:bg-gray-600 rounded-full mt-2 mx-auto" />
+          <ScrollView
+            ref={scrollViewRef}
+            style={styles.thread}
+            contentContainerStyle={styles.threadContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled">
+            {messages.map(renderMessage)}
+          </ScrollView>
+
+          <View style={styles.composerBar}>
+            <View style={styles.composerInputShell}>
+              <TouchableOpacity style={styles.composerIcon}>
+                <Feather name="smile" size={21} color="#8F8A9C" />
+              </TouchableOpacity>
+              <TextInput
+                value={draft}
+                onChangeText={setDraft}
+                placeholder="Send message"
+                placeholderTextColor="#9A94A7"
+                multiline
+                style={styles.composerInput}
+              />
+              <TouchableOpacity style={styles.composerIcon}>
+                <Feather name="image" size={21} color="#8F8A9C" />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.composerIcon}>
+                <Feather name="paperclip" size={21} color="#8F8A9C" />
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity
+              style={[styles.sendButton, !draft.trim() && styles.sendButtonDisabled]}
+              onPress={handleSend}
+              disabled={!draft.trim()}>
+              <Ionicons name="paper-plane-outline" size={20} color="#FFFFFF" />
+            </TouchableOpacity>
           </View>
         </View>
-      </Modal>
 
-      {/* ========================================== */}
-      {/* MODAL 3: REJECT CONFIRMATION DIALOG        */}
-      {/* ========================================== */}
-      <Modal animationType="fade" transparent={true} visible={isRejectModalVisible} onRequestClose={() => setRejectModalVisible(false)}>
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.4)' }}>
-            <View className="bg-white dark:bg-[#1E1E1E] w-[85%] rounded-[24px] p-6 shadow-lg relative">
-                
-                {/* Close Button top right */}
-                <TouchableOpacity onPress={() => setRejectModalVisible(false)} className="absolute top-4 right-4 z-10">
-                    <Ionicons name="close" size={20} color={isDark ? "#FFF" : "#333"} />
+        <Modal
+          transparent
+          visible={showConversationActions}
+          animationType="slide"
+          onRequestClose={() => setShowConversationActions(false)}>
+          <Pressable
+            style={styles.overlay}
+            onPress={() => setShowConversationActions(false)}>
+            <Pressable style={styles.menuSheet} onPress={(event) => event.stopPropagation()}>
+              <View style={styles.sheetHandle} />
+              <TouchableOpacity style={styles.menuAction}>
+                <Ionicons name="trash-outline" size={22} color="#FF6B63" />
+                <Text style={styles.menuActionText}>Delete</Text>
+              </TouchableOpacity>
+              <View style={styles.sheetDivider} />
+              <TouchableOpacity style={styles.menuAction}>
+                <Ionicons name="alert-circle-outline" size={22} color="#FF6B63" />
+                <Text style={styles.menuActionText}>Report</Text>
+              </TouchableOpacity>
+            </Pressable>
+          </Pressable>
+        </Modal>
+
+        <Modal
+          transparent
+          visible={showOfferDetail}
+          animationType="slide"
+          onRequestClose={() => setShowOfferDetail(false)}>
+          <Pressable style={styles.overlay} onPress={() => setShowOfferDetail(false)}>
+            <Pressable style={styles.detailSheet} onPress={(event) => event.stopPropagation()}>
+              <View style={styles.sheetHandle} />
+              <View style={styles.detailHeader}>
+                <Text style={styles.detailTitle}>Order Detail</Text>
+                <TouchableOpacity onPress={() => setShowOfferDetail(false)}>
+                  <Ionicons name="close" size={22} color="#2C2733" />
                 </TouchableOpacity>
-
-                {/* Logo Area */}
-                <View className="flex-row items-center mb-6">
-                    <Ionicons name="chatbubbles" size={18} color="#3B2D85" className="mr-1" />
-                    <Text className="font-extrabold text-[#3B2D85] text-sm tracking-wider">Berrystamp</Text>
-                </View>
-
-                <Text className="text-[#333333] dark:text-gray-300 text-[15px] leading-6 mb-8">
-                    Are you sure you want to reject this offer? Rejecting offer means you won&apos;t be able to proceed with your negotiation.
-                </Text>
-
-                <View className="flex-row border-t border-gray-100 dark:border-gray-800 pt-4 -mx-6 px-2">
-                    <TouchableOpacity onPress={() => setRejectModalVisible(false)} className="flex-1 items-center justify-center border-r border-gray-100 dark:border-gray-800">
-                        <Text className="text-[#828282] dark:text-gray-400 font-semibold text-[15px]">Cancel</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={confirmRejectOffer} className="flex-1 items-center justify-center">
-                        <Text className="text-[#EB5757] font-semibold text-[15px]">Reject</Text>
-                    </TouchableOpacity>
-                </View>
-            </View>
-        </View>
-      </Modal>
-
-    </KeyboardAvoidingView>
+              </View>
+              <Text style={styles.detailLead}>
+                Review the custom offer and confirm the details before continuing.
+              </Text>
+              <View style={styles.detailBlock}>
+                <Text style={styles.detailLabel}>Order title</Text>
+                <Text style={styles.detailValue}>{OFFER_DETAILS.title}</Text>
+              </View>
+              <View style={styles.detailBlock}>
+                <Text style={styles.detailLabel}>Agreed description</Text>
+                <Text style={styles.detailValue}>{OFFER_DETAILS.description}</Text>
+              </View>
+              <View style={styles.detailBlock}>
+                <Text style={styles.detailLabel}>Agreed amount</Text>
+                <Text style={styles.detailStrong}>{OFFER_DETAILS.amount}</Text>
+              </View>
+              <View style={styles.detailBlock}>
+                <Text style={styles.detailLabel}>Selected item source</Text>
+                <Text style={styles.detailValue}>{OFFER_DETAILS.source}</Text>
+              </View>
+              <View style={styles.detailBlock}>
+                <Text style={styles.detailLabel}>Need pickup logistics</Text>
+                <Text style={styles.detailValue}>{OFFER_DETAILS.logistics}</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.primaryButton}
+                onPress={() => {
+                  setShowOfferDetail(false);
+                  router.push('/(tabs)/checkout');
+                }}>
+                <Text style={styles.primaryButtonText}>Accept offer</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.secondaryButton} onPress={() => setShowOfferDetail(false)}>
+                <Text style={styles.secondaryButtonText}>Not now</Text>
+              </TouchableOpacity>
+            </Pressable>
+          </Pressable>
+        </Modal>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  container: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F2EEF7',
+  },
+  headerIdentity: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginLeft: 8,
+  },
+  headerName: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#1E1A26',
+  },
+  headerMeta: {
+    fontSize: 13,
+    color: '#9792A8',
+    marginTop: 2,
+  },
+  iconButton: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  thread: {
+    flex: 1,
+  },
+  threadContent: {
+    paddingHorizontal: 16,
+    paddingTop: 18,
+    paddingBottom: 28,
+    gap: 12,
+  },
+  messageRow: {
+    width: '100%',
+  },
+  myRow: {
+    alignItems: 'flex-end',
+  },
+  otherRow: {
+    alignItems: 'flex-start',
+  },
+  bundleCard: {
+    width: '78%',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#D9CEF3',
+    overflow: 'hidden',
+    backgroundColor: '#FFFFFF',
+  },
+  bundleGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  bundleTile: {
+    width: '50%',
+    aspectRatio: 1,
+    borderWidth: 0.5,
+    borderColor: '#ECE7F6',
+  },
+  bundleImage: {
+    width: '100%',
+    height: '100%',
+  },
+  bundleOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(58, 38, 114, 0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bundleOverlayText: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  bundleFooter: {
+    borderTopWidth: 1,
+    borderTopColor: '#ECE7F6',
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  bundleFooterText: {
+    color: '#4A3298',
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  offerShell: {
+    width: '82%',
+  },
+  offerCaption: {
+    color: '#9B96A8',
+    fontSize: 16,
+    marginBottom: 10,
+  },
+  offerCard: {
+    width: 192,
+    borderWidth: 1,
+    borderColor: '#D9CEF3',
+    backgroundColor: '#FFFFFF',
+  },
+  offerImage: {
+    width: '100%',
+    height: 180,
+    backgroundColor: '#F7F5FB',
+  },
+  offerInfo: {
+    paddingHorizontal: 10,
+    paddingTop: 10,
+    paddingBottom: 12,
+    gap: 6,
+  },
+  offerTitle: {
+    fontSize: 15,
+    color: '#3A3744',
+  },
+  offerPrice: {
+    fontSize: 14,
+    color: '#1760D5',
+    fontWeight: '700',
+  },
+  offerButton: {
+    backgroundColor: '#4A3298',
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  offerButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  otherAvatarWrapper: {
+    marginBottom: 8,
+    marginLeft: 4,
+  },
+  textBubble: {
+    maxWidth: '78%',
+    borderRadius: 24,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  myBubble: {
+    backgroundColor: '#4A3298',
+    borderTopRightRadius: 8,
+  },
+  otherBubble: {
+    backgroundColor: '#F7F6FA',
+    borderTopLeftRadius: 8,
+    marginLeft: 44,
+  },
+  messageText: {
+    fontSize: 15,
+    lineHeight: 24,
+  },
+  myMessageText: {
+    color: '#FFFFFF',
+  },
+  otherMessageText: {
+    color: '#35313F',
+  },
+  messageMeta: {
+    marginTop: 8,
+    fontSize: 12,
+  },
+  myMeta: {
+    color: '#DAD1F6',
+    textAlign: 'right',
+  },
+  otherMeta: {
+    color: '#ACA6B9',
+  },
+  composerBar: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: Platform.select({ ios: 22, default: 16 }),
+    borderTopWidth: 1,
+    borderTopColor: '#F2EEF7',
+    backgroundColor: '#FFFFFF',
+  },
+  composerInputShell: {
+    flex: 1,
+    minHeight: 54,
+    maxHeight: 120,
+    borderWidth: 1,
+    borderColor: '#DED8E9',
+    borderRadius: 28,
+    backgroundColor: '#FAF9FC',
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 6,
+  },
+  composerIcon: {
+    width: 30,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  composerInput: {
+    flex: 1,
+    paddingTop: 14,
+    paddingBottom: 14,
+    fontSize: 15,
+    color: '#2B2833',
+    maxHeight: 96,
+  },
+  sendButton: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: '#4A3298',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sendButtonDisabled: {
+    backgroundColor: '#C8C1DC',
+  },
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(17, 13, 28, 0.42)',
+    justifyContent: 'flex-end',
+  },
+  menuSheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 18,
+    paddingTop: 12,
+    paddingBottom: 34,
+  },
+  sheetHandle: {
+    alignSelf: 'center',
+    width: 96,
+    height: 5,
+    borderRadius: 999,
+    backgroundColor: '#D8D4E1',
+    marginBottom: 24,
+  },
+  menuAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+  },
+  menuActionText: {
+    fontSize: 16,
+    color: '#26222E',
+  },
+  sheetDivider: {
+    height: 1,
+    backgroundColor: '#F0ECF6',
+  },
+  detailSheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 30,
+  },
+  detailHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  detailTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#2B2833',
+  },
+  detailLead: {
+    fontSize: 14,
+    lineHeight: 22,
+    color: '#8D8798',
+    marginBottom: 20,
+  },
+  detailBlock: {
+    marginBottom: 16,
+  },
+  detailLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#2B2833',
+    marginBottom: 6,
+  },
+  detailValue: {
+    fontSize: 14,
+    lineHeight: 22,
+    color: '#6E697B',
+  },
+  detailStrong: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#2A68DA',
+  },
+  primaryButton: {
+    backgroundColor: '#4A3298',
+    borderRadius: 999,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  primaryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  secondaryButton: {
+    borderRadius: 999,
+    paddingVertical: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E1DCEE',
+    marginTop: 12,
+  },
+  secondaryButtonText: {
+    color: '#6E697B',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+});

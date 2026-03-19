@@ -6,7 +6,6 @@ import { Controller, useForm } from "react-hook-form";
 import {
   ActivityIndicator,
   Animated,
-  Image,
   Text,
   TextInput,
   TouchableOpacity,

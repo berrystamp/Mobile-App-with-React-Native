@@ -1,51 +1,51 @@
 import Header from '@/components/common/Header';
-import { AuthProvider } from '@/context/AuthContext';
-import { Ionicons } from '@expo/vector-icons';
-import { Tabs, useRouter, Stack } from 'expo-router';
 import BottomNavigation from '@/components/common/BottomNavigation';
-import React from 'react';
-import { useColorScheme, View } from 'react-native';
+import { AuthProvider } from '@/context/AuthContext';
+import { Stack, usePathname, useRouter } from 'expo-router';
+import React, { useMemo } from 'react';
+import { View } from 'react-native';
 
 export default function TabsLayout() {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
-const router = useRouter();
-  const theme = {
-    background: isDark ? '#121212' : '#FFFFFF',
-    tabBar: isDark ? '#1E1E1E' : '#FFFFFF',
-    activeTint: '#4B3A99',
-    inactiveTint: isDark ? '#7A7A7A' : '#B0B0B0',
-  };
+  const router = useRouter();
+  const pathname = usePathname();
+
+  const hideChrome = useMemo(
+    () => ['/chat', '/checkout', '/Search', '/Filter', '/select-printer'].includes(pathname),
+    [pathname],
+  );
+
+  const activeRoute = useMemo(() => {
+    if (pathname === '/messages') return 'Messages';
+    if (pathname === '/favorites') return 'Favorites';
+    if (pathname === '/cart') return 'Cart';
+    if (pathname === '/profile') return 'Profile';
+    return 'Home';
+  }, [pathname]);
 
   return (
     <AuthProvider>
-      <View style={{ flex: 1, backgroundColor: theme.background }}>
-        <Header
-        type="main"
-        onSearchPress={() => router.push('Search')}
-        onNotificationPress={() => console.log('Notifications')}
-      />
+      <View style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
+        {!hideChrome ? (
+          <Header
+            type="main"
+            onSearchPress={() => router.push('/Search')}
+            onNotificationPress={() => console.log('Notifications')}
+          />
+        ) : null}
         <Stack screenOptions={{ headerShown: false }}>
-  
-          <Stack.Screen name="(tabs)/index" />
-          
-          {/* Route Groups */}
-          <Stack.Screen name="/cart" />
-          <Stack.Screen name="/chat" />
-<Stack.Screen name="/checkout" />
-          <Stack.Screen name="/favorites" />
-<Stack.Screen name="/Filter" />
-          <Stack.Screen name="/messages" />
-<Stack.Screen name="/printers" />
-          <Stack.Screen name="/product" />
-<Stack.Screen name="/profile" />
-          <Stack.Screen name="/Search" />
-<Stack.Screen name="/select-printer" />
+          <Stack.Screen name="index" />
+          <Stack.Screen name="cart" />
+          <Stack.Screen name="chat" />
+          <Stack.Screen name="checkout" />
+          <Stack.Screen name="favorites" />
+          <Stack.Screen name="Filter" />
+          <Stack.Screen name="messages" />
+          <Stack.Screen name="printers" />
+          <Stack.Screen name="profile" />
+          <Stack.Screen name="Search" />
+          <Stack.Screen name="select-printer" />
         </Stack>
-	<BottomNavigation 
-        activeRoute="Home"
-        onNavigate={(route) => console.log('Navigate to:', route)}
-      />
+        {!hideChrome ? <BottomNavigation activeRoute={activeRoute} /> : null}
       </View>
     </AuthProvider>
   );

@@ -1,36 +1,48 @@
-// src/components/common/BottomNavigation.jsx
 import React from 'react';
-import { View, TouchableOpacity, StyleSheet } from 'react-native';
+import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from "expo-router";
-const BottomNavigation = ({ activeRoute = 'Home', onNavigate }) => {
-const router = useRouter(); 
- const navItems = [
-    { name: 'Home', link: '(tabs)', icon: 'home', iconOutline: 'home-outline' },
-    { name: 'Messages', link: '(tabs)/messages', icon: 'mail', iconOutline: 'mail-outline' },
-    { name: 'Favorites', link: '(tabs)/favorites', icon: 'heart', iconOutline: 'heart-outline' },
-    { name: 'Cart', link: '(tabs)/cart', icon: 'cart', iconOutline: 'cart-outline' },
-    { name: 'Profile', link: '(tabs)/profile', icon: 'person', iconOutline: 'person-outline' },
-  ];
+import { usePathname, useRouter } from 'expo-router';
+
+const NAV_ITEMS = [
+  { name: 'Home', route: '/', icon: 'home', iconOutline: 'home-outline' },
+  { name: 'Messages', route: '/messages', icon: 'mail', iconOutline: 'mail-outline' },
+  { name: 'Favorites', route: '/favorites', icon: 'heart', iconOutline: 'heart-outline' },
+  { name: 'Cart', route: '/cart', icon: 'cart', iconOutline: 'cart-outline' },
+  { name: 'Profile', route: '/profile', icon: 'person', iconOutline: 'person-outline' },
+] as const;
+
+interface BottomNavigationProps {
+  activeRoute?: string;
+}
+
+export default function BottomNavigation({ activeRoute }: BottomNavigationProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+
+  const resolvedActiveRoute =
+    activeRoute ?? NAV_ITEMS.find((item) => pathname === item.route)?.name ?? 'Home';
 
   return (
     <View style={styles.container}>
-      {navItems.map((item) => (
-        <TouchableOpacity
-          key={item.name}
-          style={styles.navItem}
-          onPress={() => router.push(item.link)}
-        >
-          <Ionicons
-            name={activeRoute === item.name ? item.icon : item.iconOutline}
-            size={24}
-            color={activeRoute === item.name ? '#4A3F8F' : '#999'}
-          />
-        </TouchableOpacity>
-      ))}
+      {NAV_ITEMS.map((item) => {
+        const isActive = resolvedActiveRoute === item.name;
+
+        return (
+          <TouchableOpacity
+            key={item.name}
+            style={styles.navItem}
+            onPress={() => router.push(item.route)}>
+            <Ionicons
+              name={isActive ? item.icon : item.iconOutline}
+              size={24}
+              color={isActive ? '#4A3298' : '#9994A6'}
+            />
+          </TouchableOpacity>
+        );
+      })}
     </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
   container: {
@@ -47,5 +59,3 @@ const styles = StyleSheet.create({
     padding: 8,
   },
 });
-
-export default BottomNavigation;
