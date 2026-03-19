@@ -90,10 +90,30 @@ class ApiService {
 
   async getRecommendedDesigns(size: number = 10, page: number = 0) {
     const response = await api.get('/designs', {
-      params: { page, size, sort: 'id,desc' },
+      params: { page, size, sort: 'likes,desc' },
       headers: {
         'profileType': 'CUSTOMER' 
       }
+    });
+    return response.data;
+  }
+
+  async getRecentDesigns(size: number = 10, page: number = 0) {
+    const response = await api.get('/designs', {
+      params: { page, size, sort: 'id,desc' },
+      headers: {
+        profileType: 'CUSTOMER',
+      },
+    });
+    return response.data;
+  }
+
+  async getFeaturedDesigns(size: number = 10, page: number = 0) {
+    const response = await api.get('/designs', {
+      params: { page, size, sort: 'likes,desc' },
+      headers: {
+        profileType: 'CUSTOMER',
+      },
     });
     return response.data;
   }
