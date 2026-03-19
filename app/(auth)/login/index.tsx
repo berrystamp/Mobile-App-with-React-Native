@@ -14,7 +14,6 @@ import {
 } from "react-native";
 import { z } from "zod";
 import { useAuth } from "../../../context/AuthContext";
-
 const schema = z.object({
   email: z.string().email("Invalid email"),
   password: z.string().min(6, "Minimum 6 characters"),

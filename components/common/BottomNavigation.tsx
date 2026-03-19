@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 // src/components/common/BottomNavigation.tsx
 import React from 'react';
 import { View, TouchableOpacity, StyleSheet, useColorScheme } from 'react-native';
@@ -14,8 +13,8 @@ type NavItem = {
   link: Href;
   icon: keyof typeof Ionicons.glyphMap;
   iconOutline: keyof typeof Ionicons.glyphMap;
-};
-
+};  
+  
 const BottomNavigation: React.FC<BottomNavigationProps> = ({ 
   onNavigate 
 }) => {
@@ -39,31 +38,6 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
     { name: 'Cart', link: '/cart', icon: 'cart', iconOutline: 'cart-outline' },
     { name: 'Profile', link: '/profile', icon: 'person', iconOutline: 'person-outline' },
   ];
-=======
-import React from 'react';
-import { StyleSheet, TouchableOpacity, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { usePathname, useRouter } from 'expo-router';
-
-const NAV_ITEMS = [
-  { name: 'Home', route: '/', icon: 'home', iconOutline: 'home-outline' },
-  { name: 'Messages', route: '/messages', icon: 'mail', iconOutline: 'mail-outline' },
-  { name: 'Favorites', route: '/favorites', icon: 'heart', iconOutline: 'heart-outline' },
-  { name: 'Cart', route: '/cart', icon: 'cart', iconOutline: 'cart-outline' },
-  { name: 'Profile', route: '/profile', icon: 'person', iconOutline: 'person-outline' },
-] as const;
-
-interface BottomNavigationProps {
-  activeRoute?: string;
-}
-
-export default function BottomNavigation({ activeRoute }: BottomNavigationProps) {
-  const router = useRouter();
-  const pathname = usePathname();
-
-  const resolvedActiveRoute =
-    activeRoute ?? NAV_ITEMS.find((item) => pathname === item.route)?.name ?? 'Home';
->>>>>>> f411c144b4f1aff85c4c9a8812776d0b173f68b5
 
   // Helper function to figure out if this tab is the active one based on the URL
   const checkIsActive = (link: string) => {
@@ -76,24 +50,17 @@ export default function BottomNavigation({ activeRoute }: BottomNavigationProps)
   };
 
   return (
-<<<<<<< HEAD
     <View style={[
       styles.container, 
       { backgroundColor: theme.background, borderTopColor: theme.border }
     ]}>
       {navItems.map((item) => {
         const isActive = checkIsActive(item.link as string);
-=======
-    <View style={styles.container}>
-      {NAV_ITEMS.map((item) => {
-        const isActive = resolvedActiveRoute === item.name;
->>>>>>> f411c144b4f1aff85c4c9a8812776d0b173f68b5
 
         return (
           <TouchableOpacity
             key={item.name}
             style={styles.navItem}
-<<<<<<< HEAD
             onPress={() => {
               if (onNavigate) onNavigate(item.name);
               router.replace(item.link);
@@ -103,13 +70,6 @@ export default function BottomNavigation({ activeRoute }: BottomNavigationProps)
               name={isActive ? item.icon : item.iconOutline}
               size={24}
               color={isActive ? theme.activeTint : theme.inactiveTint}
-=======
-            onPress={() => router.push(item.route)}>
-            <Ionicons
-              name={isActive ? item.icon : item.iconOutline}
-              size={24}
-              color={isActive ? '#4A3298' : '#9994A6'}
->>>>>>> f411c144b4f1aff85c4c9a8812776d0b173f68b5
             />
           </TouchableOpacity>
         );
@@ -117,6 +77,8 @@ export default function BottomNavigation({ activeRoute }: BottomNavigationProps)
     </View>
   );
 }
+
+export default BottomNavigation;  
 
 const styles = StyleSheet.create({
   container: {

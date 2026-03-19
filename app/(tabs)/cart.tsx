@@ -118,19 +118,9 @@ export default function CartScreen() {
       setCartItems(prev => prev.filter(item => item.id !== itemId));
 
       try {
-<<<<<<< HEAD
         const response = await ApiService.deleteCartItem(itemId)
         if (!response) throw new Error("Failed to delete");
       } catch (error) {
-=======
-        const response = await fetch(`${API_BASE_URL}/cart-items/${itemId}`, { 
-          method: 'DELETE',
-          headers: getAuthHeaders()
-        });
-        
-        if (!response.ok) throw new Error("Failed to delete");
-      } catch {
->>>>>>> f411c144b4f1aff85c4c9a8812776d0b173f68b5
         setCartItems(previousItems); // Rollback if failed
         Alert.alert("Error", "Could not remove item. Please try again.");
       }
@@ -217,6 +207,7 @@ export default function CartScreen() {
 
   return (
     <View className="flex-1 bg-gray-50 dark:bg-[#121212]">
+    
       <ScrollView className='w-full h-full pt-12 px-1' contentContainerStyle={{paddingBottom: 40}}>
         {/* Header */}
         <View className='w-full flex flex-row justify-between items-center px-6 py-4'>
