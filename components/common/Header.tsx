@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View, useColorScheme } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 interface HeaderProps {
@@ -23,22 +23,32 @@ export default function Header({
   rightActionText,
   onRightAction,
 }: HeaderProps) {
+  const isDark = useColorScheme() === 'dark';
+  const theme = {
+    mainBg: isDark ? '#121212' : '#FFFFFF',
+    card: isDark ? '#1E1E1E' : '#F5F5F5',
+    text: isDark ? '#FFFFFF' : '#111111',
+    icon: isDark ? '#FFFFFF' : '#111111',
+    subtleBorder: isDark ? '#262626' : '#F0F0F0',
+    accent: '#4A3298',
+  };
+
   if (type === 'main') {
     return (
-      <View style={styles.headerMain}>
-        <TouchableOpacity style={styles.iconBtn}>
-          <Ionicons name="menu-outline" size={28} color="#FFFFFF" />
+      <View style={[styles.headerMain, { backgroundColor: theme.mainBg }]}> 
+        <TouchableOpacity style={[styles.iconBtn, { backgroundColor: theme.card }]}> 
+          <Ionicons name="menu-outline" size={24} color={theme.icon} />
         </TouchableOpacity>
-        <Text style={styles.logoText}>InkStamp</Text>
+        <Text style={[styles.logoText, { color: theme.text }]}>BerryStamp</Text>
         <View style={styles.headerIcons}>
           {onSearchPress ? (
-            <TouchableOpacity style={styles.iconBtn} onPress={onSearchPress}>
-              <Ionicons name="search-outline" size={22} color="#FFFFFF" />
+            <TouchableOpacity style={[styles.iconBtn, { backgroundColor: theme.card }]} onPress={onSearchPress}>
+              <Ionicons name="search-outline" size={22} color={theme.icon} />
             </TouchableOpacity>
           ) : null}
           {onNotificationPress ? (
-            <TouchableOpacity style={styles.iconBtn} onPress={onNotificationPress}>
-              <Ionicons name="notifications-outline" size={22} color="#FFFFFF" />
+            <TouchableOpacity style={[styles.iconBtn, { backgroundColor: theme.card }]} onPress={onNotificationPress}>
+              <Ionicons name="notifications-outline" size={22} color={theme.icon} />
             </TouchableOpacity>
           ) : null}
         </View>
@@ -47,14 +57,14 @@ export default function Header({
   }
 
   return (
-    <View style={styles.headerBack}>
+    <View style={[styles.headerBack, { backgroundColor: theme.mainBg, borderBottomColor: theme.subtleBorder }]}> 
       <TouchableOpacity onPress={onBackPress} style={styles.backBtn}>
-        <Ionicons name="arrow-back" size={24} color="#000" />
+        <Ionicons name="arrow-back" size={24} color={theme.icon} />
       </TouchableOpacity>
-      <Text style={styles.headerTitle}>{title}</Text>
+      <Text style={[styles.headerTitle, { color: theme.text }]}>{title}</Text>
       {rightAction ? (
         <TouchableOpacity onPress={onRightAction}>
-          <Text style={styles.rightActionText}>{rightActionText}</Text>
+          <Text style={[styles.rightActionText, { color: theme.accent }]}>{rightActionText}</Text>
         </TouchableOpacity>
       ) : (
         <View style={{ width: 60 }} />
@@ -71,21 +81,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 50,
     paddingBottom: 16,
-    backgroundColor: '#262626',
   },
   logoText: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    fontWeight: '700',
   },
   headerIcons: {
-    minWidth: 56,
+    minWidth: 96,
     flexDirection: 'row',
     justifyContent: 'flex-end',
     gap: 8,
   },
   iconBtn: {
-    padding: 4,
+    padding: 10,
+    borderRadius: 20,
   },
   headerBack: {
     flexDirection: 'row',
@@ -95,7 +104,6 @@ const styles = StyleSheet.create({
     paddingTop: 50,
     paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
   },
   backBtn: {
     padding: 4,
@@ -103,11 +111,9 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#000',
   },
   rightActionText: {
     fontSize: 14,
-    color: '#4A3298',
     fontWeight: '500',
   },
 });

@@ -1,4 +1,3 @@
-// src/components/lists/ProductGrid.jsx
 import React from 'react';
 import { View, Text, StyleSheet, Dimensions } from 'react-native';
 import ProductCard from '../cards/ProductCard';
@@ -6,18 +5,26 @@ import ProductCard from '../cards/ProductCard';
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 48) / 2;
 
-const ProductGrid = ({ 
-  title, 
-  data, 
-  onProductPress, 
-  onFavoritePress,
-  showTitle = true,
-}) => {
+interface ProductItem {
+  id: string | number;
+  title: string;
+  artist: string;
+  price: string;
+  image: string;
+}
+
+interface ProductGridProps {
+  title?: string;
+  data: ProductItem[];
+  onProductPress?: (item: ProductItem) => void;
+  onFavoritePress?: (id: string | number) => void;
+  showTitle?: boolean;
+}
+
+const ProductGrid = ({ title, data, onProductPress, onFavoritePress, showTitle = true }: ProductGridProps) => {
   return (
     <View style={styles.container}>
-      {showTitle && title && (
-        <Text style={styles.title}>{title}</Text>
-      )}
+      {showTitle && title ? <Text style={styles.title}>{title}</Text> : null}
       <View style={styles.grid}>
         {data.map((item) => (
           <View key={item.id} style={{ width: CARD_WIDTH }}>
@@ -25,6 +32,7 @@ const ProductGrid = ({
               product={item}
               onPress={() => onProductPress?.(item)}
               onFavoritePress={onFavoritePress}
+              cardWidth={CARD_WIDTH}
             />
           </View>
         ))}

@@ -1,4 +1,3 @@
-// src/components/cards/ProductCard.jsx
 import React from 'react';
 import { View, Text, TouchableOpacity, Image, StyleSheet, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -6,17 +5,27 @@ import { Ionicons } from '@expo/vector-icons';
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 48) / 2;
 
-const ProductCard = ({ product, onPress, onFavoritePress, cardWidth }) => {
+interface ProductCardProps {
+  product: {
+    id: string | number;
+    title: string;
+    artist: string;
+    price: string;
+    image: string;
+  };
+  onPress?: () => void;
+  onFavoritePress?: (id: string | number) => void;
+  cardWidth?: number;
+}
+
+const ProductCard = ({ product, onPress, onFavoritePress, cardWidth }: ProductCardProps) => {
   const finalWidth = cardWidth || CARD_WIDTH;
 
   return (
     <TouchableOpacity style={[styles.container, { width: finalWidth }]} onPress={onPress}>
       <View style={[styles.imageContainer, { width: finalWidth, height: finalWidth }]}>
         <Image source={{ uri: product.image }} style={styles.image} />
-        <TouchableOpacity 
-          style={styles.favorite}
-          onPress={() => onFavoritePress?.(product.id)}
-        >
+        <TouchableOpacity style={styles.favorite} onPress={() => onFavoritePress?.(product.id)}>
           <Ionicons name="heart-outline" size={20} color="#666" />
         </TouchableOpacity>
       </View>
