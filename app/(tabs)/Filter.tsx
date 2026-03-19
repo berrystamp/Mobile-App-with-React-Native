@@ -16,53 +16,19 @@ import {
 
 const sortOptions = ['Recently added', 'Low Price', 'High Price'];
 
-const sortOptions = ['Recently added', 'Low Price', 'High Price'];
-
 const FilterScreen = () => {
   const router = useRouter();
   const isDark = useColorScheme() === 'dark';
+  
+  // --- State ---
   const [selectedProductCategories, setSelectedProductCategories] = useState<string[]>([]);
   const [selectedDesignCategories, setSelectedDesignCategories] = useState<string[]>([]);
   const [productCategories, setProductCategories] = useState<string[]>([]);
   const [designCategories, setDesignCategories] = useState<string[]>([]);
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 9000]);
   const [sortBy, setSortBy] = useState('Recently added');
-  const [productCategories, setProductCategories] = useState<string[]>([]);
-  const [designCategories, setDesignCategories] = useState<string[]>([]);
 
-  const theme = useMemo(
-    () => ({
-      background: isDark ? '#121212' : '#FFF',
-      card: isDark ? '#121212' : '#FFF',
-      border: isDark ? '#2A2A2A' : '#F0F0F0',
-    }),
-    [isDark],
-  );
-
-  useEffect(() => {
-    const loadState = async () => {
-      const [filters, designResponse] = await Promise.all([getSearchFilters(), ApiService.getDesigns({ size: 40 })]);
-      const designs = normalizeDesignListResponse(designResponse);
-      const nextProductCategories = Array.from(
-        new Set(designs.flatMap((design) => design.mocks.map((mock) => mock.name)).filter(Boolean)),
-      ).slice(0, 12);
-      const nextDesignCategories = Array.from(
-        new Set(designs.flatMap((design) => design.categories || []).filter(Boolean)),
-      ).slice(0, 12);
-
-      setSelectedProductCategories(filters.productCategories);
-      setSelectedDesignCategories(filters.designCategories);
-      setPriceRange(filters.priceRange);
-      setSortBy(filters.sortBy);
-      setProductCategories(nextProductCategories);
-      setDesignCategories(nextDesignCategories);
-    };
-
-    loadState().catch((error) => {
-      console.error('Failed to load filter options', error);
-    });
-  }, []);
-
+  // --- Theme ---
   const theme = useMemo(
     () => ({
       background: isDark ? '#121212' : '#FFFFFF',
@@ -76,26 +42,44 @@ const FilterScreen = () => {
     [isDark],
   );
 
+  // --- Data Loading ---
   useEffect(() => {
     const loadState = async () => {
-      const [filters, designResponse] = await Promise.all([getSearchFilters(), ApiService.getDesigns({ size: 40 })]);
-      const designs = normalizeDesignListResponse(designResponse);
+      try {
+        const [filters, designResponse] = await Promise.all([
+          getSearchFilters(), 
+          ApiService.getDesigns({ size: 40 })
+        ]);
+        
+        const designs = normalizeDesignListResponse(designResponse);
+        
+        // Extract unique categories from the designs array
+        const nextProductCategories = Array.from(
+          new Set(designs.flatMap((design) => design.mocks.map((mock) => mock.name)).filter(Boolean))
+        ).slice(0, 12);
+        
+        const nextDesignCategories = Array.from(
+          new Set(designs.flatMap((design) => design.categories || []).filter(Boolean))
+        ).slice(0, 12);
 
-      setSelectedProductCategories(filters.productCategories);
-      setSelectedDesignCategories(filters.designCategories);
-      setPriceRange(filters.priceRange);
-      setSortBy(filters.sortBy);
-      setProductCategories(
-        Array.from(new Set(designs.flatMap((design) => design.mocks.map((mock) => mock.name)).filter(Boolean))).slice(0, 8),
-      );
-      setDesignCategories(
-        Array.from(new Set(designs.flatMap((design) => design.categories || []).filter(Boolean))).slice(0, 8),
-      );
+        // Set state from local storage filters
+        setSelectedProductCategories(filters.productCategories || []);
+        setSelectedDesignCategories(filters.designCategories || []);
+        setPriceRange(filters.priceRange || [0, 9000]);
+        setSortBy(filters.sortBy || 'Recently added');
+        
+        // Set dynamic categories from API
+        setProductCategories(nextProductCategories);
+        setDesignCategories(nextDesignCategories);
+      } catch (error) {
+        console.error('Failed to load filter options', error);
+      }
     };
 
-    loadState().catch((error) => console.error('Failed to load filters', error));
+    loadState();
   }, []);
 
+  // --- Handlers ---
   const handleApply = async () => {
     await setSearchFilters({
       productCategories: selectedProductCategories,
@@ -109,14 +93,34 @@ const FilterScreen = () => {
   const handleClear = async () => {
     setSelectedProductCategories([]);
     setSelectedDesignCategories([]);
-    setPriceRange(defaultSearchFilters.priceRange);
-    setSortBy(defaultSearchFilters.sortBy);
+    setPriceRange(defaultSearchFilters.priceRange || [0, 9000]);
+    setSortBy(defaultSearchFilters.sortBy || 'Recently added');
     await setSearchFilters(defaultSearchFilters);
   };
 
-  const renderChip = (label: string, active = true) => (
-    <View
+  // Toggle selection for categories
+  const toggleSelection = (
+    category: string, 
+    selectedList: string[], 
+    setList: React.Dispatch<React.SetStateAction<string[]>>
+  ) => {
+    if (selectedList.includes(category)) {
+      setList(selectedList.filter((item) => item !== category));
+    } else {
+      setList([...selectedList, category]);
+    }
+  };
+
+  // --- Render Helpers ---
+  const renderChip = (
+    label: string, 
+    active: boolean, 
+    onPress: () => void
+  ) => (
+    <TouchableOpacity
       key={label}
+      onPress={onPress}
+      activeOpacity={0.7}
       style={[
         styles.chip,
         {
@@ -127,11 +131,12 @@ const FilterScreen = () => {
       <Text style={[styles.chipText, { color: active ? theme.chipText : theme.subtext }]} numberOfLines={1}>
         {label}
       </Text>
-    </View>
+    </TouchableOpacity>
   );
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}> 
+      {/* Header */}
       <View style={styles.topBar}>
         <TouchableOpacity onPress={() => router.back()} style={styles.topIconButton}>
           <Ionicons name="arrow-back" size={20} color={theme.text} />
@@ -143,6 +148,8 @@ const FilterScreen = () => {
       </View>
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        
+        {/* Product Categories */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, { color: theme.text }]}>Product Categories</Text>
@@ -154,10 +161,17 @@ const FilterScreen = () => {
             </TouchableOpacity>
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-            {productCategories.slice(0, 6).map((item) => renderChip(item, selectedProductCategories.includes(item)))}
+            {productCategories.slice(0, 6).map((item) => 
+              renderChip(
+                item, 
+                selectedProductCategories.includes(item),
+                () => toggleSelection(item, selectedProductCategories, setSelectedProductCategories)
+              )
+            )}
           </ScrollView>
         </View>
 
+        {/* Design Categories */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, { color: theme.text }]}>Design Categories</Text>
@@ -169,10 +183,17 @@ const FilterScreen = () => {
             </TouchableOpacity>
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-            {designCategories.slice(0, 6).map((item) => renderChip(item, selectedDesignCategories.includes(item)))}
+            {designCategories.slice(0, 6).map((item) => 
+              renderChip(
+                item, 
+                selectedDesignCategories.includes(item),
+                () => toggleSelection(item, selectedDesignCategories, setSelectedDesignCategories)
+              )
+            )}
           </ScrollView>
         </View>
 
+        {/* Price Range */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, { color: theme.text }]}>Price Range</Text>
@@ -190,6 +211,7 @@ const FilterScreen = () => {
           />
         </View>
 
+        {/* Sort By */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: theme.text, marginBottom: 14 }]}>Sort By</Text>
           <View style={styles.sortRow}>
@@ -214,6 +236,7 @@ const FilterScreen = () => {
         </View>
       </ScrollView>
 
+      {/* Footer */}
       <View style={[styles.footer, { backgroundColor: theme.background }]}> 
         <TouchableOpacity style={styles.applyButton} onPress={handleApply}>
           <Text style={styles.applyText}>Apply</Text>

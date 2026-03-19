@@ -25,7 +25,7 @@ export function useHomeData() {
         ApiService.getRecentDesigns(10),
         ApiService.getFeaturedDesigns(10),
       ]);
-
+      console.log('Fetched home data:', { artistsRes, recentRes, featuredRes });
       const artistSourceDesigns = normalizeDesignListResponse(artistsRes);
       const recent = normalizeDesignListResponse(recentRes);
       const featured = normalizeDesignListResponse(featuredRes);
