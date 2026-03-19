@@ -4,6 +4,9 @@ import { Ionicons, Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import ApiService from '@/services/apiClient';
+import { normalizeDesign, normalizeDesignListResponse } from '@/lib/designs';
+import { addRecentDesign, getRecentDesignIds } from '@/lib/localStorage';
+import { Design } from '@/types';
 export interface CartItemType {
   id: string; 
   designId: string; 
@@ -45,11 +48,7 @@ export default function CartScreen() {
   // Cart Data State
   const [cartItems, setCartItems] = useState<CartItemType[]>([]);
 
-  // Explore Recent Designs Data State (Dummy for now)
-  const [recentDesigns] = useState([
-      { id: 'rd1', name: 'My Mind Mug', author: 'Mohh_Jumah', price: 3000, image: require('@/assets/images/item1.png') },
-      { id: 'rd2', name: 'We Meuuve Slang design', author: 'Mohh_Jumah', price: 3000, image: require('@/assets/images/item2.png') },
-  ]);
+  const [recentDesigns, setRecentDesigns] = useState<Design[]>([]);
 
   // ==========================================
   // BACKEND INTEGRATION HANDLERS
@@ -61,7 +60,7 @@ export default function CartScreen() {
     const fetchCartData = async () => {
       setIsLoading(true);
       try {
-        const response = await ApiService.getCartItems();
+        const [response, recentIds] = await Promise.all([ApiService.getCartItems(), getRecentDesignIds()]);
         console.log(response)
         if (response.requestSuccessful) {
           const data = await response.responseBody;
@@ -93,6 +92,18 @@ export default function CartScreen() {
         } else {
           console.error("Failed to fetch cart data", response.status);
         }
+
+        if (recentIds.length > 0) {
+          const recentResponses = await Promise.allSettled(recentIds.slice(0, 4).map((designId) => ApiService.fetchDesignById(designId)));
+          const nextRecentDesigns = recentResponses
+            .filter((result): result is PromiseFulfilledResult<any> => result.status === 'fulfilled')
+            .map((result) => normalizeDesign(result.value?.responseBody || result.value))
+            .filter((design) => Boolean(design?.id));
+          setRecentDesigns(nextRecentDesigns);
+        } else {
+          const recentResponse = await ApiService.getRecentDesigns(4);
+          setRecentDesigns(normalizeDesignListResponse(recentResponse).slice(0, 4));
+        }
       } catch (error) {
         console.error("Error fetching cart:", error);
       } finally {
@@ -105,8 +116,8 @@ export default function CartScreen() {
   // 2. Clear Entire Cart (DELETE /api/v1/cart-items)
   const handleClearCart = async () => {
       try {
-        const response = await ApiService.clearCart();
-      if (!response) throw new Error("Failed to delete");
+        const cleared = await ApiService.clearCart();
+      if (!cleared) throw new Error("Failed to delete");
       } catch (error) {
         console.error("Error clearing cart:", error);
       }
@@ -120,7 +131,7 @@ export default function CartScreen() {
       try {
         const response = await ApiService.deleteCartItem(itemId)
         if (!response) throw new Error("Failed to delete");
-      } catch (error) {
+      } catch {
         setCartItems(previousItems); // Rollback if failed
         Alert.alert("Error", "Could not remove item. Please try again.");
       }
@@ -313,20 +324,35 @@ export default function CartScreen() {
             <Text className="text-lg font-bold text-[#333333] dark:text-white mb-4">Explore recent designs</Text>
             
             <View className="flex-row flex-wrap justify-between">
-                {recentDesigns.map((design) => (
-                    <View key={design.id} className="w-[48%] bg-white dark:bg-[#1E1E1E] rounded-xl mb-4 p-2 shadow-sm border border-gray-100 dark:border-gray-800 relative">
+                {recentDesigns.map((design) => {
+                    const imageUri = design.imagePath?.startsWith('http') ? design.imagePath : design.imagePath ? `https://berrystamp-backend-dev-4cn29.ondigitalocean.app/${design.imagePath}` : '';
+                    const artistName = `${design.profile.firstName} ${design.profile.lastName}`.trim() || design.profile.username;
+                    const mockPrices = design.mocks.map((mock) => mock.price).filter((price) => price > 0);
+                    const lowestPrice = mockPrices.length > 0 ? Math.min(...mockPrices) : design.amount || 0;
+
+                    return (
+                      <TouchableOpacity
+                        key={design.id}
+                        className="w-[48%] bg-white dark:bg-[#1E1E1E] rounded-xl mb-4 p-2 shadow-sm border border-gray-100 dark:border-gray-800 relative"
+                        onPress={async () => {
+                          await addRecentDesign(design.id);
+                          router.push({ pathname: '/products', params: { designId: String(design.id) } });
+                        }}>
                         <View className="w-full h-32 bg-[#F8F9FA] dark:bg-gray-800 rounded-lg overflow-hidden justify-center items-center mb-2">
-                             <Image source={design.image} resizeMode="cover" className="w-full h-full" />
+                             {imageUri ? (
+                               <Image source={{ uri: imageUri }} resizeMode="cover" className="w-full h-full" />
+                             ) : null}
                         </View>
                         <TouchableOpacity className="absolute top-4 right-4 bg-white/80 dark:bg-black/50 p-1.5 rounded-full">
-                            <Ionicons name="heart-outline" size={18} color={isDark ? "#FFF" : "#828282"} />
+                            <Ionicons name={design.liked ? "heart" : "heart-outline"} size={18} color={design.liked ? "#FF4D67" : isDark ? "#FFF" : "#828282"} />
                         </TouchableOpacity>
                         
-                        <Text className="text-[#333333] dark:text-white font-semibold text-sm mb-1" numberOfLines={1}>{design.name}</Text>
-                        <Text className="text-[#828282] dark:text-gray-400 text-[10px] mb-2">By {design.author}</Text>
-                        <Text className="text-[#333333] dark:text-white font-bold text-sm">₦{(design.price).toLocaleString()}</Text>
-                    </View>
-                ))}
+                        <Text className="text-[#333333] dark:text-white font-semibold text-sm mb-1" numberOfLines={1}>{design.title}</Text>
+                        <Text className="text-[#828282] dark:text-gray-400 text-[10px] mb-2">By {artistName}</Text>
+                        <Text className="text-[#333333] dark:text-white font-bold text-sm">₦{lowestPrice.toLocaleString()}</Text>
+                    </TouchableOpacity>
+                    );
+                })}
             </View>
         </View>
       </ScrollView>

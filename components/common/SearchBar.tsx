@@ -8,6 +8,7 @@ interface SearchBarProps {
   placeholder?: string;
   onFilterPress?: () => void;
   autoFocus?: boolean;
+  onSubmitEditing?: () => void;
 }
 
 const SearchBar = ({
@@ -16,6 +17,7 @@ const SearchBar = ({
   placeholder = 'Search Design',
   onFilterPress,
   autoFocus = false,
+  onSubmitEditing,
 }: SearchBarProps) => {
   const isDark = useColorScheme() === 'dark';
 
@@ -37,6 +39,8 @@ const SearchBar = ({
           value={value}
           onChangeText={onChangeText}
           autoFocus={autoFocus}
+          onSubmitEditing={onSubmitEditing}
+          returnKeyType="search"
         />
       </View>
       {onFilterPress ? (
