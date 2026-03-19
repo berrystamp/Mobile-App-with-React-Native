@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 // src/components/common/Header.tsx
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, useColorScheme } from 'react-native';
@@ -5,6 +6,14 @@ import { Ionicons } from '@expo/vector-icons';
 
 export interface HeaderProps {
   type?: 'main' | 'search' | 'back';
+=======
+import React from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+
+interface HeaderProps {
+  type?: 'main' | 'back';
+>>>>>>> f411c144b4f1aff85c4c9a8812776d0b173f68b5
   title?: string;
   onSearchPress?: () => void;
   onNotificationPress?: () => void;
@@ -14,7 +23,11 @@ export interface HeaderProps {
   onRightAction?: () => void;
 }
 
+<<<<<<< HEAD
 const Header: React.FC<HeaderProps> = ({ 
+=======
+export default function Header({
+>>>>>>> f411c144b4f1aff85c4c9a8812776d0b173f68b5
   type = 'main',
   title,
   onSearchPress,
@@ -23,6 +36,7 @@ const Header: React.FC<HeaderProps> = ({
   rightAction,
   rightActionText,
   onRightAction,
+<<<<<<< HEAD
 }) => {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
@@ -77,12 +91,48 @@ const Header: React.FC<HeaderProps> = ({
         ) : (
           <View style={{ width: 60 }} />
         )}
+=======
+}: HeaderProps) {
+  if (type === 'main') {
+    return (
+      <View style={styles.headerMain}>
+        <TouchableOpacity style={styles.iconBtn}>
+          <Ionicons name="menu-outline" size={28} color="#FFFFFF" />
+        </TouchableOpacity>
+        <Text style={styles.logoText}>InkStamp</Text>
+        <View style={styles.headerIcons}>
+          {onSearchPress ? (
+            <TouchableOpacity style={styles.iconBtn} onPress={onSearchPress}>
+              <Ionicons name="search-outline" size={22} color="#FFFFFF" />
+            </TouchableOpacity>
+          ) : null}
+          {onNotificationPress ? (
+            <TouchableOpacity style={styles.iconBtn} onPress={onNotificationPress}>
+              <Ionicons name="notifications-outline" size={22} color="#FFFFFF" />
+            </TouchableOpacity>
+          ) : null}
+        </View>
+>>>>>>> f411c144b4f1aff85c4c9a8812776d0b173f68b5
       </View>
     );
   }
 
-  return null;
-};
+  return (
+    <View style={styles.headerBack}>
+      <TouchableOpacity onPress={onBackPress} style={styles.backBtn}>
+        <Ionicons name="arrow-back" size={24} color="#000" />
+      </TouchableOpacity>
+      <Text style={styles.headerTitle}>{title}</Text>
+      {rightAction ? (
+        <TouchableOpacity onPress={onRightAction}>
+          <Text style={styles.rightActionText}>{rightActionText}</Text>
+        </TouchableOpacity>
+      ) : (
+        <View style={{ width: 60 }} />
+      )}
+    </View>
+  );
+}
 
 const styles = StyleSheet.create({
   headerMain: {
@@ -92,6 +142,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 50,
     paddingBottom: 16,
+<<<<<<< HEAD
   },
   logoContainer: {
     flexDirection: 'row',
@@ -110,14 +161,23 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 10,
     transform: [{ rotate: '45deg' }],
+=======
+    backgroundColor: '#262626',
+>>>>>>> f411c144b4f1aff85c4c9a8812776d0b173f68b5
   },
   logoText: {
     fontSize: 18,
     fontWeight: '600',
+<<<<<<< HEAD
+=======
+    color: '#FFFFFF',
+>>>>>>> f411c144b4f1aff85c4c9a8812776d0b173f68b5
   },
   headerIcons: {
+    minWidth: 56,
     flexDirection: 'row',
-    gap: 16,
+    justifyContent: 'flex-end',
+    gap: 8,
   },
   iconBtn: {
     padding: 4,
@@ -140,9 +200,11 @@ const styles = StyleSheet.create({
   },
   rightActionText: {
     fontSize: 14,
+<<<<<<< HEAD
     color: '#4A3F8F', // Keeping brand color constant for action text
+=======
+    color: '#4A3298',
+>>>>>>> f411c144b4f1aff85c4c9a8812776d0b173f68b5
     fontWeight: '500',
   },
 });
-
-export default Header;
