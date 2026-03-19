@@ -1,9 +1,10 @@
+// src/components/common/Header.tsx
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View, useColorScheme } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-interface HeaderProps {
-  type?: 'main' | 'back';
+export interface HeaderProps {
+  type?: 'main' | 'search' | 'back';
   title?: string;
   onSearchPress?: () => void;
   onNotificationPress?: () => void;
@@ -13,7 +14,7 @@ interface HeaderProps {
   onRightAction?: () => void;
 }
 
-export default function Header({
+const Header: React.FC<HeaderProps> = ({ 
   type = 'main',
   title,
   onSearchPress,
@@ -52,6 +53,39 @@ export default function Header({
             </TouchableOpacity>
           ) : null}
         </View>
+        <View style={styles.headerIcons}>
+          {onSearchPress && (
+            <TouchableOpacity style={styles.iconBtn} onPress={onSearchPress}>
+              <Ionicons name="search-outline" size={24} color={theme.text} />
+            </TouchableOpacity>
+          )}
+          {onNotificationPress && (
+            <TouchableOpacity style={styles.iconBtn} onPress={onNotificationPress}>
+              <Ionicons name="notifications-outline" size={24} color={theme.text} />
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+    );
+  }
+
+  if (type === 'back') {
+    return (
+      <View style={[
+        styles.headerBack, 
+        { backgroundColor: theme.background, borderBottomColor: theme.border }
+      ]}>
+        <TouchableOpacity onPress={onBackPress} style={styles.backBtn}>
+          <Ionicons name="arrow-back" size={24} color={theme.text} />
+        </TouchableOpacity>
+        <Text style={[styles.headerTitle, { color: theme.text }]}>{title}</Text>
+        {rightAction ? (
+          <TouchableOpacity onPress={onRightAction}>
+            <Text style={styles.rightActionText}>{rightActionText}</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={{ width: 60 }} />
+        )}
       </View>
     );
   }
@@ -73,6 +107,7 @@ export default function Header({
   );
 }
 
+export default Header;
 const styles = StyleSheet.create({
   headerMain: {
     flexDirection: 'row',

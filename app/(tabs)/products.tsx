@@ -269,7 +269,51 @@ export default function ProductsScreen() {
             ) : null}
           </View>
         </View>
-      </Modal>
+
+        <View className="ml-2 flex-row items-center">
+          <TouchableOpacity
+            onPress={() => setFeedback({ title: 'Added to favourites', message: 'This design has been saved to your favourites.' })}
+            className="mx-1 h-9 w-9 items-center justify-center"
+          >
+            <Ionicons name="heart-outline" size={24} color={isDark ? '#FFFFFF' : '#2F2F2F'} />
+          </TouchableOpacity>
+          <TouchableOpacity className="h-9 w-9 items-center justify-center">
+            <Feather name="share-2" size={22} color={isDark ? '#FFFFFF' : '#2F2F2F'} />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <ScrollView className="flex-1 px-5" contentContainerStyle={{ paddingBottom: 24 }} showsVerticalScrollIndicator={false}>
+        <View className="flex-row flex-wrap justify-between">
+          {MOCKUP_ITEMS.map((item) => (
+            <TouchableOpacity
+              key={item.id}
+              onPress={() => router.push('/product-details')}
+              className="mb-4 w-[48.6%] overflow-hidden rounded-2xl bg-[#EBEBEB] dark:bg-[#1F1F1F]"
+            >
+              <View className="h-[175px] items-center justify-center px-3 pt-3">
+                <Image source={item.image} className="h-full w-full" resizeMode="contain" />
+              </View>
+
+              <View className="px-3 pb-3 pt-2">
+                <Text numberOfLines={1} className="text-[26px] text-[#3B3B3B] dark:text-white">
+                  {item.name}
+                </Text>
+                <Text className="mt-1 text-[30px] font-medium text-[#2F2F2F] dark:text-white">
+                  ₦{item.price.toLocaleString()}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </ScrollView>
+
+      <ActionFeedbackModal
+        visible={Boolean(feedback)}
+        title={feedback?.title ?? ''}
+        message={feedback?.message ?? ''}
+        onClose={() => setFeedback(null)}
+      />
     </View>
   );
 }

@@ -1,4 +1,6 @@
-import Header from '@/components/common/Header';
+import React from 'react';
+import { useColorScheme, View } from 'react-native';
+import { Stack } from 'expo-router';
 import BottomNavigation from '@/components/common/BottomNavigation';
 import { AuthProvider } from '@/context/AuthContext';
 import { Stack, usePathname, useRouter } from 'expo-router';

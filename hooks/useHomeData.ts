@@ -20,7 +20,8 @@ export function useHomeData() {
       }
       setError(null);
 
-      const [artistsData, trendingData, recommendedData] = await Promise.all([
+      // Fetching data from the unified ApiService
+      const [artistsRes, trendingRes, recommendedRes] = await Promise.all([
         ApiService.getTopArtists(10),
         ApiService.getTrendingDesigns(10),
         ApiService.getRecommendedDesigns(10),
@@ -35,7 +36,8 @@ export function useHomeData() {
       setRecommendedDesigns(recommended);
     } catch (err: any) {
       console.error('Error fetching home data:', err);
-      setError(err.response?.data?.message || 'Failed to load data. Please try again.');
+      // Handling Axios error objects or generic error messages
+      setError(err.responseMessage || err.message || 'Failed to load data. Please try again.');
     } finally {
       setIsLoading(false);
       setRefreshing(false);
@@ -43,6 +45,20 @@ export function useHomeData() {
   }, []);
 
   const toggleFavorite = useCallback(async (designId: number) => {
+    const originalTrending = [...trendingDesigns];
+    const originalRecommended = [...recommendedDesigns];
+
+    // Optimistic UI Update
+    const updateList = (list: Design[]) => 
+      list.map(design => 
+        design.id === designId 
+          ? { ...design, liked: !design.liked, likes: design.liked ? Math.max(0, design.likes - 1) : design.likes + 1 }
+          : design
+      );
+
+    setTrendingDesigns(prev => updateList(prev));
+    setRecommendedDesigns(prev => updateList(prev));
+
     try {
       await ApiService.toggleFavorite(String(designId));
 
@@ -71,8 +87,11 @@ export function useHomeData() {
       );
     } catch (err) {
       console.error('Error toggling favorite:', err);
+      // Rollback UI state on error
+      setTrendingDesigns(originalTrending);
+      setRecommendedDesigns(originalRecommended);
     }
-  }, []);
+  }, [trendingDesigns, recommendedDesigns]);
 
   const refresh = useCallback(() => {
     fetchHomeData(true);

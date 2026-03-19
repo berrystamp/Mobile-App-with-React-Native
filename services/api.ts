@@ -1,5 +1,6 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
+import axios from "axios";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { router } from "expo-router"; // Added for automatic redirection
 
 const API_BASE_URL = 'https://berrystamp-backend-dev-4cn29.ondigitalocean.app/api/v1';
 
@@ -62,6 +63,10 @@ class ApiService {
       },
     );
   }
+  return config;
+}, (error) => {
+  return Promise.reject(error);
+});
 
   async login(email: string, password: string) {
     const response = await this.api.post('/auth/login', { email, password }, {
@@ -82,6 +87,7 @@ class ApiService {
 
     return response.data;
   }
+);
 
   async logout() {
     await Promise.all([

@@ -61,6 +61,7 @@ export interface User {
   bio?: string;
   profileType: TProfileType;
   activated: boolean;
+  customerProfile?:{ profileType: TProfileType }
 }
 
 export interface CartItem {
