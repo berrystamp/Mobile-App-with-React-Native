@@ -3,14 +3,15 @@ import BottomNavigation from '@/components/common/BottomNavigation';
 import { AuthProvider } from '@/context/AuthContext';
 import { Stack, usePathname, useRouter } from 'expo-router';
 import React, { useMemo } from 'react';
-import { View } from 'react-native';
+import { View, useColorScheme } from 'react-native';
 
 export default function TabsLayout() {
   const router = useRouter();
   const pathname = usePathname();
+  const isDark = useColorScheme() === 'dark';
 
   const hideChrome = useMemo(
-    () => ['/chat', '/checkout', '/Search', '/Filter', '/select-printer'].includes(pathname),
+    () => ['/chat', '/checkout', '/Search', '/Filter', '/select-printer', '/products'].includes(pathname),
     [pathname],
   );
 
@@ -24,7 +25,7 @@ export default function TabsLayout() {
 
   return (
     <AuthProvider>
-      <View style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
+      <View style={{ flex: 1, backgroundColor: isDark ? '#121212' : '#FFFFFF' }}>
         {!hideChrome ? (
           <Header
             type="main"
@@ -41,6 +42,7 @@ export default function TabsLayout() {
           <Stack.Screen name="Filter" />
           <Stack.Screen name="messages" />
           <Stack.Screen name="printers" />
+          <Stack.Screen name="products" />
           <Stack.Screen name="profile" />
           <Stack.Screen name="Search" />
           <Stack.Screen name="select-printer" />

@@ -1,3 +1,4 @@
+import { extractArtistsFromDesigns, normalizeDesignListResponse } from '@/lib/designs';
 import ApiService from '@/services/api';
 import { Artist, Design } from '@/types';
 import { useCallback, useEffect, useState } from 'react';
@@ -25,12 +26,11 @@ export function useHomeData() {
         ApiService.getRecommendedDesigns(10),
       ]);
 
-      
-      const artists = artistsData.content || artistsData.data || artistsData;
-      const trending = trendingData.content || trendingData.data || trendingData;
-      const recommended = recommendedData.content || recommendedData.data || recommendedData;
+      const artistSourceDesigns = normalizeDesignListResponse(artistsData);
+      const trending = normalizeDesignListResponse(trendingData);
+      const recommended = normalizeDesignListResponse(recommendedData);
 
-      setTopArtists(artists);
+      setTopArtists(extractArtistsFromDesigns(artistSourceDesigns));
       setTrendingDesigns(trending);
       setRecommendedDesigns(recommended);
     } catch (err: any) {
@@ -44,23 +44,30 @@ export function useHomeData() {
 
   const toggleFavorite = useCallback(async (designId: number) => {
     try {
-      await ApiService.toggleFavorite(designId.toString());
-      
-     
-      setTrendingDesigns(prev => 
-        prev.map(design => 
-          design.id === designId 
-            ? { ...design, liked: !design.liked, likes: design.liked ? design.likes - 1 : design.likes + 1 }
-            : design
-        )
+      await ApiService.toggleFavorite(String(designId));
+
+      setTrendingDesigns((prev) =>
+        prev.map((design) =>
+          design.id === designId
+            ? {
+                ...design,
+                liked: !design.liked,
+                likes: design.liked ? Math.max(0, design.likes - 1) : design.likes + 1,
+              }
+            : design,
+        ),
       );
-      
-      setRecommendedDesigns(prev => 
-        prev.map(design => 
-          design.id === designId 
-            ? { ...design, liked: !design.liked, likes: design.liked ? design.likes - 1 : design.likes + 1 }
-            : design
-        )
+
+      setRecommendedDesigns((prev) =>
+        prev.map((design) =>
+          design.id === designId
+            ? {
+                ...design,
+                liked: !design.liked,
+                likes: design.liked ? Math.max(0, design.likes - 1) : design.likes + 1,
+              }
+            : design,
+        ),
       );
     } catch (err) {
       console.error('Error toggling favorite:', err);

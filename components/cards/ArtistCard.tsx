@@ -1,19 +1,23 @@
-// src/components/cards/ArtistCard.jsx
 import React from 'react';
 import { View, Text, TouchableOpacity, Image, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-const ArtistCard = ({ artist, onPress }) => {
-  const renderStars = (rating) => {
+interface ArtistCardProps {
+  artist: {
+    name: string;
+    avatar: string;
+    rating: number;
+    bgColor?: string;
+  };
+  onPress?: () => void;
+}
+
+const ArtistCard = ({ artist, onPress }: ArtistCardProps) => {
+  const renderStars = (rating: number) => {
     return (
       <View style={styles.starsContainer}>
         {[...Array(5)].map((_, i) => (
-          <Ionicons
-            key={i}
-            name="star"
-            size={12}
-            color={i < rating ? '#FFD700' : '#E0E0E0'}
-          />
+          <Ionicons key={i} name="star" size={12} color={i < rating ? '#FFD700' : '#E0E0E0'} />
         ))}
       </View>
     );
@@ -21,7 +25,7 @@ const ArtistCard = ({ artist, onPress }) => {
 
   return (
     <TouchableOpacity style={styles.container} onPress={onPress}>
-      <View style={[styles.avatar, { backgroundColor: artist.bgColor }]}>
+      <View style={[styles.avatar, { backgroundColor: artist.bgColor || '#EEE' }]}>
         <Image source={{ uri: artist.avatar }} style={styles.image} />
       </View>
       {renderStars(artist.rating)}

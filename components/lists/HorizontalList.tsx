@@ -1,24 +1,32 @@
-// src/components/lists/HorizontalList.jsx
-import React from 'react';
-import { View, Text, TouchableOpacity, FlatList, StyleSheet } from 'react-native';
+import React, { ReactElement } from 'react';
+import { View, Text, TouchableOpacity, FlatList, StyleSheet, ViewStyle } from 'react-native';
 
-const HorizontalList = ({ 
-  title, 
-  data, 
-  renderItem, 
+interface HorizontalListProps<T extends { id: string | number }> {
+  title: string;
+  data: T[];
+  renderItem: ({ item }: { item: T }) => ReactElement | null;
+  onViewAll?: () => void;
+  showViewAll?: boolean;
+  contentContainerStyle?: ViewStyle;
+}
+
+const HorizontalList = <T extends { id: string | number }>({
+  title,
+  data,
+  renderItem,
   onViewAll,
   showViewAll = false,
   contentContainerStyle,
-}) => {
+}: HorizontalListProps<T>) => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>{title}</Text>
-        {showViewAll && (
+        {showViewAll ? (
           <TouchableOpacity onPress={onViewAll}>
             <Text style={styles.viewAll}>View all</Text>
           </TouchableOpacity>
-        )}
+        ) : null}
       </View>
       <FlatList
         data={data}

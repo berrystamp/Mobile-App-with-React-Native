@@ -1,16 +1,23 @@
-// src/components/cards/TrendingCard.jsx
 import React from 'react';
 import { View, Text, TouchableOpacity, Image, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-const TrendingCard = ({ design, onPress, onFavoritePress }) => {
+interface TrendingCardProps {
+  design: {
+    id: string | number;
+    image: string;
+    title: string;
+    artist: string;
+  };
+  onPress?: () => void;
+  onFavoritePress?: (id: string | number) => void;
+}
+
+const TrendingCard = ({ design, onPress, onFavoritePress }: TrendingCardProps) => {
   return (
     <TouchableOpacity style={styles.container} onPress={onPress}>
       <Image source={{ uri: design.image }} style={styles.image} />
-      <TouchableOpacity 
-        style={styles.favoriteIcon}
-        onPress={() => onFavoritePress?.(design.id)}
-      >
+      <TouchableOpacity style={styles.favoriteIcon} onPress={() => onFavoritePress?.(design.id)}>
         <Ionicons name="heart-outline" size={24} color="#FFF" />
       </TouchableOpacity>
       <View style={styles.overlay}>
