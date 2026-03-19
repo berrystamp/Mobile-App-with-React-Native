@@ -1,7 +1,5 @@
-import React from 'react';
-import { useColorScheme, View } from 'react-native';
-import { Stack } from 'expo-router';
 import BottomNavigation from '@/components/common/BottomNavigation';
+import Header from '@/components/common/Header';
 import { AuthProvider } from '@/context/AuthContext';
 import { Stack, usePathname, useRouter } from 'expo-router';
 import React, { useMemo } from 'react';
@@ -49,7 +47,7 @@ export default function TabsLayout() {
           <Stack.Screen name="Search" />
           <Stack.Screen name="select-printer" />
         </Stack>
-        {!hideChrome ? <BottomNavigation activeRoute={activeRoute} /> : null}
+        {!hideChrome ? <BottomNavigation onNavigate={() => activeRoute} /> : null}
       </View>
     </AuthProvider>
   );

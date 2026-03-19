@@ -116,9 +116,6 @@ export default function HomeScreen() {
         )}
       </View>
 
-      <TouchableOpacity style={styles.searchShortcut} onPress={() => router.push('/Search')}>
-        <Text style={styles.searchShortcutText}>Search more designs</Text>
-      </TouchableOpacity>
     </ScrollView>
   );
 }

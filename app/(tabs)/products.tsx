@@ -1,6 +1,6 @@
 import { DesignCard } from '@/components/DesignCard';
 import { normalizeDesign, normalizeDesignListResponse } from '@/lib/designs';
-import ApiService from '@/services/api';
+import ApiService from '@/services/apiClient';
 import { Design, Mock } from '@/types';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -48,7 +48,7 @@ export default function ProductsScreen() {
   );
 
   const selectedMock: Mock | undefined = useMemo(
-    () => selectedDesign?.mocks.find((mock) => mock.id === selectedMockId) || selectedDesign?.mocks[0],
+    () => selectedDesign?.mocks?.find((mock) => mock.id === selectedMockId) || selectedDesign?.mocks?.[0],
     [selectedDesign, selectedMockId],
   );
 
@@ -62,8 +62,8 @@ export default function ProductsScreen() {
         const normalizedDesign = normalizeDesign(designResponse?.responseBody || designResponse);
         setProducts([normalizedDesign]);
         setSelectedDesign(normalizedDesign);
-        setSelectedMockId(normalizedDesign.mocks[0]?.id || null);
-        setSelectedColour(normalizedDesign.mocks[0]?.colours?.[0] || '');
+        setSelectedMockId(normalizedDesign.mocks?.[0]?.id || null);
+        setSelectedColour(normalizedDesign.mocks?.[0]?.colours?.[0] || '');
         return;
       }
 
@@ -90,8 +90,8 @@ export default function ProductsScreen() {
 
   const openDetails = (design: Design) => {
     setSelectedDesign(design);
-    setSelectedMockId(design.mocks[0]?.id || null);
-    setSelectedColour(design.mocks[0]?.colours?.[0] || '');
+    setSelectedMockId(design.mocks?.[0]?.id || null);
+    setSelectedColour(design.mocks?.[0]?.colours?.[0] || '');
   };
 
   const closeDetails = () => {
@@ -147,7 +147,7 @@ export default function ProductsScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}> 
       <View style={[styles.header, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}> 
-        <TouchableOpacity onPress={() => (selectedDesign ? closeDetails() : router.back())} style={styles.headerIcon}>
+        <TouchableOpacity onPress={() => ( router.push('/'))} style={styles.headerIcon}>
           <Ionicons name="arrow-back" size={24} color={theme.text} />
         </TouchableOpacity>
         <View style={styles.headerTextWrap}>
@@ -201,13 +201,14 @@ export default function ProductsScreen() {
                   <Image source={{ uri: selectedDesign.imagePath }} style={styles.heroImage} resizeMode="cover" />
                   <Text style={[styles.designTitle, { color: theme.text }]}>{selectedDesign.title}</Text>
                   <Text style={[styles.designMeta, { color: theme.subtext }]}>
-                    By {selectedDesign.designerName || `${selectedDesign.profile.firstName} ${selectedDesign.profile.lastName}`}
+                    {/* Added optional chaining here to prevent crashes if profile is undefined */}
+                    By {selectedDesign.designerName || `${selectedDesign.profile?.firstName || ''} ${selectedDesign.profile?.lastName || ''}`.trim() || 'Unknown'}
                   </Text>
                   <Text style={[styles.designDescription, { color: theme.subtext }]}>{selectedDesign.description}</Text>
 
                   <Text style={[styles.sectionTitle, { color: theme.text }]}>Available mocks</Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.mockRow}>
-                    {selectedDesign.mocks.map((mock) => {
+                    {selectedDesign.mocks?.map((mock) => {
                       const isActive = selectedMock?.id === mock.id;
                       return (
                         <TouchableOpacity
@@ -269,51 +270,7 @@ export default function ProductsScreen() {
             ) : null}
           </View>
         </View>
-
-        <View className="ml-2 flex-row items-center">
-          <TouchableOpacity
-            onPress={() => setFeedback({ title: 'Added to favourites', message: 'This design has been saved to your favourites.' })}
-            className="mx-1 h-9 w-9 items-center justify-center"
-          >
-            <Ionicons name="heart-outline" size={24} color={isDark ? '#FFFFFF' : '#2F2F2F'} />
-          </TouchableOpacity>
-          <TouchableOpacity className="h-9 w-9 items-center justify-center">
-            <Feather name="share-2" size={22} color={isDark ? '#FFFFFF' : '#2F2F2F'} />
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      <ScrollView className="flex-1 px-5" contentContainerStyle={{ paddingBottom: 24 }} showsVerticalScrollIndicator={false}>
-        <View className="flex-row flex-wrap justify-between">
-          {MOCKUP_ITEMS.map((item) => (
-            <TouchableOpacity
-              key={item.id}
-              onPress={() => router.push('/product-details')}
-              className="mb-4 w-[48.6%] overflow-hidden rounded-2xl bg-[#EBEBEB] dark:bg-[#1F1F1F]"
-            >
-              <View className="h-[175px] items-center justify-center px-3 pt-3">
-                <Image source={item.image} className="h-full w-full" resizeMode="contain" />
-              </View>
-
-              <View className="px-3 pb-3 pt-2">
-                <Text numberOfLines={1} className="text-[26px] text-[#3B3B3B] dark:text-white">
-                  {item.name}
-                </Text>
-                <Text className="mt-1 text-[30px] font-medium text-[#2F2F2F] dark:text-white">
-                  ₦{item.price.toLocaleString()}
-                </Text>
-              </View>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </ScrollView>
-
-      <ActionFeedbackModal
-        visible={Boolean(feedback)}
-        title={feedback?.title ?? ''}
-        message={feedback?.message ?? ''}
-        onClose={() => setFeedback(null)}
-      />
+      </Modal>
     </View>
   );
 }

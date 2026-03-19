@@ -1,5 +1,5 @@
 import { extractArtistsFromDesigns, normalizeDesignListResponse } from '@/lib/designs';
-import ApiService from '@/services/api';
+import ApiService from '@/services/apiClient';
 import { Artist, Design } from '@/types';
 import { useCallback, useEffect, useState } from 'react';
 
@@ -27,9 +27,9 @@ export function useHomeData() {
         ApiService.getRecommendedDesigns(10),
       ]);
 
-      const artistSourceDesigns = normalizeDesignListResponse(artistsData);
-      const trending = normalizeDesignListResponse(trendingData);
-      const recommended = normalizeDesignListResponse(recommendedData);
+      const artistSourceDesigns = normalizeDesignListResponse(artistsRes);
+      const trending = normalizeDesignListResponse(trendingRes);
+      const recommended = normalizeDesignListResponse(recommendedRes);
 
       setTopArtists(extractArtistsFromDesigns(artistSourceDesigns));
       setTrendingDesigns(trending);

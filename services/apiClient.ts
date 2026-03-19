@@ -69,10 +69,21 @@ class ApiService {
     });
     return response.data;
   }
+  async toggleFavorite(designId: string) {
+    const response = await api.patch(`/designs/${designId}/likes`, {}, {
+      headers: {
+        profileType: 'CUSTOMER',
+      },
+    });
+    return response.data;
+  }
 
   async getTrendingDesigns(size: number = 10, page: number = 0) {
-    const response = await api.get('/designs/all/designer', {
+    const response = await api.get('/designs', {
       params: { page, size, sort: 'id,desc' },
+      headers: {
+        'profileType': 'CUSTOMER' 
+      }
     });
     return response.data;
   }
@@ -87,14 +98,60 @@ class ApiService {
     return response.data;
   }
 
-  async toggleFavorite(designId: string) {
-    const response = await api.post(`/designs/${designId}/likes`);
+  async getCurrentUser() {
+    const userData = await AsyncStorage.getItem('userData');
+    return userData ? JSON.parse(userData) : null;
+  }
+
+  async getDesigns(filters:any = {}) {
+    const response = await api.get('/designs', {
+      params: {
+        page: 0,
+        size: 20,
+        sort: 'id,desc',
+        ...filters,
+      },
+      headers: {
+        profileType: 'CUSTOMER',
+      },
+    });
     return response.data;
   }
 
-  async searchDesigns(query: string) {
-    const response = await api.get('/designs/search', {
-      params: { q: query },
+  async fetchDesignById(designId: number) {
+    const response = await api.get(`/designs/${designId}`, {
+      headers: {
+        profileType: 'CUSTOMER',
+      },
+    });
+    return response.data;
+  }
+
+  async addToCart(
+    designId: number,
+    mockId: number,
+    payload?: { quantity?: number; colour?: string; size?: string },
+  ) {
+    const response = await api.post(`/cart-items/${designId}/${mockId}`, payload || {}, {
+      headers: {
+        profileType: 'CUSTOMER',
+      },
+    });
+    return response.data;
+  }
+
+
+   async searchDesigns(filters: string | object) {
+    const params =
+      typeof filters === 'string'
+        ? { searchField: filters, page: 0, size: 20, sort: 'id,desc' }
+        : { page: 0, size: 20, sort: 'id,desc', ...filters };
+
+    const response = await api.get('/designs', {
+      params,
+      headers: {
+        profileType: 'CUSTOMER',
+      },
     });
     return response.data;
   }

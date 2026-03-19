@@ -1,154 +1,121 @@
-// src/components/common/Header.tsx
-import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View, useColorScheme } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter, usePathname } from 'expo-router';
+import React from 'react';
+import { StyleSheet, Text, TouchableOpacity, useColorScheme, View } from 'react-native';
 
-export interface HeaderProps {
-  type?: 'main' | 'search' | 'back';
-  title?: string;
+interface HeaderProps {
   onSearchPress?: () => void;
   onNotificationPress?: () => void;
-  onBackPress?: () => void;
-  rightAction?: boolean;
-  rightActionText?: string;
-  onRightAction?: () => void;
+  type?: string; // Added this since HomeScreen passes type="main"
 }
 
 const Header: React.FC<HeaderProps> = ({ 
-  type = 'main',
-  title,
-  onSearchPress,
+  onSearchPress, 
   onNotificationPress,
-  onBackPress,
-  rightAction,
-  rightActionText,
-  onRightAction,
-}: HeaderProps) {
-  const isDark = useColorScheme() === 'dark';
+  type
+}) => {
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+  const router = useRouter();
+  const pathname = usePathname(); 
+
+  // Cleaned up the hidden routes logic
+  const hiddenRoutes = ['/cart', '/printers', '/products', '/chat', '/select-printer', '/checkout'];
+  if (hiddenRoutes.includes(pathname)) {
+    return null;
+  }
+
   const theme = {
-    mainBg: isDark ? '#121212' : '#FFFFFF',
-    card: isDark ? '#1E1E1E' : '#F5F5F5',
-    text: isDark ? '#FFFFFF' : '#111111',
-    icon: isDark ? '#FFFFFF' : '#111111',
-    subtleBorder: isDark ? '#262626' : '#F0F0F0',
-    accent: '#4A3298',
+    background: isDark ? '#121212' : '#FFFFFF',
+    text: isDark ? '#FFFFFF' : '#1A1A1A',
+    iconBg: isDark ? '#1E1E1E' : '#F5F5F5',
+    brand: '#4B3A99', // Kept brand purple constant
   };
 
-  if (type === 'main') {
-    return (
-      <View style={[styles.headerMain, { backgroundColor: theme.mainBg }]}> 
-        <TouchableOpacity style={[styles.iconBtn, { backgroundColor: theme.card }]}> 
-          <Ionicons name="menu-outline" size={24} color={theme.icon} />
-        </TouchableOpacity>
-        <Text style={[styles.logoText, { color: theme.text }]}>BerryStamp</Text>
-        <View style={styles.headerIcons}>
-          {onSearchPress ? (
-            <TouchableOpacity style={[styles.iconBtn, { backgroundColor: theme.card }]} onPress={onSearchPress}>
-              <Ionicons name="search-outline" size={22} color={theme.icon} />
-            </TouchableOpacity>
-          ) : null}
-          {onNotificationPress ? (
-            <TouchableOpacity style={[styles.iconBtn, { backgroundColor: theme.card }]} onPress={onNotificationPress}>
-              <Ionicons name="notifications-outline" size={22} color={theme.icon} />
-            </TouchableOpacity>
-          ) : null}
-        </View>
-        <View style={styles.headerIcons}>
-          {onSearchPress && (
-            <TouchableOpacity style={styles.iconBtn} onPress={onSearchPress}>
-              <Ionicons name="search-outline" size={24} color={theme.text} />
-            </TouchableOpacity>
-          )}
-          {onNotificationPress && (
-            <TouchableOpacity style={styles.iconBtn} onPress={onNotificationPress}>
-              <Ionicons name="notifications-outline" size={24} color={theme.text} />
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
-    );
-  }
-
-  if (type === 'back') {
-    return (
-      <View style={[
-        styles.headerBack, 
-        { backgroundColor: theme.background, borderBottomColor: theme.border }
-      ]}>
-        <TouchableOpacity onPress={onBackPress} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={24} color={theme.text} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: theme.text }]}>{title}</Text>
-        {rightAction ? (
-          <TouchableOpacity onPress={onRightAction}>
-            <Text style={styles.rightActionText}>{rightActionText}</Text>
-          </TouchableOpacity>
-        ) : (
-          <View style={{ width: 60 }} />
-        )}
-      </View>
-    );
-  }
-
   return (
-    <View style={[styles.headerBack, { backgroundColor: theme.mainBg, borderBottomColor: theme.subtleBorder }]}> 
-      <TouchableOpacity onPress={onBackPress} style={styles.backBtn}>
-        <Ionicons name="arrow-back" size={24} color={theme.icon} />
-      </TouchableOpacity>
-      <Text style={[styles.headerTitle, { color: theme.text }]}>{title}</Text>
-      {rightAction ? (
-        <TouchableOpacity onPress={onRightAction}>
-          <Text style={[styles.rightActionText, { color: theme.accent }]}>{rightActionText}</Text>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <View style={styles.logoContainer}>
+        <View style={[styles.logo, { backgroundColor: theme.brand }]}>
+          {/* FIX: Applied dynamic background here so the cutout works in dark mode */}
+          <View style={[styles.logoCircle, { backgroundColor: theme.background }]} />
+          <View style={[styles.logoArc, { backgroundColor: theme.brand }]} />
+        </View>
+        <Text style={[styles.logoText, { color: theme.text }]}>
+          <Text style={{ color: theme.brand }}>Berry</Text>stamp
+        </Text>
+      </View>
+
+      <View style={styles.iconsContainer}>
+        <TouchableOpacity 
+          style={[styles.iconButton, { backgroundColor: theme.iconBg }]}
+          onPress={onSearchPress || (() => router.push('/(tabs)/Search'))}
+        >
+          <Ionicons name="search-outline" size={22} color={theme.text} />
         </TouchableOpacity>
-      ) : (
-        <View style={{ width: 60 }} />
-      )}
+
+        <TouchableOpacity 
+          style={[styles.iconButton, { backgroundColor: theme.iconBg }]}
+          // Make sure you have a valid route for notifications, using a placeholder for now
+          onPress={onNotificationPress || (() => console.log('Notifications'))}
+        >
+          <Ionicons name="notifications-outline" size={22} color={theme.text} />
+        </TouchableOpacity>
+      </View>
     </View>
   );
-}
-
+};
 export default Header;
 const styles = StyleSheet.create({
-  headerMain: {
+  container: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingTop: 50,
     paddingBottom: 16,
+  },
+  logoContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  logo: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
+    position: 'relative',
+  },
+  logoCircle: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    position: 'absolute',
+    // Removed hardcoded '#FFFFFF'
+  },
+  logoArc: {
+    width: 20,
+    height: 10,
+    borderTopLeftRadius: 10,
+    borderTopRightRadius: 10,
+    position: 'absolute',
+    bottom: 8,
+    // Removed hardcoded brand color, applied inline
   },
   logoText: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '700',
   },
-  headerIcons: {
-    minWidth: 96,
+  iconsContainer: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 8,
+    gap: 12,
   },
-  iconBtn: {
-    padding: 10,
+  iconButton: {
+    width: 40,
+    height: 40,
     borderRadius: 20,
-  },
-  headerBack: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 50,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-  },
-  backBtn: {
-    padding: 4,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  rightActionText: {
-    fontSize: 14,
-    fontWeight: '500',
   },
 });
