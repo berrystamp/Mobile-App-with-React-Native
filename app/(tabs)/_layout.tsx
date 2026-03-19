@@ -10,8 +10,13 @@ export default function TabsLayout() {
   const pathname = usePathname();
   const isDark = useColorScheme() === 'dark';
 
-  const hideChrome = useMemo(
-    () => ['/chat', '/checkout', '/Search', '/Filter', '/select-printer', '/products'].includes(pathname),
+  const hideHeader = useMemo(
+    () => ['/chat', '/checkout', '/Search', '/Filter', '/filter-product-category', '/filter-design-category', '/select-printer', '/products'].includes(pathname),
+    [pathname],
+  );
+
+  const hideBottomNavigation = useMemo(
+    () => ['/chat', '/checkout', '/Filter', '/filter-product-category', '/filter-design-category', '/select-printer', '/products'].includes(pathname),
     [pathname],
   );
 
@@ -20,13 +25,14 @@ export default function TabsLayout() {
     if (pathname === '/favorites') return 'Favorites';
     if (pathname === '/cart') return 'Cart';
     if (pathname === '/profile') return 'Profile';
+    if (pathname === '/Search') return 'Home';
     return 'Home';
   }, [pathname]);
 
   return (
     <AuthProvider>
       <View style={{ flex: 1, backgroundColor: isDark ? '#121212' : '#FFFFFF' }}>
-        {!hideChrome ? (
+        {!hideHeader ? (
           <Header
             type="main"
             onSearchPress={() => router.push('/Search')}
@@ -40,6 +46,8 @@ export default function TabsLayout() {
           <Stack.Screen name="checkout" />
           <Stack.Screen name="favorites" />
           <Stack.Screen name="Filter" />
+          <Stack.Screen name="filter-product-category" />
+          <Stack.Screen name="filter-design-category" />
           <Stack.Screen name="messages" />
           <Stack.Screen name="printers" />
           <Stack.Screen name="products" />
@@ -47,7 +55,7 @@ export default function TabsLayout() {
           <Stack.Screen name="Search" />
           <Stack.Screen name="select-printer" />
         </Stack>
-        {!hideChrome ? <BottomNavigation onNavigate={() => activeRoute} /> : null}
+        {!hideBottomNavigation ? <BottomNavigation onNavigate={() => activeRoute} /> : null}
       </View>
     </AuthProvider>
   );
