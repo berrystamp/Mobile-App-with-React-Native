@@ -295,7 +295,7 @@ export default function CheckoutScreen() {
                 <TextInput placeholder="Card Number" placeholderTextColor={isDark ? "#828282" : "#BDBDBD"} value={newCardNumber} onChangeText={setNewCardNumber} keyboardType="numeric" className="w-full border border-gray-200 dark:border-gray-800 rounded-xl px-4 py-3.5 mb-4 text-[#333] dark:text-white bg-white dark:bg-[#1E1E1E]" />
                 <View className="flex-row justify-between w-full mb-4">
                     <TextInput placeholder="CVC/CVV" placeholderTextColor={isDark ? "#828282" : "#BDBDBD"} value={newCardCvv} onChangeText={setNewCardCvv} keyboardType="numeric" secureTextEntry className="w-[48%] border border-gray-200 dark:border-gray-800 rounded-xl px-4 py-3.5 text-[#333] dark:text-white bg-white dark:bg-[#1E1E1E]" />
-                    <TextInput placeholder="Expiry Date" placeholderTextColor={isDark ? "#828282" : "#BDBDBD"} value={newCardExpiry} onChangeText={setNewCardExpiry} placeholder="MM/YY" className="w-[48%] border border-gray-200 dark:border-gray-800 rounded-xl px-4 py-3.5 text-[#333] dark:text-white bg-white dark:bg-[#1E1E1E]" />
+                    <TextInput placeholder="Expiry Date" placeholderTextColor={isDark ? "#828282" : "#BDBDBD"} value={newCardExpiry} onChangeText={setNewCardExpiry} className="w-[48%] border border-gray-200 dark:border-gray-800 rounded-xl px-4 py-3.5 text-[#333] dark:text-white bg-white dark:bg-[#1E1E1E]" />
                 </View>
 
                 <TouchableOpacity onPress={() => setSaveNewCard(!saveNewCard)} className="flex-row items-center gap-x-2 mb-8">
