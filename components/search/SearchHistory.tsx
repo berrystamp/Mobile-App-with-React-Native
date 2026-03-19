@@ -1,19 +1,21 @@
-// src/components/search/SearchHistory.jsx
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, useColorScheme } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-const SearchHistory = ({ items, onItemPress }) => {
+interface SearchHistoryProps {
+  items: string[];
+  onItemPress: (item: string) => void;
+}
+
+const SearchHistory = ({ items, onItemPress }: SearchHistoryProps) => {
+  const isDark = useColorScheme() === 'dark';
+
   return (
     <View style={styles.container}>
       {items.map((item, index) => (
-        <TouchableOpacity
-          key={index}
-          style={styles.item}
-          onPress={() => onItemPress(item)}
-        >
-          <Ionicons name="time-outline" size={20} color="#999" />
-          <Text style={styles.text}>{item}</Text>
+        <TouchableOpacity key={`${item}-${index}`} style={styles.item} onPress={() => onItemPress(item)}>
+          <Ionicons name="time-outline" size={20} color={isDark ? '#AFAFAF' : '#999'} />
+          <Text style={[styles.text, { color: isDark ? '#FFFFFF' : '#000000' }]}>{item}</Text>
         </TouchableOpacity>
       ))}
     </View>
@@ -33,7 +35,6 @@ const styles = StyleSheet.create({
   },
   text: {
     fontSize: 16,
-    color: '#000',
   },
 });
 

@@ -1,8 +1,21 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 
+const API_BASE_URL = 'https://berrystamp-backend-dev-4cn29.ondigitalocean.app/api/v1';
 
-const API_BASE_URL = 'https://berrystamp-backend-dev-4cn29.ondigitalocean.app';
+export interface DesignQueryOptions {
+  page?: number;
+  size?: number;
+  sort?: string;
+  designer?: number;
+  tags?: string;
+  designCategories?: string;
+  mockName?: string;
+  mockCategory?: string;
+  upperPriceRange?: number;
+  lowerPriceRange?: number;
+  searchField?: string;
+}
 
 class ApiService {
   private api: AxiosInstance;
@@ -10,7 +23,7 @@ class ApiService {
   constructor() {
     this.api = axios.create({
       baseURL: API_BASE_URL,
-      timeout: 10000,
+      timeout: 15000,
       headers: {
         'Content-Type': 'application/json',
       },
@@ -18,49 +31,73 @@ class ApiService {
 
     this.api.interceptors.request.use(
       async (config) => {
-        const token = await AsyncStorage.getItem('authToken');
-        if (token) {
-          config.headers.Authorization = `Bearer ${token}`;
+        const [token, legacyToken, profileType] = await Promise.all([
+          AsyncStorage.getItem('idToken'),
+          AsyncStorage.getItem('authToken'),
+          AsyncStorage.getItem('profileType'),
+        ]);
+
+        const resolvedToken = token || legacyToken;
+        if (resolvedToken) {
+          config.headers.Authorization = `Bearer ${resolvedToken}`;
         }
+
+        config.headers.profileType = profileType || 'CUSTOMER';
         return config;
       },
-      (error) => {
-        return Promise.reject(error);
-      }
+      (error) => Promise.reject(error),
     );
 
-    // Response interceptor for error handling
     this.api.interceptors.response.use(
       (response) => response,
       async (error) => {
         if (error.response?.status === 401) {
-          // Token expired or invalid - clear storage and redirect to login
-          await AsyncStorage.removeItem('authToken');
-          await AsyncStorage.removeItem('userData');
+          await Promise.all([
+            AsyncStorage.removeItem('authToken'),
+            AsyncStorage.removeItem('idToken'),
+            AsyncStorage.removeItem('userData'),
+          ]);
         }
         return Promise.reject(error);
-      }
+      },
     );
   }
 
-  // Auth methods
   async login(email: string, password: string) {
-    const response = await this.api.post('/auth/login', { email, password });
-    if (response.data.token) {
-      await AsyncStorage.setItem('authToken', response.data.token);
-      await AsyncStorage.setItem('userData', JSON.stringify(response.data.user));
+    const response = await this.api.post('/auth/login', { email, password }, {
+      headers: {
+        profileType: 'CUSTOMER',
+      },
+    });
+
+    const token = response.data.token || response.data.idToken;
+    if (token) {
+      await AsyncStorage.setItem('authToken', token);
+      await AsyncStorage.setItem('idToken', token);
+      await AsyncStorage.setItem('profileType', 'CUSTOMER');
+      if (response.data.user) {
+        await AsyncStorage.setItem('userData', JSON.stringify(response.data.user));
+      }
     }
+
     return response.data;
   }
 
   async logout() {
-    await AsyncStorage.removeItem('authToken');
-    await AsyncStorage.removeItem('userData');
+    await Promise.all([
+      AsyncStorage.removeItem('authToken'),
+      AsyncStorage.removeItem('idToken'),
+      AsyncStorage.removeItem('userData'),
+      AsyncStorage.removeItem('profileType'),
+    ]);
   }
 
   async checkAuth() {
-    const token = await AsyncStorage.getItem('authToken');
-    return !!token;
+    const [token, legacyToken] = await Promise.all([
+      AsyncStorage.getItem('idToken'),
+      AsyncStorage.getItem('authToken'),
+    ]);
+    return !!(token || legacyToken);
   }
 
   async getCurrentUser() {
@@ -68,41 +105,97 @@ class ApiService {
     return userData ? JSON.parse(userData) : null;
   }
 
-  
-  async getTopArtists(limit: number = 10) {
-    const response = await this.api.get('/artists/top', {
-      params: { limit },
+  async getTopArtists(size: number = 10, page: number = 0) {
+    const response = await this.api.get('/designs', {
+      params: { page, size, sort: 'id,desc' },
+      headers: {
+        profileType: 'CUSTOMER',
+      },
     });
     return response.data;
   }
 
-  async getTrendingDesigns(limit: number = 10) {
-    const response = await this.api.get('/designs/trending', {
-      params: { limit },
+  async getTrendingDesigns(size: number = 10, page: number = 0) {
+    const response = await this.api.get('/designs/all/designer', {
+      params: { page, size, sort: 'id,desc' },
+      headers: {
+        profileType: 'CUSTOMER',
+      },
     });
     return response.data;
   }
 
-  async getRecommendedDesigns(limit: number = 10) {
-    const response = await this.api.get('/designs/recommended', {
-      params: { limit },
+  async getRecommendedDesigns(size: number = 10, page: number = 0) {
+    const response = await this.api.get('/designs', {
+      params: { page, size, sort: 'id,desc' },
+      headers: {
+        profileType: 'CUSTOMER',
+      },
+    });
+    return response.data;
+  }
+
+  async getDesigns(filters: DesignQueryOptions = {}) {
+    const response = await this.api.get('/designs', {
+      params: {
+        page: 0,
+        size: 20,
+        sort: 'id,desc',
+        ...filters,
+      },
+      headers: {
+        profileType: 'CUSTOMER',
+      },
+    });
+    return response.data;
+  }
+
+  async fetchDesignById(designId: number) {
+    const response = await this.api.get(`/designs/${designId}`, {
+      headers: {
+        profileType: 'CUSTOMER',
+      },
+    });
+    return response.data;
+  }
+
+  async addToCart(
+    designId: number,
+    mockId: number,
+    payload?: { quantity?: number; colour?: string; size?: string },
+  ) {
+    const response = await this.api.post(`/cart-items/${designId}/${mockId}`, payload || {}, {
+      headers: {
+        profileType: 'CUSTOMER',
+      },
     });
     return response.data;
   }
 
   async toggleFavorite(designId: string) {
-    const response = await this.api.post(`/designs/${designId}/favorite`);
-    return response.data;
-  }
-
-  async searchDesigns(query: string) {
-    const response = await this.api.get('/designs/search', {
-      params: { q: query },
+    const response = await this.api.patch(`/designs/${designId}/likes`, {}, {
+      headers: {
+        profileType: 'CUSTOMER',
+      },
     });
     return response.data;
   }
 
-  // Generic request method
+  async searchDesigns(filters: string | DesignQueryOptions) {
+    const params =
+      typeof filters === 'string'
+        ? { searchField: filters, page: 0, size: 20, sort: 'id,desc' }
+        : { page: 0, size: 20, sort: 'id,desc', ...filters };
+
+    const response = await this.api.get('/designs', {
+      params,
+      headers: {
+        profileType: 'CUSTOMER',
+      },
+    });
+    return response.data;
+  }
+
   async request(config: AxiosRequestConfig) {
     const response = await this.api.request(config);
     return response.data;

@@ -1,34 +1,24 @@
-// src/components/filter/SortOptions.jsx
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 
-const SortOptions = ({ 
-  options, 
-  selected, 
-  onSelect, 
-  label = 'Sort By',
-}) => {
+interface SortOptionsProps {
+  options: string[];
+  selected: string;
+  onSelect: (option: string) => void;
+  label?: string;
+}
+
+const SortOptions = ({ options, selected, onSelect, label = 'Sort By' }: SortOptionsProps) => {
   return (
     <View style={styles.container}>
       <Text style={styles.label}>{label}</Text>
       <View style={styles.options}>
-        {options.map((option, index) => (
+        {options.map((option) => (
           <TouchableOpacity
-            key={index}
-            style={[
-              styles.option,
-              selected === option && styles.optionActive,
-            ]}
-            onPress={() => onSelect(option)}
-          >
-            <Text
-              style={[
-                styles.optionText,
-                selected === option && styles.optionTextActive,
-              ]}
-            >
-              {option}
-            </Text>
+            key={option}
+            style={[styles.option, selected === option && styles.optionActive]}
+            onPress={() => onSelect(option)}>
+            <Text style={[styles.optionText, selected === option && styles.optionTextActive]}>{option}</Text>
           </TouchableOpacity>
         ))}
       </View>
