@@ -16,6 +16,8 @@ import {
 
 const sortOptions = ['Recently added', 'Low Price', 'High Price'];
 
+const sortOptions = ['Recently added', 'Low Price', 'High Price'];
+
 const FilterScreen = () => {
   const router = useRouter();
   const isDark = useColorScheme() === 'dark';
@@ -25,6 +27,41 @@ const FilterScreen = () => {
   const [designCategories, setDesignCategories] = useState<string[]>([]);
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 9000]);
   const [sortBy, setSortBy] = useState('Recently added');
+  const [productCategories, setProductCategories] = useState<string[]>([]);
+  const [designCategories, setDesignCategories] = useState<string[]>([]);
+
+  const theme = useMemo(
+    () => ({
+      background: isDark ? '#121212' : '#FFF',
+      card: isDark ? '#121212' : '#FFF',
+      border: isDark ? '#2A2A2A' : '#F0F0F0',
+    }),
+    [isDark],
+  );
+
+  useEffect(() => {
+    const loadState = async () => {
+      const [filters, designResponse] = await Promise.all([getSearchFilters(), ApiService.getDesigns({ size: 40 })]);
+      const designs = normalizeDesignListResponse(designResponse);
+      const nextProductCategories = Array.from(
+        new Set(designs.flatMap((design) => design.mocks.map((mock) => mock.name)).filter(Boolean)),
+      ).slice(0, 12);
+      const nextDesignCategories = Array.from(
+        new Set(designs.flatMap((design) => design.categories || []).filter(Boolean)),
+      ).slice(0, 12);
+
+      setSelectedProductCategories(filters.productCategories);
+      setSelectedDesignCategories(filters.designCategories);
+      setPriceRange(filters.priceRange);
+      setSortBy(filters.sortBy);
+      setProductCategories(nextProductCategories);
+      setDesignCategories(nextDesignCategories);
+    };
+
+    loadState().catch((error) => {
+      console.error('Failed to load filter options', error);
+    });
+  }, []);
 
   const theme = useMemo(
     () => ({
