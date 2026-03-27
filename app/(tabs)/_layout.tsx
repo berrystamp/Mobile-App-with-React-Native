@@ -1,14 +1,15 @@
 import BottomNavigation from '@/components/common/BottomNavigation';
 import Header from '@/components/common/Header';
 import { AuthProvider } from '@/context/AuthContext';
+import { useAppTheme } from '@/lib/theme/appTheme';
 import { Stack, usePathname, useRouter } from 'expo-router';
 import React, { useMemo } from 'react';
-import { View, useColorScheme } from 'react-native';
+import { View } from 'react-native';
 
 export default function TabsLayout() {
   const router = useRouter();
   const pathname = usePathname();
-  const isDark = useColorScheme() === 'dark';
+  const theme = useAppTheme();
 
   const hideHeader = useMemo(
     () => ['/chat', '/checkout', '/Search', '/Filter', '/filter-product-category', '/filter-design-category', '/select-printer', '/products', '/custom-designs', '/custom-design', '/SelectDesignForScreen', '/SelectDesignThemeScreen', '/SelectItemsScreen', '/favorites', '/messages', '/profile', '/notification', '/payments', '/edit-profile'].includes(pathname),
@@ -31,7 +32,7 @@ export default function TabsLayout() {
 
   return (
     <AuthProvider>
-      <View style={{ flex: 1, backgroundColor: isDark ? '#121212' : '#FFFFFF' }}>
+      <View style={{ flex: 1, backgroundColor: theme.background }}>
         {!hideHeader ? (
           <Header
             type="main"
