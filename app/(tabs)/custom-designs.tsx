@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 
 import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { formatNaira } from '@/lib/currency';
 import { normalizeDesignListResponse } from '@/lib/designs';
 import { CustomDesignRecord, toCustomDesignRecord } from '@/lib/customDesign';
 import ApiService from '@/services/apiClient';
@@ -96,7 +97,7 @@ export default function CustomDesignsScreen() {
               <View style={styles.content}>
                 <Text style={styles.name} numberOfLines={1}>{item.title}</Text>
                 <Text style={styles.meta} numberOfLines={1}>By {item.designerName}</Text>
-                <Text style={styles.price}>₦{item.price.toLocaleString()}</Text>
+                <Text style={styles.price}>{formatNaira(item.price)}</Text>
               </View>
 
               <View style={styles.trailing}>

@@ -1,4 +1,5 @@
 import { DesignCard } from '@/components/DesignCard';
+import { formatNaira } from '@/lib/currency';
 import { normalizeDesign, normalizeDesignListResponse } from '@/lib/designs';
 import ApiService from '@/services/apiClient';
 import { Design, Mock } from '@/types';
@@ -263,7 +264,7 @@ export default function ProductsScreen() {
                           onPress={() => handleMockSelect(mock)}>
                           <Text style={{ color: theme.text, fontWeight: isActive ? '700' : '500' }}>{mock.name}</Text>
                           <Text style={{ color: theme.subtext, marginTop: 4 }}>
-                            ₦{(mock.price || selectedDesign.amount || 0).toLocaleString()}
+                            {formatNaira(mock.price || selectedDesign.amount || 0)}
                           </Text>
                         </TouchableOpacity>
                       );
@@ -292,7 +293,7 @@ export default function ProductsScreen() {
 
                   <View style={[styles.summaryCard, { backgroundColor: isDark ? '#171717' : '#F6F4FF' }]}> 
                     <Text style={[styles.summaryTitle, { color: theme.text }]}>Order summary</Text>
-                    <Text style={[styles.summaryText, { color: theme.subtext }]}>Base price: ₦{(selectedMock?.price || selectedDesign.amount || 0).toLocaleString()}</Text>
+                    <Text style={[styles.summaryText, { color: theme.subtext }]}>Base price: {formatNaira(selectedMock?.price || selectedDesign.amount || 0)}</Text>
                     <Text style={[styles.summaryText, { color: theme.subtext }]}>Mock availability: {selectedMock?.availableQty ?? 'N/A'}</Text>
                     {selectedDesign.tags?.length ? (
                       <Text style={[styles.summaryText, { color: theme.subtext }]}>Tags: {selectedDesign.tags.join(', ')}</Text>

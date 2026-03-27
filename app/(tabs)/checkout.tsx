@@ -1,3 +1,4 @@
+import { formatNaira } from '@/lib/currency';
 import React, { useState } from 'react';
 import { 
   View, Text, TextInput, TouchableOpacity, ScrollView, 
@@ -137,7 +138,7 @@ export default function CheckoutScreen() {
                   <Text className="text-[#333333] dark:text-white font-semibold">Cart Summary</Text>
                   <Ionicons name={isCartSummaryExpanded ? "chevron-up" : "chevron-down"} size={16} color={isDark ? "#A0A0A0" : "#828282"} />
               </View>
-              <Text className="text-[#3B2D85] dark:text-[#7A6AE6] font-bold text-base">₦ {cartTotals.total.toLocaleString()}</Text>
+              <Text className="text-[#3B2D85] dark:text-[#7A6AE6] font-bold text-base">{formatNaira(cartTotals.total)}</Text>
           </TouchableOpacity>
 
           {/* Expanded Summary Details */}
@@ -145,19 +146,19 @@ export default function CheckoutScreen() {
               <View className="w-full px-4 py-4 mb-4 bg-white dark:bg-[#1A1A1A] border border-gray-100 dark:border-gray-800 rounded-xl shadow-sm">
                   <View className="flex-row justify-between mb-2">
                       <Text className="text-[#828282] dark:text-gray-400 text-sm">Design cost</Text>
-                      <Text className="text-[#333333] dark:text-white font-semibold text-sm">₦ {cartTotals.design.toLocaleString()}</Text>
+                      <Text className="text-[#333333] dark:text-white font-semibold text-sm">{formatNaira(cartTotals.design)}</Text>
                   </View>
                   <View className="flex-row justify-between mb-2">
                       <Text className="text-[#828282] dark:text-gray-400 text-sm">Printing cost</Text>
-                      <Text className="text-[#333333] dark:text-white font-semibold text-sm">₦ {cartTotals.printing.toLocaleString()}</Text>
+                      <Text className="text-[#333333] dark:text-white font-semibold text-sm">{formatNaira(cartTotals.printing)}</Text>
                   </View>
                   <View className="flex-row justify-between mb-4 border-b border-gray-100 dark:border-gray-800 pb-4">
                       <Text className="text-[#828282] dark:text-gray-400 text-sm">Pickup/delivery</Text>
-                      <Text className="text-[#333333] dark:text-white font-semibold text-sm">₦ {cartTotals.logistics.toLocaleString()}</Text>
+                      <Text className="text-[#333333] dark:text-white font-semibold text-sm">{formatNaira(cartTotals.logistics)}</Text>
                   </View>
                   <View className="flex-row justify-between">
                       <Text className="text-[#333333] dark:text-white font-bold">Total</Text>
-                      <Text className="text-[#3B2D85] font-bold">₦ {cartTotals.total.toLocaleString()}</Text>
+                      <Text className="text-[#3B2D85] font-bold">{formatNaira(cartTotals.total)}</Text>
                   </View>
               </View>
           )}
@@ -324,7 +325,7 @@ export default function CheckoutScreen() {
             
             <Text className="text-[#F2994A] font-bold text-lg mb-4">Make payment?</Text>
             <Text className="text-[#828282] dark:text-gray-400 text-sm leading-6 mb-8">
-                Are you sure you want to Make a payment of <Text className="font-bold text-[#333] dark:text-white">₦ {cartTotals.total.toLocaleString()}</Text> for printing the designs? This amount will be deducted from the selected mode of payment
+                Are you sure you want to Make a payment of <Text className="font-bold text-[#333] dark:text-white">{formatNaira(cartTotals.total)}</Text> for printing the designs? This amount will be deducted from the selected mode of payment
             </Text>
 
             <TouchableOpacity 

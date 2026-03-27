@@ -1,4 +1,5 @@
 import { addRecentDesign, addSearchHistory, getSearchFilters, SearchFilters } from '@/lib/localStorage';
+import { formatNaira } from '@/lib/currency';
 import { normalizeDesignListResponse } from '@/lib/designs';
 import ApiService from '@/services/apiClient';
 import { Design } from '@/types';
@@ -90,7 +91,7 @@ function SearchDesignCard({ design, onPress }: { design: Design; onPress: () => 
         <Text style={[styles.cardMeta, { color: isDark ? '#B0B0B0' : '#8A8A8A' }]} numberOfLines={1}>
           By {artistName}
         </Text>
-        <Text style={[styles.cardPrice, { color: isDark ? '#FFFFFF' : '#232323' }]}>₦{price.toLocaleString()}</Text>
+        <Text style={[styles.cardPrice, { color: isDark ? '#FFFFFF' : '#232323' }]}>{formatNaira(price)}</Text>
       </View>
     </TouchableOpacity>
   );

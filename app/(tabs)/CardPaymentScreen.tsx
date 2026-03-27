@@ -1,4 +1,5 @@
 import { Button, ScreenHeader } from "@/components/UIComponents";
+import { formatNaira } from "@/lib/currency";
 import { RootStackParamList } from "@/types";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import React, { useState } from "react";
@@ -147,8 +148,7 @@ export default function CardPaymentScreen({ navigation, route }: Props) {
               </TouchableOpacity>
             </View>
             <Text style={styles.confirmBody}>
-              Are you sure you want to Make a payment of ₦
-              {offer.designAmount.toLocaleString()} for printing the designs?
+              Are you sure you want to Make a payment of {formatNaira(offer.designAmount)} for printing the designs?
               This amount will be deducted from the selected mode of payment
             </Text>
             <View style={styles.confirmActions}>

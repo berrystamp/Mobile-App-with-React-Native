@@ -1,3 +1,4 @@
+import { formatNaira } from '@/lib/currency';
 import { Design } from '@/types';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
@@ -113,9 +114,7 @@ export const DesignCard: React.FC<DesignCardProps> = ({
           By {artistName}
         </Text>
         {showPrice && lowestPrice > 0 && (
-          <Text style={[styles.price, { color: theme.text }]}>
-            ₦{lowestPrice.toLocaleString()}
-          </Text>
+          <Text style={[styles.price, { color: theme.text }]}>{formatNaira(lowestPrice)}</Text>
         )}
       </View>
     </TouchableOpacity>
