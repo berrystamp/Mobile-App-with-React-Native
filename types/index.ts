@@ -1,4 +1,52 @@
 export type TProfileType = 'CUSTOMER' | 'DESIGNER' | 'PRINTER';
+export type DesignCategory = string;
+export type DesignTheme = string;
+export type PrintItem = string;
+export type PaymentFunder = 'self' | 'sponsored';
+export type PaymentMethod = 'debit' | 'bank_transfer' | 'paypal' | 'ussd' | 'opay';
+
+export interface CustomDesignSpec {
+  designFor: DesignCategory;
+  designTheme: DesignTheme;
+  printItems: PrintItem[];
+}
+
+export interface Designer {
+  id: string;
+  username: string;
+  avatar: string;
+  coverImage: string;
+  specialty: string;
+  verified: boolean;
+  completedOrders: number;
+  rating: number;
+  ratingScore: number;
+}
+
+export interface OrderOffer {
+  id: string;
+  title: string;
+  designImage: string;
+  designAmount: number;
+  printingAmount: number;
+  deliveryAmount: number;
+  dueDate: string;
+  needPickupLogistics: boolean;
+}
+
+export interface RootStackParamList {
+  [key: string]: object | undefined;
+  CardPayment: { offer: OrderOffer; method: PaymentMethod };
+  CustomDesign: undefined;
+  DesignerMessage: { designer: Designer; spec: CustomDesignSpec };
+  OnDemandDesigners: { spec: CustomDesignSpec };
+  OrderDetails: { offer: OrderOffer; designer: Designer };
+  PaymentMethod: { offer: OrderOffer };
+  PaymentMethodSelect: { funder: PaymentFunder; offer: OrderOffer };
+  SelectDesignFor: { current?: DesignCategory | '' };
+  SelectDesignTheme: { current?: DesignTheme | '' };
+  SelectItems: { current?: PrintItem[] };
+}
 
 export interface Artist {
   id: number;
@@ -54,14 +102,91 @@ export interface User {
   id: number;
   firstName: string;
   lastName: string;
+  name?: string;
   email: string;
   username: string;
   phoneNumber: string;
+  areaCode?: string;
+  gender?: 'MALE' | 'FEMALE' | 'OTHER';
   profilePicturePath?: string;
   bio?: string;
   profileType: TProfileType;
+  roles?: string[];
   activated: boolean;
-  customerProfile?:{ profileType: TProfileType }
+  address?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  postalCode?: string;
+  customerProfile?: {
+    profileType: TProfileType;
+    status?: string;
+    userName?: string;
+    name?: string;
+    bio?: string;
+    categories?: string[];
+    profilePic?: string;
+    profileImage?: { url?: string };
+    insight?: {
+      totalFollowers?: number;
+      totalFollowing?: number;
+      totalUploads?: number;
+      totalCompletedOrders?: number;
+      totalCancelledOrders?: number;
+      totalReviews?: number;
+      totalEarnings?: number;
+      jobSuccessPercentage?: number;
+      rating?: {
+        avgStars?: number;
+      };
+    };
+  };
+  printerProfile?: {
+    profileType: TProfileType;
+    status?: string;
+    userName?: string;
+    name?: string;
+    bio?: string;
+    categories?: string[];
+    profilePic?: string;
+    profileImage?: { url?: string };
+    insight?: {
+      totalFollowers?: number;
+      totalFollowing?: number;
+      totalUploads?: number;
+      totalCompletedOrders?: number;
+      totalCancelledOrders?: number;
+      totalReviews?: number;
+      totalEarnings?: number;
+      jobSuccessPercentage?: number;
+      rating?: {
+        avgStars?: number;
+      };
+    };
+  };
+  designerProfile?: {
+    profileType: TProfileType;
+    status?: string;
+    userName?: string;
+    name?: string;
+    bio?: string;
+    categories?: string[];
+    profilePic?: string;
+    profileImage?: { url?: string };
+    insight?: {
+      totalFollowers?: number;
+      totalFollowing?: number;
+      totalUploads?: number;
+      totalCompletedOrders?: number;
+      totalCancelledOrders?: number;
+      totalReviews?: number;
+      totalEarnings?: number;
+      jobSuccessPercentage?: number;
+      rating?: {
+        avgStars?: number;
+      };
+    };
+  };
 }
 
 export interface CartItem {
@@ -96,12 +221,15 @@ export interface Conversation {
 }
 
 export interface Message {
-  id: number;
-  content: string;
-  senderId: number;
-  receiverId: number;
-  read: boolean;
-  createdAt: string;
+  id: number | string;
+  content?: string;
+  text?: string;
+  senderId: number | string;
+  receiverId?: number | string;
+  read?: boolean;
+  seen?: boolean;
+  createdAt?: string;
+  timestamp?: string;
 }
 
 export interface Notification {

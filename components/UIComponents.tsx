@@ -5,10 +5,8 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  TextInput,
-  Platform,
 } from 'react-native';
-import { COLORS, RADIUS, SPACING, SHADOW, TYPOGRAPHY } from '../utils/theme';
+import { COLORS, RADIUS, SPACING, SHADOW } from '../utils/theme';
 
 // ─── Primary Button ──────────────────────────────────────────────
 interface ButtonProps {

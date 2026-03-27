@@ -1,17 +1,17 @@
-import React from 'react';
+import { CustomDesignSpec, OrderOffer } from "@/types";
+import React from "react";
 import {
-  View,
-  Text,
-  Modal,
-  StyleSheet,
-  Image,
-  TouchableOpacity,
-  ScrollView,
-  Dimensions,
-} from 'react-native';
-import { CustomDesignSpec, OrderOffer } from '../types';
-import { COLORS, SPACING, RADIUS, SHADOW } from '../utils/theme';
-import { Button } from './UIComponents';
+    Dimensions,
+    Image,
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from "react-native";
+import { COLORS, RADIUS, SHADOW, SPACING } from "../utils/theme";
+import { Button } from "./UIComponents";
 
 interface Props {
   visible: boolean;
@@ -21,12 +21,27 @@ interface Props {
   onEditSpecs?: () => void;
 }
 
-const { height: SCREEN_H } = Dimensions.get('window');
+const { height: SCREEN_H } = Dimensions.get("window");
 
-export default function ProductDetailsModal({ visible, onClose, spec, offer, onEditSpecs }: Props) {
+export default function ProductDetailsModal({
+  visible,
+  onClose,
+  spec,
+  offer,
+  onEditSpecs,
+}: Props) {
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onClose} />
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <TouchableOpacity
+        style={styles.overlay}
+        activeOpacity={1}
+        onPress={onClose}
+      />
       <View style={styles.sheet}>
         {/* Handle + Header */}
         <View style={styles.header}>
@@ -36,7 +51,10 @@ export default function ProductDetailsModal({ visible, onClose, spec, offer, onE
           </TouchableOpacity>
         </View>
 
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.content}
+        >
           {/* Design Preview */}
           <View style={styles.imgWrap}>
             <Image
@@ -59,7 +77,7 @@ export default function ProductDetailsModal({ visible, onClose, spec, offer, onE
             </View>
             <View style={[styles.specRow, { borderBottomWidth: 0 }]}>
               <Text style={styles.specKey}>Print on</Text>
-              <Text style={styles.specVal}>{spec.printItems.join(', ')}</Text>
+              <Text style={styles.specVal}>{spec.printItems.join(", ")}</Text>
             </View>
           </View>
         </ScrollView>
@@ -80,42 +98,42 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.overlay,
   },
   sheet: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: SCREEN_H * 0.85,
     ...SHADOW.md,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     padding: SPACING.lg,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
-  title: { fontSize: 15, fontWeight: '600', color: COLORS.text, flex: 1 },
+  title: { fontSize: 15, fontWeight: "600", color: COLORS.text, flex: 1 },
   closeBtn: { padding: SPACING.xs },
   closeX: { fontSize: 16, color: COLORS.textSecondary },
   content: { padding: SPACING.lg, paddingBottom: 20 },
   imgWrap: {
-    alignSelf: 'center',
+    alignSelf: "center",
     width: 120,
     height: 90,
     borderRadius: RADIUS.sm,
-    overflow: 'hidden',
+    overflow: "hidden",
     marginBottom: SPACING.sm,
   },
-  img: { width: '100%', height: '100%' },
+  img: { width: "100%", height: "100%" },
   imgTitle: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: "500",
     color: COLORS.text,
-    textAlign: 'center',
+    textAlign: "center",
     marginBottom: SPACING.xl,
   },
   specSection: {
@@ -131,6 +149,6 @@ const styles = StyleSheet.create({
     borderBottomColor: COLORS.border,
   },
   specKey: { fontSize: 12, color: COLORS.textSecondary, marginBottom: 4 },
-  specVal: { fontSize: 14, fontWeight: '600', color: COLORS.text },
+  specVal: { fontSize: 14, fontWeight: "600", color: COLORS.text },
   footer: { padding: SPACING.lg, paddingBottom: SPACING.xl },
 });

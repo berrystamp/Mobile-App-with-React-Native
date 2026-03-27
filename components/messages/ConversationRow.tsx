@@ -1,5 +1,6 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
+
 import type { ConversationSummaryDto } from '@/lib/messages';
 import { AvatarBadge } from './AvatarBadge';
 
@@ -10,22 +11,28 @@ interface ConversationRowProps {
 }
 
 export function ConversationRow({ conversation, onPress, onLongPress }: ConversationRowProps) {
+  const isDark = useColorScheme() === 'dark';
+
   return (
     <Pressable
       onPress={() => onPress(conversation)}
       onLongPress={() => onLongPress(conversation)}
-      style={({ pressed }) => [styles.container, pressed && styles.pressed]}>
+      style={({ pressed }) => [
+        styles.container,
+        { borderBottomColor: isDark ? '#2B2B2B' : '#F1EDF7' },
+        pressed && styles.pressed,
+      ]}>
       <AvatarBadge color={conversation.avatarColor} emoji={conversation.avatarEmoji} />
       <View style={styles.content}>
         <View style={styles.topRow}>
           <View style={styles.nameRow}>
-            <Text style={styles.name}>{conversation.name}</Text>
-            <Text style={styles.role}>• {conversation.role}</Text>
+            <Text style={[styles.name, { color: isDark ? '#FFFFFF' : '#222222' }]}>{conversation.name}</Text>
+            <Text style={[styles.role, { color: isDark ? '#9791AD' : '#9792A8' }]}>• {conversation.role}</Text>
           </View>
-          <Text style={styles.time}>{conversation.updatedAtLabel}</Text>
+          <Text style={[styles.time, { color: isDark ? '#9C95AD' : '#A39BB3' }]}>{conversation.updatedAtLabel}</Text>
         </View>
         <View style={styles.bottomRow}>
-          <Text style={styles.preview} numberOfLines={1}>
+          <Text style={[styles.preview, { color: isDark ? '#B8B4C8' : '#8A8298' }]} numberOfLines={1}>
             {conversation.lastMessage}
           </Text>
           {conversation.unreadCount > 0 ? (
@@ -46,7 +53,6 @@ const styles = StyleSheet.create({
     gap: 16,
     paddingVertical: 18,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1EDF7',
   },
   pressed: {
     opacity: 0.75,
@@ -68,15 +74,12 @@ const styles = StyleSheet.create({
   name: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#222222',
   },
   role: {
     fontSize: 14,
-    color: '#9792A8',
   },
   time: {
     fontSize: 14,
-    color: '#A39BB3',
   },
   bottomRow: {
     flexDirection: 'row',
@@ -86,7 +89,6 @@ const styles = StyleSheet.create({
   preview: {
     flex: 1,
     fontSize: 14,
-    color: '#8A8298',
   },
   unreadBadge: {
     minWidth: 22,

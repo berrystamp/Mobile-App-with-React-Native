@@ -3,7 +3,7 @@ import ApiService from '@/services/apiClient';
 import { Artist, Design } from '@/types';
 import { useCallback, useEffect, useState } from 'react';
 
-export function useHomeData() {
+export function useHomeData(enabled: boolean = true) {
   const [topArtists, setTopArtists] = useState<Artist[]>([]);
   const [recentDesigns, setRecentDesigns] = useState<Design[]>([]);
   const [featuredDesigns, setFeaturedDesigns] = useState<Design[]>([]);
@@ -12,6 +12,11 @@ export function useHomeData() {
   const [refreshing, setRefreshing] = useState(false);
 
   const fetchHomeData = useCallback(async (isRefresh = false) => {
+    if (!enabled) {
+      setIsLoading(false);
+      setRefreshing(false);
+      return;
+    }
     try {
       if (isRefresh) {
         setRefreshing(true);
@@ -40,7 +45,7 @@ export function useHomeData() {
       setIsLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [enabled]);
 
   const toggleFavorite = useCallback(async (designId: number) => {
     const originalRecent = [...recentDesigns];
@@ -74,8 +79,12 @@ export function useHomeData() {
   }, [fetchHomeData]);
 
   useEffect(() => {
+    if (!enabled) {
+      setIsLoading(false);
+      return;
+    }
     fetchHomeData();
-  }, [fetchHomeData]);
+  }, [enabled, fetchHomeData]);
 
   return {
     topArtists,

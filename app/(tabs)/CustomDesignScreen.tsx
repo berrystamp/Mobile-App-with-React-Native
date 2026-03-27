@@ -1,29 +1,41 @@
-import React, { useState } from 'react';
 import {
-  View,
-  Text,
+  Button,
+  Chip,
+  DropdownTrigger,
+  ScreenHeader,
+} from "@/components/UIComponents";
+import {
+  DesignCategory,
+  DesignTheme,
+  PrintItem,
+  RootStackParamList,
+} from "@/types";
+import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import React, { useState } from "react";
+import {
+  SafeAreaView,
   ScrollView,
   StyleSheet,
+  Text,
   TouchableOpacity,
-  SafeAreaView,
-} from 'react-native';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { RootStackParamList, DesignCategory, DesignTheme, PrintItem } from '../types';
-import { COLORS, SPACING, RADIUS, TYPOGRAPHY } from '../utils/theme';
-import { Button, ScreenHeader, DropdownTrigger, Chip } from '../components/UIComponents';
+  View,
+} from "react-native";
+import { COLORS, RADIUS, SPACING } from "../../utils/theme";
 
-type Props = NativeStackScreenProps<RootStackParamList, 'CustomDesign'>;
+type Props = NativeStackScreenProps<RootStackParamList, "CustomDesign">;
 
 export default function CustomDesignScreen({ navigation, route }: Props) {
-  const [designFor, setDesignFor] = useState<DesignCategory | ''>('');
-  const [designTheme, setDesignTheme] = useState<DesignTheme | ''>('');
+  void route;
+  const [designFor, setDesignFor] = useState<DesignCategory | "">("");
+  const [designTheme, setDesignTheme] = useState<DesignTheme | "">("");
   const [printItems, setPrintItems] = useState<PrintItem[]>([]);
 
-  const canProceed = designFor !== '' && designTheme !== '' && printItems.length > 0;
+  const canProceed =
+    designFor !== "" && designTheme !== "" && printItems.length > 0;
 
   const handleSelectDesigner = () => {
     if (!canProceed) return;
-    navigation.navigate('OnDemandDesigners', {
+    navigation.navigate("OnDemandDesigners", {
       spec: {
         designFor: designFor as DesignCategory,
         designTheme: designTheme as DesignTheme,
@@ -43,8 +55,8 @@ export default function CustomDesignScreen({ navigation, route }: Props) {
         onBack={() => navigation.goBack()}
         rightLabel="Clear"
         onRightPress={() => {
-          setDesignFor('');
-          setDesignTheme('');
+          setDesignFor("");
+          setDesignTheme("");
           setPrintItems([]);
         }}
         rightColor={COLORS.primary}
@@ -62,7 +74,7 @@ export default function CustomDesignScreen({ navigation, route }: Props) {
             label="What Are You Designing For"
             value={designFor || undefined}
             onPress={() =>
-              navigation.navigate('SelectDesignFor', { current: designFor })
+              navigation.navigate("SelectDesignFor", { current: designFor })
             }
             focused={!!designFor}
           />
@@ -74,7 +86,7 @@ export default function CustomDesignScreen({ navigation, route }: Props) {
             label="Preferred Design Theme"
             value={designTheme || undefined}
             onPress={() =>
-              navigation.navigate('SelectDesignTheme', { current: designTheme })
+              navigation.navigate("SelectDesignTheme", { current: designTheme })
             }
             focused={!!designTheme}
           />
@@ -82,8 +94,14 @@ export default function CustomDesignScreen({ navigation, route }: Props) {
 
         {/* Print Items */}
         <View style={styles.itemsHeader}>
-          <Text style={styles.itemsLabel}>What Item(s) would you like to print on?</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('SelectItems', { current: printItems })}>
+          <Text style={styles.itemsLabel}>
+            What Item(s) would you like to print on?
+          </Text>
+          <TouchableOpacity
+            onPress={() =>
+              navigation.navigate("SelectItems", { current: printItems })
+            }
+          >
             <Text style={styles.viewAll}>View all</Text>
           </TouchableOpacity>
         </View>
@@ -97,7 +115,9 @@ export default function CustomDesignScreen({ navigation, route }: Props) {
         ) : (
           <TouchableOpacity
             style={styles.addItemsBtn}
-            onPress={() => navigation.navigate('SelectItems', { current: printItems })}
+            onPress={() =>
+              navigation.navigate("SelectItems", { current: printItems })
+            }
             activeOpacity={0.7}
           >
             <Text style={styles.addItemsText}>+ Select items to print on</Text>
@@ -118,7 +138,7 @@ export default function CustomDesignScreen({ navigation, route }: Props) {
             </View>
             <View style={[styles.summaryRow, { borderBottomWidth: 0 }]}>
               <Text style={styles.summaryKey}>Items</Text>
-              <Text style={styles.summaryVal}>{printItems.join(', ')}</Text>
+              <Text style={styles.summaryVal}>{printItems.join(", ")}</Text>
             </View>
           </View>
         )}
@@ -141,22 +161,22 @@ const styles = StyleSheet.create({
   content: { padding: SPACING.lg, paddingBottom: 100 },
   fieldGroup: { marginBottom: SPACING.md },
   itemsHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: SPACING.md,
     marginTop: SPACING.sm,
   },
   itemsLabel: { fontSize: 14, color: COLORS.text },
-  viewAll: { fontSize: 14, color: COLORS.primary, fontWeight: '500' },
-  chips: { flexDirection: 'row', flexWrap: 'wrap' },
+  viewAll: { fontSize: 14, color: COLORS.primary, fontWeight: "500" },
+  chips: { flexDirection: "row", flexWrap: "wrap" },
   addItemsBtn: {
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: RADIUS.sm,
-    borderStyle: 'dashed',
+    borderStyle: "dashed",
     paddingVertical: SPACING.md,
-    alignItems: 'center',
+    alignItems: "center",
   },
   addItemsText: { color: COLORS.primary, fontSize: 14 },
   summaryCard: {
@@ -167,18 +187,29 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  summaryTitle: { fontSize: 14, fontWeight: '600', color: COLORS.text, marginBottom: SPACING.md },
+  summaryTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: COLORS.text,
+    marginBottom: SPACING.md,
+  },
   summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
     paddingVertical: SPACING.sm,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
   summaryKey: { fontSize: 13, color: COLORS.textSecondary },
-  summaryVal: { fontSize: 13, color: COLORS.text, fontWeight: '500', flex: 1, textAlign: 'right' },
+  summaryVal: {
+    fontSize: 13,
+    color: COLORS.text,
+    fontWeight: "500",
+    flex: 1,
+    textAlign: "right",
+  },
   footer: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,

@@ -93,7 +93,7 @@ export const decodeDraft = (value?: string): CustomDesignDraft | null => {
     return {
       designFor: typeof parsed.designFor === 'string' ? parsed.designFor : '',
       designTheme: typeof parsed.designTheme === 'string' ? parsed.designTheme : '',
-      items: Array.isArray(parsed.items) ? parsed.items.filter((item) => typeof item === 'string') : [],
+      items: Array.isArray(parsed.items) ? parsed.items.filter((item: unknown): item is string => typeof item === 'string') : [],
     };
   } catch {
     return null;

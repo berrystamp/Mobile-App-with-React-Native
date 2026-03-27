@@ -1,47 +1,47 @@
-import React, { useState } from 'react';
+import { Button, ScreenHeader } from "@/components/UIComponents";
+import { RootStackParamList } from "@/types";
+import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import React, { useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  SafeAreaView,
-  TextInput,
-  Modal,
-  Dimensions,
   KeyboardAvoidingView,
+  Modal,
   Platform,
+  SafeAreaView,
   ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
   TouchableOpacity,
-} from 'react-native';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../types';
-import { COLORS, SPACING, RADIUS, SHADOW } from '../utils/theme';
-import { ScreenHeader, Button } from '../components/UIComponents';
+  View,
+} from "react-native";
+import { COLORS, RADIUS, SPACING } from "../../utils/theme";
 
-type Props = NativeStackScreenProps<RootStackParamList, 'CardPayment'>;
-
-const { height: SCREEN_H } = Dimensions.get('window');
+type Props = NativeStackScreenProps<RootStackParamList, "CardPayment">;
 
 export default function CardPaymentScreen({ navigation, route }: Props) {
   const { offer } = route.params;
-  const [cardNumber, setCardNumber] = useState('');
-  const [expiry, setExpiry] = useState('');
-  const [cvv, setCvv] = useState('');
+  const [cardNumber, setCardNumber] = useState("");
+  const [expiry, setExpiry] = useState("");
+  const [cvv, setCvv] = useState("");
   const [showConfirm, setShowConfirm] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const formatCardNumber = (val: string) => {
-    const clean = val.replace(/\D/g, '').slice(0, 16);
-    return clean.replace(/(\d{4})/g, '$1 ').trim();
+    const clean = val.replace(/\D/g, "").slice(0, 16);
+    return clean.replace(/(\d{4})/g, "$1 ").trim();
   };
 
   const formatExpiry = (val: string) => {
-    const clean = val.replace(/\D/g, '').slice(0, 4);
-    if (clean.length >= 2) return clean.slice(0, 2) + '/' + clean.slice(2);
+    const clean = val.replace(/\D/g, "").slice(0, 4);
+    if (clean.length >= 2) return clean.slice(0, 2) + "/" + clean.slice(2);
     return clean;
   };
 
-  const isValid = cardNumber.replace(/\s/g, '').length === 16 && expiry.length === 5 && cvv.length >= 3;
+  const isValid =
+    cardNumber.replace(/\s/g, "").length === 16 &&
+    expiry.length === 5 &&
+    cvv.length >= 3;
 
   const handlePay = () => {
     if (!isValid) return;
@@ -58,11 +58,14 @@ export default function CardPaymentScreen({ navigation, route }: Props) {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <ScreenHeader title="Enter your card details to pay" onBack={() => navigation.goBack()} />
+      <ScreenHeader
+        title="Enter your card details to pay"
+        onBack={() => navigation.goBack()}
+      />
 
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <ScrollView
           contentContainerStyle={styles.content}
@@ -73,7 +76,10 @@ export default function CardPaymentScreen({ navigation, route }: Props) {
           <View style={styles.fieldWrap}>
             <Text style={styles.fieldLabel}>CARD NUMBER</Text>
             <TextInput
-              style={[styles.input, cardNumber.length > 0 && styles.inputFocused]}
+              style={[
+                styles.input,
+                cardNumber.length > 0 && styles.inputFocused,
+              ]}
               placeholder="0000 0000 0000 0000"
               placeholderTextColor={COLORS.textMuted}
               value={cardNumber}
@@ -97,7 +103,9 @@ export default function CardPaymentScreen({ navigation, route }: Props) {
                 maxLength={5}
               />
             </View>
-            <View style={[styles.fieldWrap, { flex: 1, marginLeft: SPACING.md }]}>
+            <View
+              style={[styles.fieldWrap, { flex: 1, marginLeft: SPACING.md }]}
+            >
               <Text style={styles.fieldLabel}>CVV</Text>
               <TextInput
                 style={[styles.input, cvv.length > 0 && styles.inputFocused]}
@@ -115,7 +123,7 @@ export default function CardPaymentScreen({ navigation, route }: Props) {
 
         <View style={styles.footer}>
           <Button
-            title={loading ? 'Processing...' : 'Pay'}
+            title={loading ? "Processing..." : "Pay"}
             onPress={handlePay}
             disabled={!isValid}
             loading={loading}
@@ -124,7 +132,12 @@ export default function CardPaymentScreen({ navigation, route }: Props) {
       </KeyboardAvoidingView>
 
       {/* Confirm Modal */}
-      <Modal visible={showConfirm} transparent animationType="slide" onRequestClose={() => setShowConfirm(false)}>
+      <Modal
+        visible={showConfirm}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowConfirm(false)}
+      >
         <View style={styles.overlay}>
           <View style={styles.confirmSheet}>
             <View style={styles.confirmHeader}>
@@ -134,7 +147,9 @@ export default function CardPaymentScreen({ navigation, route }: Props) {
               </TouchableOpacity>
             </View>
             <Text style={styles.confirmBody}>
-              Are you sure you want to Make a payment of ₦{offer.designAmount.toLocaleString()} for printing the designs? This amount will be deducted from the selected mode of payment
+              Are you sure you want to Make a payment of ₦
+              {offer.designAmount.toLocaleString()} for printing the designs?
+              This amount will be deducted from the selected mode of payment
             </Text>
             <View style={styles.confirmActions}>
               <Button title="Proceed" onPress={confirmPay} />
@@ -150,7 +165,12 @@ export default function CardPaymentScreen({ navigation, route }: Props) {
       </Modal>
 
       {/* Success Modal */}
-      <Modal visible={showSuccess} transparent animationType="fade" onRequestClose={() => {}}>
+      <Modal
+        visible={showSuccess}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {}}
+      >
         <View style={styles.overlay}>
           <View style={styles.successSheet}>
             <View style={styles.successIcon}>
@@ -165,14 +185,14 @@ export default function CardPaymentScreen({ navigation, route }: Props) {
                 title="Go to order"
                 onPress={() => {
                   setShowSuccess(false);
-                  navigation.navigate('CustomDesign');
+                  navigation.navigate("CustomDesign");
                 }}
               />
               <Button
                 title="Back to home"
                 onPress={() => {
                   setShowSuccess(false);
-                  navigation.navigate('CustomDesign');
+                  navigation.navigate("CustomDesign");
                 }}
                 variant="outline"
                 style={{ marginTop: SPACING.md }}
@@ -186,13 +206,13 @@ export default function CardPaymentScreen({ navigation, route }: Props) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#fff' },
+  safe: { flex: 1, backgroundColor: "#fff" },
   flex: { flex: 1 },
   content: { padding: SPACING.lg, paddingBottom: 100 },
   fieldWrap: { marginBottom: SPACING.lg },
   fieldLabel: {
     fontSize: 10,
-    fontWeight: '700',
+    fontWeight: "700",
     color: COLORS.primary,
     letterSpacing: 0.8,
     marginBottom: SPACING.xs,
@@ -207,53 +227,53 @@ const styles = StyleSheet.create({
     color: COLORS.text,
   },
   inputFocused: { borderColor: COLORS.primary, borderWidth: 1.5 },
-  row: { flexDirection: 'row' },
+  row: { flexDirection: "row" },
   footer: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
     padding: SPACING.lg,
     paddingBottom: SPACING.xl,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
   },
   overlay: {
     flex: 1,
     backgroundColor: COLORS.overlay,
-    justifyContent: 'flex-end',
+    justifyContent: "flex-end",
   },
   confirmSheet: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: SPACING.lg,
     paddingBottom: SPACING.xxl,
   },
   confirmHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: SPACING.lg,
   },
-  confirmTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text },
+  confirmTitle: { fontSize: 16, fontWeight: "700", color: COLORS.text },
   closeX: { fontSize: 16, color: COLORS.textSecondary, padding: SPACING.xs },
   confirmBody: {
     fontSize: 13,
     color: COLORS.textSecondary,
     lineHeight: 22,
     marginBottom: SPACING.xl,
-    textAlign: 'center',
+    textAlign: "center",
   },
   confirmActions: {},
   successSheet: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: SPACING.lg,
     paddingBottom: SPACING.xxl,
-    alignItems: 'center',
+    alignItems: "center",
   },
   successIcon: {
     width: 64,
@@ -261,19 +281,24 @@ const styles = StyleSheet.create({
     borderRadius: 32,
     borderWidth: 3,
     borderColor: COLORS.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: SPACING.lg,
     marginTop: SPACING.xl,
   },
   successCheck: { fontSize: 28, color: COLORS.primary },
-  successTitle: { fontSize: 20, fontWeight: '700', color: COLORS.text, marginBottom: SPACING.sm },
+  successTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: COLORS.text,
+    marginBottom: SPACING.sm,
+  },
   successBody: {
     fontSize: 13,
     color: COLORS.textSecondary,
-    textAlign: 'center',
+    textAlign: "center",
     marginBottom: SPACING.xl,
     lineHeight: 20,
   },
-  successActions: { width: '100%' },
+  successActions: { width: "100%" },
 });

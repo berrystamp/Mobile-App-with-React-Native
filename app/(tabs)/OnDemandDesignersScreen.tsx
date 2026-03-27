@@ -1,26 +1,26 @@
-import React from 'react';
+import { ScreenHeader } from "@/components/UIComponents";
+import { Designer, RootStackParamList } from "@/types";
+import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import React from "react";
 import {
-  View,
-  Text,
+  Image,
+  SafeAreaView,
   ScrollView,
   StyleSheet,
-  SafeAreaView,
-  Image,
+  Text,
   TouchableOpacity,
-} from 'react-native';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { RootStackParamList, Designer } from '../types';
-import { COLORS, SPACING, RADIUS, SHADOW } from '../utils/theme';
-import { ScreenHeader } from '../components/UIComponents';
-import { MOCK_DESIGNERS } from '../utils/mockData';
+  View,
+} from "react-native";
+import { MOCK_DESIGNERS } from "../../utils/mockData";
+import { COLORS, RADIUS, SHADOW, SPACING } from "../../utils/theme";
 
-type Props = NativeStackScreenProps<RootStackParamList, 'OnDemandDesigners'>;
+type Props = NativeStackScreenProps<RootStackParamList, "OnDemandDesigners">;
 
 export default function OnDemandDesignersScreen({ navigation, route }: Props) {
   const { spec } = route.params;
 
   const handleMessage = (designer: Designer) => {
-    navigation.navigate('DesignerMessage', { designer, spec });
+    navigation.navigate("DesignerMessage", { designer, spec });
   };
 
   const renderDesignerCard = (designer: Designer) => (
@@ -72,7 +72,10 @@ export default function OnDemandDesignersScreen({ navigation, route }: Props) {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <ScreenHeader title="On-demand designers" onBack={() => navigation.goBack()} />
+      <ScreenHeader
+        title="On-demand designers"
+        onBack={() => navigation.goBack()}
+      />
 
       <ScrollView
         style={styles.scroll}
@@ -80,7 +83,8 @@ export default function OnDemandDesignersScreen({ navigation, route }: Props) {
         showsVerticalScrollIndicator={false}
       >
         <Text style={styles.subtitle}>
-          Select and message a designer of your choice for design preferences and cost negotiation
+          Select and message a designer of your choice for design preferences
+          and cost negotiation
         </Text>
 
         {pairs.map((pair, idx) => (
@@ -104,7 +108,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   row: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: SPACING.md,
     marginBottom: SPACING.md,
   },
@@ -112,48 +116,52 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
     borderRadius: RADIUS.md,
-    overflow: 'hidden',
+    overflow: "hidden",
     borderWidth: 1,
     borderColor: COLORS.border,
     ...SHADOW.sm,
   },
-  cardCover: { position: 'relative', height: 90 },
-  coverImg: { width: '100%', height: '100%' },
+  cardCover: { position: "relative", height: 90 },
+  coverImg: { width: "100%", height: "100%" },
   avatarWrap: {
-    position: 'absolute',
+    position: "absolute",
     bottom: -18,
-    left: '50%',
+    left: "50%",
     marginLeft: -18,
     width: 36,
     height: 36,
     borderRadius: 18,
     borderWidth: 2,
-    borderColor: '#fff',
-    overflow: 'hidden',
+    borderColor: "#fff",
+    overflow: "hidden",
     backgroundColor: COLORS.surfaceAlt,
   },
   avatar: { width: 36, height: 36 },
   cardBody: {
     padding: SPACING.sm,
     paddingTop: SPACING.xl + 4,
-    alignItems: 'center',
+    alignItems: "center",
   },
-  nameRow: { flexDirection: 'row', alignItems: 'center' },
-  username: { fontSize: 12, fontWeight: '600', color: COLORS.text },
+  nameRow: { flexDirection: "row", alignItems: "center" },
+  username: { fontSize: 12, fontWeight: "600", color: COLORS.text },
   verified: { fontSize: 11, color: COLORS.primary },
   specialty: { fontSize: 11, color: COLORS.textSecondary, marginBottom: 4 },
-  statsRow: { flexDirection: 'row', alignItems: 'center', marginBottom: SPACING.sm },
+  statsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: SPACING.sm,
+  },
   stat: { fontSize: 10, color: COLORS.textSecondary },
   statSep: { fontSize: 10, color: COLORS.border },
-  star: { fontSize: 10, color: '#F59E0B' },
+  star: { fontSize: 10, color: "#F59E0B" },
   messageBtn: {
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: RADIUS.full,
     paddingVertical: 6,
     paddingHorizontal: SPACING.lg,
-    width: '100%',
-    alignItems: 'center',
+    width: "100%",
+    alignItems: "center",
   },
-  messageBtnText: { fontSize: 12, color: COLORS.text, fontWeight: '500' },
+  messageBtnText: { fontSize: 12, color: COLORS.text, fontWeight: "500" },
 });

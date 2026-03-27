@@ -11,12 +11,12 @@ export default function TabsLayout() {
   const isDark = useColorScheme() === 'dark';
 
   const hideHeader = useMemo(
-    () => ['/chat', '/checkout', '/Search', '/Filter', '/filter-product-category', '/filter-design-category', '/select-printer', '/products', '/custom-designs', '/custom-design', '/SelectDesignForScreen', '/SelectDesignThemeScreen', '/SelectItemsScreen'].includes(pathname),
+    () => ['/chat', '/checkout', '/Search', '/Filter', '/filter-product-category', '/filter-design-category', '/select-printer', '/products', '/custom-designs', '/custom-design', '/SelectDesignForScreen', '/SelectDesignThemeScreen', '/SelectItemsScreen', '/favorites', '/messages', '/profile', '/notification', '/payments', '/edit-profile'].includes(pathname),
     [pathname],
   );
 
   const hideBottomNavigation = useMemo(
-    () => ['/chat', '/checkout', '/Filter', '/filter-product-category', '/filter-design-category', '/select-printer', '/products', '/custom-designs', '/custom-design', '/SelectDesignForScreen', '/SelectDesignThemeScreen', '/SelectItemsScreen'].includes(pathname),
+    () => ['/chat', '/checkout', '/Filter', '/filter-product-category', '/filter-design-category', '/select-printer', '/products', '/custom-designs', '/custom-design', '/SelectDesignForScreen', '/SelectDesignThemeScreen', '/SelectItemsScreen', '/notification', '/payments', '/edit-profile'].includes(pathname),
     [pathname],
   );
 
@@ -52,8 +52,10 @@ export default function TabsLayout() {
           <Stack.Screen name="printers" />
           <Stack.Screen name="products" />
           <Stack.Screen name="profile" />
+          <Stack.Screen name="notification" />
           <Stack.Screen name="edit-profile" />
           <Stack.Screen name="payment-details" />
+          <Stack.Screen name="payments" />
           <Stack.Screen name="Search" />
           <Stack.Screen name="select-printer" />
           <Stack.Screen name="custom-designs" />

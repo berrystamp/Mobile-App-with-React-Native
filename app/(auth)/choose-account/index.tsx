@@ -7,7 +7,6 @@ import {
   useColorScheme,
   View,
   TouchableOpacity,
-  Image,
 } from "react-native";
 
 export default function ChooseAccountScreen() {

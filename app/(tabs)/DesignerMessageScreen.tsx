@@ -1,49 +1,52 @@
-import React, { useState, useRef } from 'react';
+import ProductDetailsModal from "@/components/ProductDetailsModal";
+import { Message, RootStackParamList } from "@/types";
+import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import React, { useRef, useState } from "react";
 import {
-  View,
-  Text,
-  ScrollView,
-  StyleSheet,
-  SafeAreaView,
   Image,
-  TouchableOpacity,
-  TextInput,
   KeyboardAvoidingView,
   Platform,
-  Modal,
-} from 'react-native';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { RootStackParamList, Message, OrderOffer } from '../types';
-import { COLORS, SPACING, RADIUS, SHADOW } from '../utils/theme';
-import { MOCK_OFFER } from '../utils/mockData';
-import ProductDetailsModal from '../components/ProductDetailsModal';
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { MOCK_OFFER } from "../../utils/mockData";
+import { COLORS, RADIUS, SHADOW, SPACING } from "../../utils/theme";
 
-type Props = NativeStackScreenProps<RootStackParamList, 'DesignerMessage'>;
+type Props = NativeStackScreenProps<RootStackParamList, "DesignerMessage">;
 
 const INITIAL_MESSAGES: Message[] = [
-  { id: '1', senderId: 'system_offer', text: 'OFFER_CARD', timestamp: '2hrs ago', seen: true },
+  {
+    id: "1",
+    senderId: "system_offer",
+    text: "OFFER_CARD",
+    timestamp: "2hrs ago",
+    seen: true,
+  },
 ];
 
 export default function DesignerMessageScreen({ navigation, route }: Props) {
   const { designer, spec } = route.params;
   const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
-  const [inputText, setInputText] = useState('');
+  const [inputText, setInputText] = useState("");
   const [showProductDetails, setShowProductDetails] = useState(false);
-  const [conversationStage, setConversationStage] = useState<'initial' | 'sent' | 'replied' | 'offered'>('initial');
   const scrollRef = useRef<ScrollView>(null);
 
   const send = () => {
     if (!inputText.trim()) return;
     const msg: Message = {
       id: Date.now().toString(),
-      senderId: 'me',
+      senderId: "me",
       text: inputText.trim(),
-      timestamp: 'Just now',
+      timestamp: "Just now",
       seen: false,
     };
     setMessages((prev) => [...prev, msg]);
-    setInputText('');
-    setConversationStage('sent');
+    setInputText("");
 
     // Simulate designer reply
     setTimeout(() => {
@@ -51,23 +54,21 @@ export default function DesignerMessageScreen({ navigation, route }: Props) {
         id: (Date.now() + 1).toString(),
         senderId: designer.id,
         text: "Hi, Good morning\nThank you for contacting Falcon prints. Let's discuss your printing preferences please",
-        timestamp: '12:02 PM',
+        timestamp: "12:02 PM",
         seen: true,
       };
       setMessages((prev) => [...prev, reply]);
-      setConversationStage('replied');
 
       // Simulate offer
       setTimeout(() => {
         const offerMsg: Message = {
           id: (Date.now() + 2).toString(),
           senderId: designer.id,
-          text: 'OFFER_FROM_DESIGNER',
-          timestamp: '12:05 PM',
+          text: "OFFER_FROM_DESIGNER",
+          timestamp: "12:05 PM",
           seen: true,
         };
         setMessages((prev) => [...prev, offerMsg]);
-        setConversationStage('offered');
       }, 2000);
     }, 1500);
 
@@ -75,7 +76,7 @@ export default function DesignerMessageScreen({ navigation, route }: Props) {
   };
 
   const renderMessage = (msg: Message) => {
-    if (msg.id === '1' && msg.senderId === 'system_offer') {
+    if (msg.id === "1" && msg.senderId === "system_offer") {
       return (
         <View key={msg.id} style={styles.offerCard}>
           <Text style={styles.offerCardLabel}>Custom order offer</Text>
@@ -96,23 +97,30 @@ export default function DesignerMessageScreen({ navigation, route }: Props) {
       );
     }
 
-    if (msg.text === 'OFFER_FROM_DESIGNER') {
+    if (msg.text === "OFFER_FROM_DESIGNER") {
       return (
         <View key={msg.id} style={styles.designerOfferBubble}>
           <View style={styles.designerOfferHeader}>
             <Text style={styles.designerOfferIcon}>🎨</Text>
             <View style={styles.designerOfferInfo}>
-              <Text style={styles.designerOfferLabel}>Offer from {designer.username}</Text>
+              <Text style={styles.designerOfferLabel}>
+                Offer from {designer.username}
+              </Text>
               <Text style={styles.designerOfferDesc} numberOfLines={1}>
                 Design for Fashion show on(Flier, Tshirt and ...
               </Text>
             </View>
           </View>
-          <Text style={styles.designerOfferAmount}>₦30,000 Due on 23/12/2022</Text>
+          <Text style={styles.designerOfferAmount}>
+            ₦30,000 Due on 23/12/2022
+          </Text>
           <TouchableOpacity
             style={styles.viewOrderBtn}
             onPress={() =>
-              navigation.navigate('OrderDetails', { offer: MOCK_OFFER, designer })
+              navigation.navigate("OrderDetails", {
+                offer: MOCK_OFFER,
+                designer,
+              })
             }
             activeOpacity={0.8}
           >
@@ -122,13 +130,26 @@ export default function DesignerMessageScreen({ navigation, route }: Props) {
       );
     }
 
-    const isMe = msg.senderId === 'me';
+    const isMe = msg.senderId === "me";
     return (
-      <View key={msg.id} style={[styles.bubble, isMe ? styles.bubbleMe : styles.bubbleThem]}>
-        <Text style={[styles.bubbleText, isMe ? styles.bubbleTextMe : styles.bubbleTextThem]}>
+      <View
+        key={msg.id}
+        style={[styles.bubble, isMe ? styles.bubbleMe : styles.bubbleThem]}
+      >
+        <Text
+          style={[
+            styles.bubbleText,
+            isMe ? styles.bubbleTextMe : styles.bubbleTextThem,
+          ]}
+        >
           {msg.text}
         </Text>
-        <Text style={[styles.bubbleMeta, isMe && { color: 'rgba(255,255,255,0.6)' }]}>
+        <Text
+          style={[
+            styles.bubbleMeta,
+            isMe && { color: "rgba(255,255,255,0.6)" },
+          ]}
+        >
           {isMe ? `Seen • ${msg.timestamp}` : msg.timestamp}
         </Text>
       </View>
@@ -139,7 +160,10 @@ export default function DesignerMessageScreen({ navigation, route }: Props) {
     <SafeAreaView style={styles.safe}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.back}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.back}
+        >
           <Text style={styles.backArrow}>←</Text>
         </TouchableOpacity>
         <Image source={{ uri: designer.avatar }} style={styles.headerAvatar} />
@@ -154,7 +178,7 @@ export default function DesignerMessageScreen({ navigation, route }: Props) {
 
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
         keyboardVerticalOffset={90}
       >
         <ScrollView
@@ -162,7 +186,9 @@ export default function DesignerMessageScreen({ navigation, route }: Props) {
           style={styles.messages}
           contentContainerStyle={styles.messagesContent}
           showsVerticalScrollIndicator={false}
-          onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: false })}
+          onContentSizeChange={() =>
+            scrollRef.current?.scrollToEnd({ animated: false })
+          }
         >
           {messages.map(renderMessage)}
         </ScrollView>
@@ -188,7 +214,10 @@ export default function DesignerMessageScreen({ navigation, route }: Props) {
             <Text>📎</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.sendBtn, !inputText.trim() && styles.sendBtnDisabled]}
+            style={[
+              styles.sendBtn,
+              !inputText.trim() && styles.sendBtnDisabled,
+            ]}
             onPress={send}
             disabled={!inputText.trim()}
           >
@@ -205,7 +234,7 @@ export default function DesignerMessageScreen({ navigation, route }: Props) {
         offer={MOCK_OFFER}
         onEditSpecs={() => {
           setShowProductDetails(false);
-          navigation.navigate('CustomDesign');
+          navigation.navigate("CustomDesign");
         }}
       />
     </SafeAreaView>
@@ -216,8 +245,8 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: COLORS.background },
   flex: { flex: 1 },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     padding: SPACING.md,
     paddingHorizontal: SPACING.lg,
     borderBottomWidth: 1,
@@ -226,9 +255,14 @@ const styles = StyleSheet.create({
   },
   back: { marginRight: SPACING.md },
   backArrow: { fontSize: 22, color: COLORS.text },
-  headerAvatar: { width: 36, height: 36, borderRadius: 18, marginRight: SPACING.sm },
+  headerAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    marginRight: SPACING.sm,
+  },
   headerInfo: { flex: 1 },
-  headerName: { fontSize: 15, fontWeight: '600', color: COLORS.text },
+  headerName: { fontSize: 15, fontWeight: "600", color: COLORS.text },
   headerTime: { fontSize: 12, color: COLORS.textSecondary },
   moreBtn: { padding: SPACING.sm },
   moreDots: { fontSize: 20, color: COLORS.textSecondary },
@@ -239,7 +273,7 @@ const styles = StyleSheet.create({
   offerCard: {
     backgroundColor: COLORS.background,
     borderRadius: RADIUS.md,
-    overflow: 'hidden',
+    overflow: "hidden",
     marginBottom: SPACING.md,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -251,10 +285,10 @@ const styles = StyleSheet.create({
     padding: SPACING.md,
     paddingBottom: SPACING.sm,
   },
-  offerImg: { width: '100%', height: 160 },
+  offerImg: { width: "100%", height: 160 },
   offerTitle: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: "500",
     color: COLORS.text,
     padding: SPACING.md,
     paddingBottom: SPACING.sm,
@@ -265,31 +299,36 @@ const styles = StyleSheet.create({
     marginTop: 0,
     borderRadius: RADIUS.sm,
     paddingVertical: SPACING.md,
-    alignItems: 'center',
+    alignItems: "center",
   },
-  viewDetailsBtnText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  viewDetailsBtnText: { color: "#fff", fontSize: 14, fontWeight: "600" },
 
   bubble: {
-    maxWidth: '75%',
+    maxWidth: "75%",
     borderRadius: RADIUS.lg,
     padding: SPACING.md,
     marginBottom: SPACING.md,
   },
   bubbleMe: {
     backgroundColor: COLORS.primary,
-    alignSelf: 'flex-end',
+    alignSelf: "flex-end",
     borderBottomRightRadius: 4,
   },
   bubbleThem: {
     backgroundColor: COLORS.background,
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
     borderBottomLeftRadius: 4,
     ...SHADOW.sm,
   },
   bubbleText: { fontSize: 14, lineHeight: 20 },
-  bubbleTextMe: { color: '#fff' },
+  bubbleTextMe: { color: "#fff" },
   bubbleTextThem: { color: COLORS.text },
-  bubbleMeta: { fontSize: 10, color: COLORS.textMuted, marginTop: 4, textAlign: 'right' },
+  bubbleMeta: {
+    fontSize: 10,
+    color: COLORS.textMuted,
+    marginTop: 4,
+    textAlign: "right",
+  },
 
   designerOfferBubble: {
     backgroundColor: COLORS.background,
@@ -298,27 +337,40 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
     borderWidth: 1,
     borderColor: COLORS.border,
-    alignSelf: 'flex-start',
-    maxWidth: '80%',
+    alignSelf: "flex-start",
+    maxWidth: "80%",
     ...SHADOW.sm,
   },
-  designerOfferHeader: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: SPACING.sm },
+  designerOfferHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: SPACING.sm,
+  },
   designerOfferIcon: { fontSize: 20, marginRight: SPACING.sm },
   designerOfferInfo: { flex: 1 },
-  designerOfferLabel: { fontSize: 11, fontWeight: '600', color: COLORS.textSecondary },
+  designerOfferLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: COLORS.textSecondary,
+  },
   designerOfferDesc: { fontSize: 12, color: COLORS.text },
-  designerOfferAmount: { fontSize: 13, fontWeight: '700', color: COLORS.primary, marginBottom: SPACING.sm },
+  designerOfferAmount: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: COLORS.primary,
+    marginBottom: SPACING.sm,
+  },
   viewOrderBtn: {
     backgroundColor: COLORS.primary,
     borderRadius: RADIUS.sm,
     paddingVertical: SPACING.sm,
-    alignItems: 'center',
+    alignItems: "center",
   },
-  viewOrderBtnText: { color: '#fff', fontSize: 13, fontWeight: '600' },
+  viewOrderBtnText: { color: "#fff", fontSize: 13, fontWeight: "600" },
 
   inputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     padding: SPACING.sm,
     paddingHorizontal: SPACING.md,
     borderTopWidth: 1,
@@ -344,9 +396,9 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     backgroundColor: COLORS.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   sendBtnDisabled: { backgroundColor: COLORS.border },
-  sendBtnIcon: { color: '#fff', fontSize: 16 },
+  sendBtnIcon: { color: "#fff", fontSize: 16 },
 });

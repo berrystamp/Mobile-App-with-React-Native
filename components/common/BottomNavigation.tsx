@@ -16,6 +16,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const ITEM_WIDTH = SCREEN_WIDTH / 5;
 const MIDDLE_ITEM_SIZE = 64;
+const LIGHT_BACKGROUND = ['rgba(255, 255, 255, 0.95)', 'rgba(245, 245, 255, 0.85)'] as const;
+const DARK_BACKGROUND = ['rgba(20, 20, 30, 0.95)', 'rgba(30, 30, 40, 0.85)'] as const;
+const LIGHT_LIQUID = ['rgba(74, 63, 143, 0.25)', 'rgba(94, 83, 163, 0.2)'] as const;
+const DARK_LIQUID = ['rgba(110, 90, 200, 0.4)', 'rgba(74, 63, 143, 0.3)'] as const;
 
 export interface BottomNavigationProps {
   onNavigate?: (route: string) => void;
@@ -35,14 +39,10 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({ onNavigate }) => {
   const isDark = colorScheme === 'dark';
 
   const theme = {
-    background: isDark 
-      ? ['rgba(20, 20, 30, 0.95)', 'rgba(30, 30, 40, 0.85)'] 
-      : ['rgba(255, 255, 255, 0.95)', 'rgba(245, 245, 255, 0.85)'],
+    background: isDark ? DARK_BACKGROUND : LIGHT_BACKGROUND,
     activeTint: '#4A3F8F',
     inactiveTint: isDark ? '#A0A0A0' : '#6C6C6C',
-    liquidColor: isDark 
-      ? ['rgba(110, 90, 200, 0.4)', 'rgba(74, 63, 143, 0.3)'] 
-      : ['rgba(74, 63, 143, 0.25)', 'rgba(94, 83, 163, 0.2)'],
+    liquidColor: isDark ? DARK_LIQUID : LIGHT_LIQUID,
     borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
     shadowColor: isDark ? '#000000' : '#4A3F8F',
     middleBackground: isDark ? '#2A2A3A' : '#FFFFFF',
@@ -114,12 +114,7 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({ onNavigate }) => {
     } else {
       middlePulseAnim.setValue(1);
     }
-  }, [activeIndex]);
-
-  const translateX = liquidAnim.interpolate({
-    inputRange: [0, 1, 2, 3, 4],
-    outputRange: [0, ITEM_WIDTH, ITEM_WIDTH * 2, ITEM_WIDTH * 3, ITEM_WIDTH * 4],
-  });
+  }, [activeIndex, liquidAnim, middlePulseAnim, waveAnim]);
 
   const waveTranslateX = waveAnim.interpolate({
     inputRange: [0, 1],

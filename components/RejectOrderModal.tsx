@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   Modal,
 } from 'react-native';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { COLORS, SPACING, RADIUS } from '../utils/theme';
 
 interface RejectOrderModalProps {
@@ -28,7 +27,7 @@ export default function RejectOrderModal({ visible, onClose, onConfirmReject }: 
         </View>
         <View style={styles.content}>
           <Text style={styles.body}>
-            Are you sure you want to reject this offer? Rejecting offer means you won't be able to proceed with your negotiation.
+            Are you sure you want to reject this offer? Rejecting offer means you won&apos;t be able to proceed with your negotiation.
           </Text>
           <TouchableOpacity
             style={styles.rejectBtn}

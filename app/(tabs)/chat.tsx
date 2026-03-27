@@ -23,6 +23,7 @@ import {
   type ChatMessageDto,
   type ConversationSummaryDto,
 } from '@/lib/messages';
+import { appendLocalConversationMessage, getLocalConversationById } from '@/lib/localConversations';
 import ApiService from '@/services/apiClient';
 
 const OFFER_DETAILS = {
@@ -37,12 +38,19 @@ const OFFER_DETAILS = {
 export default function ChatScreen() {
   const router = useRouter();
   const scrollViewRef = useRef<ScrollView>(null);
-  const { conversationId, participantId, participantName, printerId } = useLocalSearchParams<{ conversationId?: string; participantId?: string; participantName?: string; printerId?: string }>();
+  const { conversationId, participantId, participantName, printerId, localConversationId, participantRole } = useLocalSearchParams<{
+    conversationId?: string;
+    participantId?: string;
+    participantName?: string;
+    printerId?: string;
+    localConversationId?: string;
+    participantRole?: string;
+  }>();
 
   const [conversation, setConversation] = useState<ConversationSummaryDto>({
-    id: String(conversationId || printerId || 'new-conversation'),
+    id: String(localConversationId || conversationId || printerId || 'new-conversation'),
     name: participantName || 'Conversation',
-    role: 'Designer',
+    role: participantRole === 'Printers' ? 'Printers' : 'Designer',
     avatarColor: '#A9D8FF',
     avatarEmoji: '🤓',
     lastMessage: '',
@@ -62,7 +70,28 @@ export default function ChatScreen() {
         setIsLoading(true);
         const me = await ApiService.getCurrentUser();
 
-        if (conversationId) {
+        if (localConversationId) {
+          const localConversation = await getLocalConversationById(String(localConversationId));
+          if (localConversation) {
+            setConversation((current) => ({
+              ...current,
+              id: localConversation.id,
+              name: localConversation.name,
+              role: localConversation.role,
+              participantId: localConversation.participantId,
+            }));
+            setMessages(
+              localConversation.messages.map((message) => ({
+                id: message.id,
+                type: 'text',
+                author: message.author,
+                text: message.text,
+                createdAtLabel: new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                status: message.status,
+              })),
+            );
+          }
+        } else if (conversationId) {
           const [convoRes, messagesRes] = await Promise.all([
             ApiService.getConversations(0, 80),
             ApiService.getConversationMessages(String(conversationId), 0, 100),
@@ -85,7 +114,7 @@ export default function ChatScreen() {
     };
 
     load();
-  }, [conversationId]);
+  }, [conversationId, localConversationId]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -117,10 +146,20 @@ export default function ChatScreen() {
     setDraft('');
 
     try {
-      await ApiService.sendMessage(String(conversation.id), {
-        content: trimmed,
-        receiverId: conversation.participantId,
-      });
+      if (localConversationId) {
+        await appendLocalConversationMessage(String(localConversationId), {
+          id: newMessage.id,
+          text: trimmed,
+          author: 'me',
+          createdAt: new Date().toISOString(),
+          status: 'sent',
+        });
+      } else {
+        await ApiService.sendMessage(String(conversation.id), {
+          content: trimmed,
+          receiverId: conversation.participantId,
+        });
+      }
     } catch (error) {
       console.warn('Message endpoint unavailable. Message queued locally.', error);
     }

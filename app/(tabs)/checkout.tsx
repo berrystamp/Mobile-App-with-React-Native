@@ -361,7 +361,7 @@ export default function CheckoutScreen() {
                 onPress={() => {
                     setSuccessVisible(false);
                     // Navigate to orders history tab/page
-                    router.push('/orders'); 
+                    router.push('/messages'); 
                 }} 
                 className="w-full bg-[#3B2D85] rounded-full py-4 items-center justify-center mb-4"
             >

@@ -1,24 +1,26 @@
-import React from 'react';
+import { Button } from "@/components/UIComponents";
+import { RootStackParamList } from "@/types";
+import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import React from "react";
 import {
-  View,
-  Text,
-  Modal,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  Dimensions,
-  SafeAreaView,
-} from 'react-native';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../types';
-import { COLORS, SPACING, RADIUS, SHADOW } from '../utils/theme';
-import { Button } from '../components/UIComponents';
+    Dimensions,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from "react-native";
+import { COLORS, RADIUS, SHADOW, SPACING } from "../../utils/theme";
 
-type Props = NativeStackScreenProps<RootStackParamList, 'OrderDetails'>;
+type Props = NativeStackScreenProps<RootStackParamList, "OrderDetails">;
 
-const { height: SCREEN_H } = Dimensions.get('window');
+const { height: SCREEN_H } = Dimensions.get("window");
 
-interface RowProps { label: string; value: string }
+interface RowProps {
+  label: string;
+  value: string;
+}
 const DetailRow = ({ label, value }: RowProps) => (
   <View style={styles.row}>
     <Text style={styles.rowLabel}>{label}</Text>
@@ -45,14 +47,21 @@ export default function OrderDetailsScreen({ navigation, route }: Props) {
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.title}>Order details</Text>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.closeBtn}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.closeBtn}
+          >
             <Text style={styles.closeX}>✕</Text>
           </TouchableOpacity>
         </View>
 
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+        >
           <Text style={styles.reviewNote}>
-            Review information to ensure details is exactly as agreed with printer before accepting
+            Review information to ensure details is exactly as agreed with
+            printer before accepting
           </Text>
 
           <DetailRow
@@ -63,16 +72,22 @@ export default function OrderDetailsScreen({ navigation, route }: Props) {
             label="Brief description of order agreed specifications"
             value="Design for fashion show base on my inspiration and initiatives. The design will be oriented to fun as indicated"
           />
-          <DetailRow label="Design amount" value={formatCurrency(offer.designAmount)} />
-          <DetailRow label="Printing amount" value={formatCurrency(offer.printingAmount)} />
-          <DetailRow label="Delivery amount" value={formatCurrency(offer.deliveryAmount)} />
           <DetailRow
-            label="Agreed date of delivery"
-            value={offer.dueDate}
+            label="Design amount"
+            value={formatCurrency(offer.designAmount)}
           />
           <DetailRow
+            label="Printing amount"
+            value={formatCurrency(offer.printingAmount)}
+          />
+          <DetailRow
+            label="Delivery amount"
+            value={formatCurrency(offer.deliveryAmount)}
+          />
+          <DetailRow label="Agreed date of delivery" value={offer.dueDate} />
+          <DetailRow
             label="Need pickup logistics"
-            value={offer.needPickupLogistics ? 'Yes' : 'No'}
+            value={offer.needPickupLogistics ? "Yes" : "No"}
           />
         </ScrollView>
 
@@ -81,9 +96,13 @@ export default function OrderDetailsScreen({ navigation, route }: Props) {
           <TouchableOpacity
             style={styles.rejectBtn}
             onPress={() =>
-              navigation.navigate('DesignerMessage', {
+              navigation.navigate("DesignerMessage", {
                 designer,
-                spec: { designFor: 'Fashion Show', designTheme: 'Fun', printItems: ['Flier', 'Tshirt', 'Hoodie'] },
+                spec: {
+                  designFor: "Fashion Show",
+                  designTheme: "Fun",
+                  printItems: ["Flier", "Tshirt", "Hoodie"],
+                },
               })
             }
           >
@@ -91,7 +110,7 @@ export default function OrderDetailsScreen({ navigation, route }: Props) {
           </TouchableOpacity>
           <Button
             title="Pay for Order"
-            onPress={() => navigation.navigate('PaymentMethod', { offer })}
+            onPress={() => navigation.navigate("PaymentMethod", { offer })}
             style={{ flex: 1 }}
           />
         </View>
@@ -107,25 +126,25 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.overlay,
   },
   sheet: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: SCREEN_H * 0.88,
     ...SHADOW.md,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     padding: SPACING.lg,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
-  title: { fontSize: 16, fontWeight: '700', color: COLORS.text },
+  title: { fontSize: 16, fontWeight: "700", color: COLORS.text },
   closeBtn: { padding: SPACING.xs },
   closeX: { fontSize: 16, color: COLORS.textSecondary },
   content: { padding: SPACING.lg },
@@ -140,7 +159,7 @@ const styles = StyleSheet.create({
   },
   rowLabel: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.text,
     marginBottom: 4,
   },
@@ -150,7 +169,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   footer: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: SPACING.md,
     padding: SPACING.lg,
     paddingBottom: SPACING.xl,
@@ -163,8 +182,8 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.full,
     borderWidth: 1.5,
     borderColor: COLORS.border,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
-  rejectBtnText: { fontSize: 15, fontWeight: '600', color: COLORS.text },
+  rejectBtnText: { fontSize: 15, fontWeight: "600", color: COLORS.text },
 });

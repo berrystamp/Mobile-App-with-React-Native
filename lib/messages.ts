@@ -1,4 +1,5 @@
 import type { Message } from '@/types';
+import { getLocalConversations } from '@/lib/localConversations';
 
 export interface ConversationSummaryDto {
   id: string;
@@ -77,6 +78,32 @@ export function normalizeConversationsResponse(response: any): ConversationSumma
       participantId: profile?.id,
     };
   });
+}
+
+export async function getMergedConversations(response: any): Promise<ConversationSummaryDto[]> {
+  const backend = normalizeConversationsResponse(response);
+  const local = await getLocalConversations();
+
+  const localMapped: ConversationSummaryDto[] = local.map((item, index) => ({
+    id: item.id,
+    name: item.name,
+    role: item.role,
+    avatarColor: AVATAR_COLORS[index % AVATAR_COLORS.length],
+    avatarEmoji: AVATAR_EMOJIS[index % AVATAR_EMOJIS.length],
+    lastMessage: item.lastMessage,
+    unreadCount: item.unreadCount,
+    updatedAtLabel: relativeTime(item.updatedAt),
+    participantId: item.participantId,
+  }));
+
+  const merged = [...localMapped];
+  backend.forEach((conversation) => {
+    if (!merged.some((item) => item.id === conversation.id)) {
+      merged.push(conversation);
+    }
+  });
+
+  return merged;
 }
 
 export function normalizeMessagesResponse(response: any, myUserId?: number): ChatMessageDto[] {

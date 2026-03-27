@@ -11,6 +11,7 @@ interface AuthContextType {
   login: (email: string, password: string, rememberMe?: boolean, profileType?: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -24,6 +25,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     checkAuth();
   }, []);
+
+  useEffect(() => {
+    refreshUser();
+  }, [segments.join('/')]);
+
+  const refreshUser = async () => {
+    try {
+      const userData = await AsyncStorage.getItem('userData');
+      if (userData) {
+        setUser(JSON.parse(userData));
+        setIsAuthenticated(true);
+      }
+    } catch (error) {
+      console.error('Failed to refresh user state', error);
+    }
+  };
 
   const checkAuth = async () => {
     setIsLoading(true);
@@ -63,7 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const result = await ApiService.login(email, password, profileType);
 
       if (result.requestSuccessful && result.responseBody?.token) {
-        const loggedInUser = result.responseBody.user;
+        const loggedInUser = (await ApiService.getCurrentUser()) || result.responseBody.user;
 
         setUser(loggedInUser);
         setIsAuthenticated(true);
@@ -99,7 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, isAuthenticated, login, logout, checkAuth }}>
+    <AuthContext.Provider value={{ user, isLoading, isAuthenticated, login, logout, checkAuth, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );
