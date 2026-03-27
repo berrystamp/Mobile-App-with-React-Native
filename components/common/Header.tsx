@@ -1,7 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useAppTheme } from '@/lib/theme/appTheme';
 import { useRouter, usePathname } from 'expo-router';
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, useColorScheme, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 interface HeaderProps {
   onSearchPress?: () => void;
@@ -24,8 +25,7 @@ const Header: React.FC<HeaderProps> = ({
   rightActionText,
   onRightAction,
 }) => {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
+  const theme = useAppTheme();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -34,17 +34,9 @@ const Header: React.FC<HeaderProps> = ({
     return null;
   }
 
-  const theme = {
-    background: isDark ? '#121212' : '#FFFFFF',
-    text: isDark ? '#FFFFFF' : '#1A1A1A',
-    iconBg: isDark ? '#1E1E1E' : '#F5F5F5',
-    brand: '#4B3A99',
-    action: isDark ? '#D9D9D9' : '#4B3A99',
-  };
-
   if (type === 'back') {
     return (
-      <View style={[styles.backContainer, { backgroundColor: theme.background, borderBottomColor: isDark ? '#222222' : '#F0F0F0' }]}>
+      <View style={[styles.backContainer, { backgroundColor: theme.background, borderBottomColor: theme.border }]}>
         <TouchableOpacity style={styles.backButton} onPress={onBackPress || (() => router.back())}>
           <Ionicons name="arrow-back" size={22} color={theme.text} />
         </TouchableOpacity>
@@ -54,7 +46,7 @@ const Header: React.FC<HeaderProps> = ({
         <View style={styles.backRightWrap}>
           {rightAction ? (
             <TouchableOpacity onPress={onRightAction}>
-              <Text style={[styles.rightActionText, { color: theme.action }]}>{rightActionText || 'Action'}</Text>
+              <Text style={[styles.rightActionText, { color: theme.primary }]}>{rightActionText || 'Action'}</Text>
             </TouchableOpacity>
           ) : null}
         </View>
@@ -65,12 +57,12 @@ const Header: React.FC<HeaderProps> = ({
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}> 
       <View style={styles.logoContainer}>
-        <View style={[styles.logo, { backgroundColor: theme.brand }]}>
+        <View style={[styles.logo, { backgroundColor: theme.primary }]}>
           <View style={[styles.logoCircle, { backgroundColor: theme.background }]} />
-          <View style={[styles.logoArc, { backgroundColor: theme.brand }]} />
+          <View style={[styles.logoArc, { backgroundColor: theme.primary }]} />
         </View>
         <Text style={[styles.logoText, { color: theme.text }]}>
-          <Text style={{ color: theme.brand }}>Berry</Text>stamp
+          <Text style={{ color: theme.primary }}>Berry</Text>stamp
         </Text>
       </View>
 

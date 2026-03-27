@@ -6,6 +6,7 @@ import React, { useEffect, useState } from "react";
 import 'react-native-reanimated';
 import { LoadingSpinner } from "../components/LoadingSpinner";
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { getAppTheme } from '@/lib/theme/appTheme';
 import "./global.css"
 
 export const unstable_settings = {
@@ -14,9 +15,36 @@ export const unstable_settings = {
 
 export function MainApp() {
   const colorScheme = useColorScheme();
+  const theme = getAppTheme(colorScheme);
+
+  const navigationTheme = colorScheme === 'dark'
+    ? {
+        ...DarkTheme,
+        colors: {
+          ...DarkTheme.colors,
+          background: theme.background,
+          card: theme.surface,
+          text: theme.text,
+          border: theme.border,
+          primary: theme.primary,
+          notification: theme.primary,
+        },
+      }
+    : {
+        ...DefaultTheme,
+        colors: {
+          ...DefaultTheme.colors,
+          background: theme.background,
+          card: theme.surface,
+          text: theme.text,
+          border: theme.border,
+          primary: theme.primary,
+          notification: theme.primary,
+        },
+      };
   
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+    <ThemeProvider value={navigationTheme}>
       <AuthProvider>
         <Stack screenOptions={{ headerShown: false }}>
           {/* Main Initial Screen */}
@@ -28,7 +56,10 @@ export function MainApp() {
           
           
         </Stack>
-        <StatusBar style="auto" />
+        <StatusBar
+          style={colorScheme === 'dark' ? 'light' : 'dark'}
+          backgroundColor={theme.background}
+        />
       </AuthProvider>
     </ThemeProvider>
   );
