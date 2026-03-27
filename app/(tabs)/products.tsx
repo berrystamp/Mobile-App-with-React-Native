@@ -138,6 +138,41 @@ export default function ProductsScreen() {
     }
   };
 
+
+  const handleFavoriteToggle = useCallback(async (designIdToToggle: number) => {
+    const updateList = (list: Design[]) =>
+      list.map((item) =>
+        item.id === designIdToToggle
+          ? {
+              ...item,
+              liked: !item.liked,
+              likes: item.liked ? Math.max(0, item.likes - 1) : item.likes + 1,
+            }
+          : item,
+      );
+
+    const previousProducts = [...products];
+    const previousSelectedDesign = selectedDesign;
+
+    setProducts((current) => updateList(current));
+    setSelectedDesign((current) => {
+      if (!current || current.id !== designIdToToggle) return current;
+      return {
+        ...current,
+        liked: !current.liked,
+        likes: current.liked ? Math.max(0, current.likes - 1) : current.likes + 1,
+      };
+    });
+
+    try {
+      await ApiService.toggleFavorite(String(designIdToToggle));
+    } catch (err: any) {
+      setProducts(previousProducts);
+      setSelectedDesign(previousSelectedDesign);
+      Alert.alert('Could not update favourite', err?.response?.data?.message || 'Please try again.');
+    }
+  }, [products, selectedDesign]);
+
   const title = artistName
     ? `${artistName}'s products`
     : searchField
@@ -179,7 +214,12 @@ export default function ProductsScreen() {
         <ScrollView contentContainerStyle={styles.productList} showsVerticalScrollIndicator={false}>
           <View style={styles.grid}>
             {products.map((product) => (
-              <DesignCard key={product.id} design={product} onPress={() => openDetails(product)} />
+              <DesignCard
+                key={product.id}
+                design={product}
+                onPress={() => openDetails(product)}
+                onFavoriteToggle={handleFavoriteToggle}
+              />
             ))}
           </View>
         </ScrollView>

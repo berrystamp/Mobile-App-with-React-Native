@@ -176,6 +176,162 @@ class ApiService {
     return response.data;
   }
 
+
+
+  async getFavoriteDesigns(size: number = 50, page: number = 0) {
+    const headers = { profileType: 'CUSTOMER' };
+
+    const candidates = [
+      () => api.get('/designs/favorites', { params: { page, size, sort: 'id,desc' }, headers }),
+      () => api.get('/designs', { params: { page, size, sort: 'id,desc', liked: true }, headers }),
+      () => api.get('/designs', { params: { page, size, sort: 'id,desc', designIsLiked: true }, headers }),
+    ];
+
+    for (const request of candidates) {
+      try {
+        const response = await request();
+        return response.data;
+      } catch (error: any) {
+        if (error?.response?.status && error.response.status !== 404) {
+          throw error;
+        }
+      }
+    }
+
+    return { responseBody: { content: [] } };
+  }
+
+  async getFollowingArtists(size: number = 50, page: number = 0) {
+    const headers = { profileType: 'CUSTOMER' };
+
+    const candidates = [
+      () => api.get('/berry/profiles/following', { params: { page, size, sort: 'id,desc' }, headers }),
+      () => api.get('/profiles/following', { params: { page, size, sort: 'id,desc' }, headers }),
+    ];
+
+    for (const request of candidates) {
+      try {
+        const response = await request();
+        return response.data;
+      } catch (error: any) {
+        if (error?.response?.status && error.response.status !== 404) {
+          throw error;
+        }
+      }
+    }
+
+    const fallback = await this.getTopArtists(size, page);
+    return fallback;
+  }
+
+  async getConversations(page: number = 0, size: number = 50) {
+    const headers = { profileType: 'CUSTOMER' };
+    const candidates = [
+      () => api.get('/messages/conversations', { params: { page, size, sort: 'updatedAt,desc' }, headers }),
+      () => api.get('/conversations', { params: { page, size, sort: 'updatedAt,desc' }, headers }),
+    ];
+
+    for (const request of candidates) {
+      try {
+        const response = await request();
+        return response.data;
+      } catch (error: any) {
+        if (error?.response?.status && error.response.status !== 404) {
+          throw error;
+        }
+      }
+    }
+
+    return { responseBody: { content: [] } };
+  }
+
+  async getConversationMessages(conversationId: string, page: number = 0, size: number = 100) {
+    const headers = { profileType: 'CUSTOMER' };
+    const candidates = [
+      () => api.get(`/messages/conversations/${conversationId}`, { params: { page, size, sort: 'createdAt,asc' }, headers }),
+      () => api.get(`/conversations/${conversationId}/messages`, { params: { page, size, sort: 'createdAt,asc' }, headers }),
+    ];
+
+    for (const request of candidates) {
+      try {
+        const response = await request();
+        return response.data;
+      } catch (error: any) {
+        if (error?.response?.status && error.response.status !== 404) {
+          throw error;
+        }
+      }
+    }
+
+    return { responseBody: { content: [] } };
+  }
+
+  async sendMessage(conversationId: string, payload: { content: string; receiverId?: number }) {
+    const headers = { profileType: 'CUSTOMER' };
+
+    const candidates = [
+      () => api.post(`/messages/conversations/${conversationId}`, payload, { headers }),
+      () => api.post(`/conversations/${conversationId}/messages`, payload, { headers }),
+    ];
+
+    for (const request of candidates) {
+      try {
+        const response = await request();
+        return response.data;
+      } catch (error: any) {
+        if (error?.response?.status && error.response.status !== 404) {
+          throw error;
+        }
+      }
+    }
+
+    throw new Error('Unable to send message. Messaging endpoint is unavailable.');
+  }
+
+  async deleteConversation(conversationId: string) {
+    const headers = { profileType: 'CUSTOMER' };
+    const candidates = [
+      () => api.delete(`/messages/conversations/${conversationId}`, { headers }),
+      () => api.delete(`/conversations/${conversationId}`, { headers }),
+    ];
+
+    for (const request of candidates) {
+      try {
+        const response = await request();
+        return response.data;
+      } catch (error: any) {
+        if (error?.response?.status && error.response.status !== 404) {
+          throw error;
+        }
+      }
+    }
+
+    return { requestSuccessful: true };
+  }
+
+  async reportConversation(conversationId: string, reason: string) {
+    const headers = { profileType: 'CUSTOMER' };
+    const payload = { reason };
+
+    const candidates = [
+      () => api.post(`/messages/conversations/${conversationId}/report`, payload, { headers }),
+      () => api.post(`/conversations/${conversationId}/report`, payload, { headers }),
+    ];
+
+    for (const request of candidates) {
+      try {
+        const response = await request();
+        return response.data;
+      } catch (error: any) {
+        if (error?.response?.status && error.response.status !== 404) {
+          throw error;
+        }
+      }
+    }
+
+    return { requestSuccessful: true };
+  }
+
   // Generic request method
   async request(config: AxiosRequestConfig) {
     const response = await api.request(config);
