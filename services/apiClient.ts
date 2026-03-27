@@ -332,6 +332,120 @@ class ApiService {
     return { requestSuccessful: true };
   }
 
+
+  async getActiveProfileType() {
+    return (await AsyncStorage.getItem('profileType')) || 'CUSTOMER';
+  }
+
+  async setActiveProfileType(profileType: 'CUSTOMER' | 'DESIGNER' | 'PRINTER') {
+    await AsyncStorage.setItem('profileType', profileType);
+    return { requestSuccessful: true, responseBody: { profileType } };
+  }
+
+  async getMyProfile() {
+    const profileType = await this.getActiveProfileType();
+    const headers = { profileType };
+    const candidates = [
+      () => api.get('/berry/profiles/me', { headers }),
+      () => api.get('/profiles/me', { headers }),
+      () => api.get('/users/me', { headers }),
+      () => api.get('/auth/me', { headers }),
+      () => api.get('/user', { headers }),
+    ];
+
+    for (const request of candidates) {
+      try {
+        const response = await request();
+        return response.data;
+      } catch (error: any) {
+        if (error?.response?.status && error.response.status !== 404) {
+          throw error;
+        }
+      }
+    }
+
+    const storedUser = await this.getCurrentUser();
+    return { responseBody: storedUser };
+  }
+
+  async updateMyProfile(payload: { firstName?: string; lastName?: string; username?: string; address?: string; phoneNumber?: string }) {
+    const profileType = await this.getActiveProfileType();
+    const headers = { profileType };
+    const candidates = [
+      () => api.patch('/berry/profiles/me', payload, { headers }),
+      () => api.put('/berry/profiles/me', payload, { headers }),
+      () => api.patch('/profiles/me', payload, { headers }),
+      () => api.put('/profiles/me', payload, { headers }),
+      () => api.patch('/users/me', payload, { headers }),
+      () => api.put('/users/me', payload, { headers }),
+      () => api.patch('/user', payload, { headers }),
+      () => api.put('/user', payload, { headers }),
+    ];
+
+    for (const request of candidates) {
+      try {
+        const response = await request();
+        const current = await this.getCurrentUser();
+        await AsyncStorage.setItem('userData', JSON.stringify({ ...current, ...payload }));
+        return response.data;
+      } catch (error: any) {
+        if (error?.response?.status && error.response.status !== 404) {
+          throw error;
+        }
+      }
+    }
+
+    throw new Error('Unable to update profile. Endpoint not available.');
+  }
+
+  async getPaymentDetails() {
+    const profileType = await this.getActiveProfileType();
+    const headers = { profileType };
+    const candidates = [
+      () => api.get('/wallets/bank-account', { headers }),
+      () => api.get('/payments/bank-account', { headers }),
+      () => api.get('/profiles/me/payment-details', { headers }),
+    ];
+
+    for (const request of candidates) {
+      try {
+        const response = await request();
+        return response.data;
+      } catch (error: any) {
+        if (error?.response?.status && error.response.status !== 404) {
+          throw error;
+        }
+      }
+    }
+
+    return { responseBody: {} };
+  }
+
+  async savePaymentDetails(payload: { bankName: string; accountNumber: string; accountName?: string }) {
+    const profileType = await this.getActiveProfileType();
+    const headers = { profileType };
+    const candidates = [
+      () => api.post('/wallets/bank-account', payload, { headers }),
+      () => api.put('/wallets/bank-account', payload, { headers }),
+      () => api.post('/payments/bank-account', payload, { headers }),
+      () => api.patch('/profiles/me/payment-details', payload, { headers }),
+    ];
+
+    for (const request of candidates) {
+      try {
+        const response = await request();
+        return response.data;
+      } catch (error: any) {
+        if (error?.response?.status && error.response.status !== 404) {
+          throw error;
+        }
+      }
+    }
+
+    throw new Error('Unable to save payment details. Endpoint not available.');
+  }
+
+
   // Generic request method
   async request(config: AxiosRequestConfig) {
     const response = await api.request(config);
