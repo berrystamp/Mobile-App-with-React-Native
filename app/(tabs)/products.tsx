@@ -1,118 +1,21 @@
-import React, { useMemo, useState } from 'react';
+import { DesignCard } from '@/components/DesignCard';
+import { normalizeDesign, normalizeDesignListResponse } from '@/lib/designs';
+import ApiService from '@/services/apiClient';
+import { Design, Mock } from '@/types';
+import { Ionicons } from '@expo/vector-icons';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  Alert,
   Image,
-  ImageSourcePropType,
-  Pressable,
+  Modal,
   ScrollView,
+  StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
+  useColorScheme,
 } from 'react-native';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { ProductActionSheet } from '@/components/product/ProductActionSheet';
-
-type Review = {
-  id: string;
-  name: string;
-  avatar: ImageSourcePropType;
-  rating: number;
-  date: string;
-  comment: string;
-};
-
-type Mockup = {
-  id: string;
-  title: string;
-  image: ImageSourcePropType;
-  price: string;
-};
-
-type RelatedProduct = {
-  id: string;
-  title: string;
-  artist: string;
-  image: ImageSourcePropType;
-  price: string;
-};
-
-const brand = '#463197';
-const heroImages: ImageSourcePropType[] = [
-  require('@/assets/images/item1.png'),
-  require('@/assets/images/item2.png'),
-  require('@/assets/images/item3.png'),
-  require('@/assets/images/item4.png'),
-];
-
-const mockups: Mockup[] = [
-  { id: 'm1', title: 'Long Sleeve Men Shirt', image: require('@/assets/images/item1.png'), price: '₦5,000' },
-  { id: 'm2', title: 'Body fit', image: require('@/assets/images/item2.png'), price: '₦5,000' },
-  { id: 'm3', title: 'Round neck', image: require('@/assets/images/item3.png'), price: '₦5,000' },
-  { id: 'm4', title: 'Tote Bag', image: require('@/assets/images/item4.png'), price: '₦5,000' },
-];
-
-const relatedProducts: RelatedProduct[] = [
-  { id: 'r1', title: 'My Mind Mug', artist: 'Mohh_Jumah', image: require('@/assets/images/item1.png'), price: '₦3,000' },
-  { id: 'r2', title: 'We Meuuve Slang Design', artist: 'Mohh_Jumah', image: require('@/assets/images/item2.png'), price: '₦3,000' },
-  { id: 'r3', title: 'Sapa Be Like', artist: 'Mohh_Jumah', image: require('@/assets/images/item3.png'), price: '₦3,000' },
-  { id: 'r4', title: 'Fun and Peaceful Emotion', artist: 'Mohh_Jumah', image: require('@/assets/images/item4.png'), price: '₦3,000' },
-];
-
-const reviews: Review[] = [
-  {
-    id: '1',
-    name: 'Wittig Iyon',
-    avatar: require('@/assets/images/item1.png'),
-    rating: 4,
-    date: '8/3/2022',
-    comment: 'Your work is a masterpiece of creativity, elegance, and attention to detail. Truly awe-inspiring and captivating.',
-  },
-  {
-    id: '2',
-    name: 'Ada Johnson',
-    avatar: require('@/assets/images/item2.png'),
-    rating: 5,
-    date: '8/2/2022',
-    comment: 'The mockup quality is excellent and the print finish looks premium. Delivery notes were also very clear.',
-  },
-  {
-    id: '3',
-    name: 'Micheal Creed',
-    avatar: require('@/assets/images/item3.png'),
-    rating: 4,
-    date: '7/29/2022',
-    comment: 'Fast turnaround, responsive designer, and the fit guide helped me choose the right size without stress.',
-  },
-];
-
-const sizes = ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL'];
-const colors = [
-  { name: 'Red', value: '#F44336' },
-  { name: 'Blue', value: '#1E40AF' },
-  { name: 'Green', value: '#2E7D32' },
-  { name: 'Yellow', value: '#FDE047' },
-  { name: 'Purple', value: '#7E22CE' },
-  { name: 'Pink', value: '#EC4899' },
-  { name: 'Orange', value: '#F59E0B' },
-  { name: 'Brown', value: '#92400E' },
-  { name: 'White', value: '#FFFFFF', border: '#D1D5DB' },
-  { name: 'Grey', value: '#737373' },
-  { name: 'Gold', value: '#C9A227' },
-  { name: 'Silver', value: '#CBD5E1' },
-  { name: 'Navy', value: '#1E3A8A' },
-  { name: 'Sky', value: '#38BDF8' },
-  { name: 'Black', value: '#111827' },
-  { name: 'Crimson', value: '#BE123C' },
-];
-const printingTypes = ['Screen printing', 'Direct to screen', 'Sublimation', 'Direct to garment'];
-const reviewBreakdown = [
-  { stars: 5, count: 60, width: '83%' as const },
-  { stars: 4, count: 30, width: '62%' as const },
-  { stars: 3, count: 15, width: '42%' as const },
-  { stars: 2, count: 8, width: '22%' as const },
-  { stars: 1, count: 2, width: '11%' as const },
-];
 
 function RatingStars({ value }: { value: number }) {
   return (
@@ -178,227 +81,222 @@ function QuantityStepper({ value, onChange }: { value: number; onChange: (next: 
 
 export default function ProductsScreen() {
   const router = useRouter();
-  const [activeImageIndex, setActiveImageIndex] = useState(0);
-  const [favorite, setFavorite] = useState(false);
-  const [itemSpecVisible, setItemSpecVisible] = useState(false);
-  const [printSpecVisible, setPrintSpecVisible] = useState(false);
-  const [reviewVisible, setReviewVisible] = useState(false);
-  const [printingTypeMenuVisible, setPrintingTypeMenuVisible] = useState(false);
-  const [toast, setToast] = useState<'cart' | 'favorite' | null>(null);
+  const { artistId, artistName, designId, searchField } = useLocalSearchParams<{
+    artistId?: string;
+    artistName?: string;
+    designId?: string;
+    searchField?: string;
+  }>();
 
-  const [selectedSize, setSelectedSize] = useState('M');
-  const [selectedColor, setSelectedColor] = useState('Blue');
-  const [quantity, setQuantity] = useState(1);
-  const [limitQuantity, setLimitQuantity] = useState(true);
+  const isDark = useColorScheme() === 'dark';
+  const [isLoading, setIsLoading] = useState(true);
+  const [isAddingToCart, setIsAddingToCart] = useState(false);
+  const [products, setProducts] = useState<Design[]>([]);
+  const [selectedDesign, setSelectedDesign] = useState<Design | null>(null);
+  const [selectedMockId, setSelectedMockId] = useState<number | null>(null);
+  const [selectedColour, setSelectedColour] = useState<string>('');
+  const [error, setError] = useState<string | null>(null);
 
-  const [printingType, setPrintingType] = useState('Screen printing');
-  const [budgetFrom, setBudgetFrom] = useState('8000');
-  const [budgetTo, setBudgetTo] = useState('10000');
-  const [preferredDate, setPreferredDate] = useState('20 Dec 2026');
-  const [hasOwnItem, setHasOwnItem] = useState<'pickup' | 'inventory'>('inventory');
-
-  const specificationSummary = useMemo(
-    () => `${selectedColor}, ${selectedSize}, ${quantity} ${quantity > 1 ? 'pcs' : 'pc'}`,
-    [quantity, selectedColor, selectedSize],
+  const theme = useMemo(
+    () => ({
+      background: isDark ? '#121212' : '#F8F8F8',
+      surface: isDark ? '#1E1E1E' : '#FFFFFF',
+      text: isDark ? '#FFFFFF' : '#111111',
+      subtext: isDark ? '#ABABAB' : '#777777',
+      border: isDark ? '#2A2A2A' : '#ECECEC',
+      accent: '#4B3A99',
+    }),
+    [isDark],
   );
 
-  const printSummary = useMemo(
-    () => `${printingType}, ₦${budgetFrom} - ₦${budgetTo}, ${preferredDate}`,
-    [budgetFrom, budgetTo, preferredDate, printingType],
+  const selectedMock: Mock | undefined = useMemo(
+    () => selectedDesign?.mocks?.find((mock) => mock.id === selectedMockId) || selectedDesign?.mocks?.[0],
+    [selectedDesign, selectedMockId],
   );
 
-  const handleAddToCart = () => {
-    setToast('cart');
-    setTimeout(() => setToast(null), 2500);
+  const loadProducts = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      if (designId) {
+        const designResponse = await ApiService.fetchDesignById(Number(designId));
+        const normalizedDesign = normalizeDesign(designResponse?.responseBody || designResponse);
+        setProducts([normalizedDesign]);
+        setSelectedDesign(normalizedDesign);
+        setSelectedMockId(normalizedDesign.mocks?.[0]?.id || null);
+        setSelectedColour(normalizedDesign.mocks?.[0]?.colours?.[0] || '');
+        return;
+      }
+
+      const response = await ApiService.getDesigns({
+        page: 0,
+        size: 20,
+        designer: artistId ? Number(artistId) : undefined,
+        searchField: searchField || undefined,
+      });
+
+      const normalizedProducts = normalizeDesignListResponse(response);
+      setProducts(normalizedProducts);
+    } catch (err: any) {
+      console.error('Failed to load products', err);
+      setError(err.response?.data?.message || 'Unable to load products right now.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [artistId, designId, searchField]);
+
+  useEffect(() => {
+    loadProducts();
+  }, [loadProducts]);
+
+  const openDetails = (design: Design) => {
+    setSelectedDesign(design);
+    setSelectedMockId(design.mocks?.[0]?.id || null);
+    setSelectedColour(design.mocks?.[0]?.colours?.[0] || '');
   };
 
-  const handleToggleFavorite = () => {
-    const nextValue = !favorite;
-    setFavorite(nextValue);
-    setToast('favorite');
-    setTimeout(() => setToast(null), 2500);
+  const closeDetails = () => {
+    setSelectedDesign(null);
+    setSelectedMockId(null);
+    setSelectedColour('');
   };
+
+  const handleMockSelect = (mock: Mock) => {
+    setSelectedMockId(mock.id);
+    setSelectedColour(mock.colours?.[0] || '');
+  };
+
+  const handleAddToCart = async () => {
+    if (!selectedDesign || !selectedMock) {
+      Alert.alert('Unavailable', 'This design does not have a selectable mock yet.');
+      return;
+    }
+
+    try {
+      setIsAddingToCart(true);
+      await ApiService.addToCart(selectedDesign.id, selectedMock.id, {
+        quantity: 1,
+        colour: selectedColour,
+      });
+      Alert.alert('Added to cart', `${selectedDesign.title} has been added to your cart.`, [
+        {
+          text: 'Continue shopping',
+          style: 'cancel',
+        },
+        {
+          text: 'Go to cart',
+          onPress: () => {
+            closeDetails();
+            router.push('/cart');
+          },
+        },
+      ]);
+    } catch (err: any) {
+      console.error('Add to cart failed', err);
+      Alert.alert('Could not add to cart', err.response?.data?.message || 'Please log in and try again.');
+    } finally {
+      setIsAddingToCart(false);
+    }
+  };
+
+
+  const handleFavoriteToggle = useCallback(async (designIdToToggle: number) => {
+    const updateList = (list: Design[]) =>
+      list.map((item) =>
+        item.id === designIdToToggle
+          ? {
+              ...item,
+              liked: !item.liked,
+              likes: item.liked ? Math.max(0, item.likes - 1) : item.likes + 1,
+            }
+          : item,
+      );
+
+    const previousProducts = [...products];
+    const previousSelectedDesign = selectedDesign;
+
+    setProducts((current) => updateList(current));
+    setSelectedDesign((current) => {
+      if (!current || current.id !== designIdToToggle) return current;
+      return {
+        ...current,
+        liked: !current.liked,
+        likes: current.liked ? Math.max(0, current.likes - 1) : current.likes + 1,
+      };
+    });
+
+    try {
+      await ApiService.toggleFavorite(String(designIdToToggle));
+    } catch (err: any) {
+      setProducts(previousProducts);
+      setSelectedDesign(previousSelectedDesign);
+      Alert.alert('Could not update favourite', err?.response?.data?.message || 'Please try again.');
+    }
+  }, [products, selectedDesign]);
+
+  const title = artistName
+    ? `${artistName}'s products`
+    : searchField
+      ? `Search: ${searchField}`
+      : 'Products';
 
   return (
-    <View className="flex-1 bg-[#FAFAFC]">
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 130 }}>
-        <View className="bg-[#AFAFAF] px-5 pb-6 pt-14">
-          <View className="mb-5 flex-row items-center justify-between">
-            <TouchableOpacity onPress={() => router.back()} className="h-10 w-10 items-center justify-center rounded-full bg-white/10">
-              <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
-            </TouchableOpacity>
-            <View className="flex-1 px-3">
-              <Text className="text-lg font-semibold text-white">Japan Night</Text>
-              <Text className="text-xs text-white/85">Designed by Berrystamp</Text>
-            </View>
-            <View className="flex-row items-center gap-x-1">
-              <TouchableOpacity onPress={handleToggleFavorite} className="h-10 w-10 items-center justify-center rounded-full bg-white/10">
-                <Ionicons name={favorite ? 'heart' : 'heart-outline'} size={22} color="#FFFFFF" />
-              </TouchableOpacity>
-              <TouchableOpacity className="h-10 w-10 items-center justify-center rounded-full bg-white/10">
-                <Ionicons name="share-social-outline" size={21} color="#FFFFFF" />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <View className="items-center">
-            <Image source={heroImages[activeImageIndex]} resizeMode="contain" className="h-[360px] w-full" />
-            <View className="mt-2 flex-row gap-x-2">
-              {heroImages.map((_, index) => (
-                <Pressable
-                  key={index}
-                  onPress={() => setActiveImageIndex(index)}
-                  className={`h-2.5 w-2.5 rounded-full ${activeImageIndex === index ? 'bg-[#2F2F2F]' : 'bg-[#D7D7D7]'}`}
-                />
-              ))}
-            </View>
-          </View>
+    <View style={[styles.container, { backgroundColor: theme.background }]}> 
+      <View style={[styles.header, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}> 
+        <TouchableOpacity onPress={() => ( router.push('/'))} style={styles.headerIcon}>
+          <Ionicons name="arrow-back" size={24} color={theme.text} />
+        </TouchableOpacity>
+        <View style={styles.headerTextWrap}>
+          <Text style={[styles.headerTitle, { color: theme.text }]} numberOfLines={1}>
+            {title}
+          </Text>
+          <Text style={[styles.headerSubtitle, { color: theme.subtext }]} numberOfLines={1}>
+            Tap a product to view details and add it to cart.
+          </Text>
         </View>
+        <TouchableOpacity onPress={loadProducts} style={styles.headerIcon}>
+          <Ionicons name="refresh-outline" size={22} color={theme.text} />
+        </TouchableOpacity>
+      </View>
 
-        <View className="-mt-4 rounded-t-[28px] bg-[#FAFAFC] px-5 pt-6">
-          <Text className="text-[30px] font-semibold leading-9 text-[#232323]">Long Sleeve Men Shirt</Text>
-          <Text className="mt-2 text-base text-[#4E79FF]">From Japan tour Collection</Text>
-
-          <View className="mt-3 flex-row items-end justify-between">
-            <View>
-              <Text className="text-sm text-[#8A8A8A]">475 piece available</Text>
-              <View className="mt-2 flex-row items-center gap-x-2">
-                <View className="rounded-md bg-[#F6C645] px-2 py-1">
-                  <Text className="text-xs font-semibold text-white">★ 4.5</Text>
-                </View>
-                <Text className="text-sm text-[#7A7A7A]">120 reviews</Text>
-              </View>
-            </View>
-            <Text className="text-[32px] font-bold text-[#3F3190]">₦5,000</Text>
+      {isLoading ? (
+        <View style={styles.centerState}>
+          <Text style={{ color: theme.subtext }}>Loading products...</Text>
+        </View>
+      ) : error ? (
+        <View style={styles.centerState}>
+          <Text style={{ color: '#E15656', textAlign: 'center' }}>{error}</Text>
+        </View>
+      ) : products.length === 0 ? (
+        <View style={styles.centerState}>
+          <Text style={{ color: theme.subtext, textAlign: 'center' }}>No products were found for this artist yet.</Text>
+        </View>
+      ) : (
+        <ScrollView contentContainerStyle={styles.productList} showsVerticalScrollIndicator={false}>
+          <View style={styles.grid}>
+            {products.map((product) => (
+              <DesignCard
+                key={product.id}
+                design={product}
+                onPress={() => openDetails(product)}
+                onFavoriteToggle={handleFavoriteToggle}
+              />
+            ))}
           </View>
+        </ScrollView>
+      )}
 
-          <View className="mt-5 rounded-[20px] bg-white px-4 py-4 shadow-sm shadow-black/5">
-            <Text className="text-base font-semibold text-[#2F2F2F]">Description</Text>
-            <Text className="mt-2 text-sm leading-6 text-[#646464]">
-              Japan Night brings a playful yet haunting twist to everyday style. It captures the thrill of the night with a fearless street-art finish and premium mockup presentation.
-            </Text>
-          </View>
-
-          <View className="mt-5">
-            <SectionCard
-              title="Add Item Specification"
-              subtitle="Color, size and quantity"
-              details={specificationSummary}
-              onPress={() => setItemSpecVisible(true)}
-            />
-            <SectionCard
-              title="Add Printing Specification"
-              subtitle="Type, budget and time frame"
-              details={printSummary}
-              onPress={() => setPrintSpecVisible(true)}
-            />
-            <TouchableOpacity className="mt-2 rounded-[18px] border border-[#E9E9F4] bg-white px-4 py-4" activeOpacity={0.85}>
-              <View className="flex-row items-center justify-between">
-                <View className="flex-row items-center gap-x-3">
-                  <View className="h-10 w-10 items-center justify-center rounded-xl bg-[#F6F1FF]">
-                    <Ionicons name="chatbox-ellipses-outline" size={18} color={brand} />
-                  </View>
-                  <Text className="text-sm font-semibold text-[#4B3CA0]">Request customization</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color="#979797" />
-              </View>
-            </TouchableOpacity>
-          </View>
-
-          <View className="mt-7 rounded-[22px] bg-white px-4 py-5 shadow-sm shadow-black/5">
-            <Text className="text-base font-semibold text-[#2F2F2F]">Policy</Text>
-            <Text className="mt-3 text-sm leading-6 text-[#666666]">
-              To be delivered anywhere in Nigeria after 10 days. Note that delivery days might be sooner based on your location.
-            </Text>
-            <Text className="mt-3 text-sm leading-6 text-[#666666]">
-              Return is free with tangible reason within 10 days after delivery.
-            </Text>
-          </View>
-
-          <View className="mt-7">
-            <View className="mb-4 flex-row items-center justify-between">
-              <Text className="text-lg font-semibold text-[#232323]">Designer Reviews</Text>
-              <TouchableOpacity onPress={() => setReviewVisible(true)}>
-                <Text className="text-sm font-semibold text-[#4E79FF]">See more</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View className="rounded-[22px] bg-white px-4 py-5 shadow-sm shadow-black/5">
-              <View className="flex-row justify-between gap-x-4">
-                <View className="w-[44%] items-center rounded-[18px] bg-[#F6F3FF] px-3 py-4">
-                  <Text className="text-[30px] font-bold text-[#3F3190]">4/5</Text>
-                  <View className="mt-2"><RatingStars value={4} /></View>
-                  <Text className="mt-4 text-[24px] font-semibold text-[#2F2F2F]">152</Text>
-                  <Text className="text-xs text-[#818181]">Reviews</Text>
-                </View>
-                <View className="flex-1 justify-center gap-y-2">
-                  {reviewBreakdown.map((item) => (
-                    <View key={item.stars} className="flex-row items-center gap-x-2">
-                      <Text className="w-5 text-xs text-[#444444]">{item.stars}</Text>
-                      <Ionicons name="star" size={12} color="#FDB022" />
-                      <Text className="w-8 text-xs text-[#7A7A7A]">({item.count})</Text>
-                      <View className="h-2 flex-1 rounded-full bg-[#ECE8FF]">
-                        <View className="h-2 rounded-full bg-[#4C3CA4]" style={{ width: item.width }} />
-                      </View>
-                    </View>
-                  ))}
-                </View>
-              </View>
-
-              <View className="mt-6 border-t border-[#F0F0F0] pt-5">
-                <View className="flex-row gap-x-3">
-                  <Image source={reviews[0].avatar} className="h-12 w-12 rounded-full" />
-                  <View className="flex-1">
-                    <Text className="text-lg font-semibold text-[#2F2F2F]">{reviews[0].name}</Text>
-                    <View className="mt-1 flex-row items-center gap-x-2">
-                      <RatingStars value={reviews[0].rating} />
-                      <Text className="text-xs text-[#7A7A7A]">• {reviews[0].date}</Text>
-                    </View>
-                    <Text className="mt-3 text-base leading-8 text-[#444444]">{reviews[0].comment}</Text>
-                  </View>
-                </View>
-              </View>
-            </View>
-          </View>
-
-          <View className="mt-7">
-            <View className="mb-4 flex-row items-center justify-between">
-              <Text className="text-lg font-semibold text-[#232323]">Select Mockup</Text>
-              <TouchableOpacity>
-                <Text className="text-sm font-semibold text-[#4E79FF]">View all</Text>
-              </TouchableOpacity>
-            </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
-              {mockups.map((item) => (
-                <TouchableOpacity
-                  key={item.id}
-                  onPress={() => setActiveImageIndex(mockups.findIndex((mockup) => mockup.id === item.id))}
-                  className="w-40 rounded-[18px] bg-white p-3 shadow-sm shadow-black/5">
-                  <Image source={item.image} resizeMode="cover" className="h-28 w-full rounded-2xl bg-[#F3F4F6]" />
-                  <Text className="mt-3 text-sm font-medium text-[#2F2F2F]" numberOfLines={2}>{item.title}</Text>
-                  <Text className="mt-1 text-sm font-semibold text-[#3F3190]">{item.price}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-
-          <View className="mt-7 pb-5">
-            <View className="mb-4 flex-row items-center justify-between">
-              <Text className="text-lg font-semibold text-[#232323]">More like this</Text>
-              <TouchableOpacity>
-                <Text className="text-sm font-semibold text-[#4E79FF]">View all</Text>
-              </TouchableOpacity>
-            </View>
-            <View className="flex-row flex-wrap justify-between">
-              {relatedProducts.map((item) => (
-                <View key={item.id} className="mb-4 w-[48%] rounded-[18px] bg-white p-3 shadow-sm shadow-black/5">
-                  <Image source={item.image} className="h-36 w-full rounded-2xl bg-[#F4F4F4]" resizeMode="cover" />
-                  <TouchableOpacity className="absolute right-5 top-5 h-8 w-8 items-center justify-center rounded-full bg-white/90">
-                    <Ionicons name="heart-outline" size={16} color="#7A7A7A" />
+      <Modal animationType="slide" transparent visible={!!selectedDesign} onRequestClose={closeDetails}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: theme.surface }]}> 
+            {selectedDesign ? (
+              <>
+                <View style={styles.modalHeader}>
+                  <Text style={[styles.modalTitle, { color: theme.text }]}>Product details</Text>
+                  <TouchableOpacity onPress={closeDetails}>
+                    <Ionicons name="close" size={24} color={theme.text} />
                   </TouchableOpacity>
-                  <Text className="mt-3 text-sm font-medium text-[#2F2F2F]">{item.title}</Text>
-                  <Text className="mt-1 text-xs text-[#7A7A7A]">By {item.artist}</Text>
-                  <Text className="mt-1 text-base font-semibold text-[#2F2F2F]">{item.price}</Text>
                 </View>
               ))}
             </View>
@@ -406,165 +304,77 @@ export default function ProductsScreen() {
         </View>
       </ScrollView>
 
-      <View className="absolute bottom-0 left-0 right-0 border-t border-[#ECECEC] bg-white px-5 pb-8 pt-4">
-        <View className="flex-row gap-x-3">
-          <TouchableOpacity className="flex-1 items-center justify-center rounded-2xl border border-[#D8D0FF] py-4">
-            <Text className="text-base font-semibold text-[#4A3BA5]">Add to cart</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={handleAddToCart} className="flex-1 items-center justify-center rounded-2xl bg-[#4A369F] py-4">
-            <Text className="text-base font-semibold text-white">Print now</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+                <ScrollView showsVerticalScrollIndicator={false}>
+                  <Image source={{ uri: selectedDesign.imagePath }} style={styles.heroImage} resizeMode="cover" />
+                  <Text style={[styles.designTitle, { color: theme.text }]}>{selectedDesign.title}</Text>
+                  <Text style={[styles.designMeta, { color: theme.subtext }]}>
+                    {/* Added optional chaining here to prevent crashes if profile is undefined */}
+                    By {selectedDesign.designerName || `${selectedDesign.profile?.firstName || ''} ${selectedDesign.profile?.lastName || ''}`.trim() || 'Unknown'}
+                  </Text>
+                  <Text style={[styles.designDescription, { color: theme.subtext }]}>{selectedDesign.description}</Text>
 
-      {toast ? (
-        <View className="absolute bottom-28 left-5 right-5 rounded-[24px] bg-white px-4 py-4 shadow-lg shadow-black/10">
-          <View className="flex-row items-center gap-x-3">
-            <View className="h-9 w-9 items-center justify-center rounded-full bg-[#DDF7E9]">
-              <Ionicons name="checkmark" size={20} color="#36A86D" />
-            </View>
-            <View className="flex-1">
-              <Text className="text-sm font-semibold text-[#2F2F2F]">
-                {toast === 'cart' ? 'Product added to cart!' : favorite ? 'Product added to favorite successfully!' : 'Product removed from favorites.'}
-              </Text>
-              <Text className="mt-1 text-xs text-[#7A7A7A]">
-                {toast === 'cart' ? '3 products in cart' : 'You can access it anytime from your favorites tab.'}
-              </Text>
-            </View>
-            {toast === 'cart' ? (
-              <TouchableOpacity onPress={() => router.push('/cart')}>
-                <Text className="text-sm font-semibold text-[#3366CC]">Go to Cart</Text>
-              </TouchableOpacity>
-            ) : null}
-          </View>
-        </View>
-      ) : null}
+                  <Text style={[styles.sectionTitle, { color: theme.text }]}>Available mocks</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.mockRow}>
+                    {selectedDesign.mocks?.map((mock) => {
+                      const isActive = selectedMock?.id === mock.id;
+                      return (
+                        <TouchableOpacity
+                          key={mock.id}
+                          style={[
+                            styles.mockChip,
+                            {
+                              borderColor: isActive ? theme.accent : theme.border,
+                              backgroundColor: isActive ? `${theme.accent}20` : 'transparent',
+                            },
+                          ]}
+                          onPress={() => handleMockSelect(mock)}>
+                          <Text style={{ color: theme.text, fontWeight: isActive ? '700' : '500' }}>{mock.name}</Text>
+                          <Text style={{ color: theme.subtext, marginTop: 4 }}>
+                            ₦{(mock.price || selectedDesign.amount || 0).toLocaleString()}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
 
-      <ProductActionSheet visible={itemSpecVisible} title="Item specification" onClose={() => setItemSpecVisible(false)}>
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 12 }}>
-          <Text className="mb-3 text-sm font-medium text-[#464646]">Choose size</Text>
-          <View className="mb-6 flex-row flex-wrap gap-2">
-            {sizes.map((size) => (
-              <TouchableOpacity
-                key={size}
-                className={`min-w-[40px] rounded-md border px-3 py-2 ${selectedSize === size ? 'border-[#4A369F] bg-[#F2EFFF]' : 'border-[#D7D7D7] bg-white'}`}
-                onPress={() => setSelectedSize(size)}>
-                <Text className={`text-center text-sm ${selectedSize === size ? 'font-semibold text-[#4A369F]' : 'text-[#4F4F4F]'}`}>{size}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+                  {selectedMock?.colours?.length ? (
+                    <>
+                      <Text style={[styles.sectionTitle, { color: theme.text }]}>Colours</Text>
+                      <View style={styles.colourRow}>
+                        {selectedMock.colours.map((colour) => {
+                          const isActive = selectedColour === colour;
+                          return (
+                            <TouchableOpacity
+                              key={colour}
+                              style={[styles.colourChip, { borderColor: isActive ? theme.accent : theme.border }]}
+                              onPress={() => setSelectedColour(colour)}>
+                              <View style={[styles.colourSwatch, { backgroundColor: colour }]} />
+                              <Text style={{ color: theme.text, fontSize: 12 }}>{colour}</Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    </>
+                  ) : null}
 
-          <TouchableOpacity className="mb-3 flex-row items-center gap-x-2" onPress={() => setLimitQuantity(!limitQuantity)}>
-            <View className={`h-5 w-5 items-center justify-center rounded-full border ${limitQuantity ? 'border-[#4A369F]' : 'border-[#D0D0D0]'}`}>
-              {limitQuantity ? <View className="h-2.5 w-2.5 rounded-full bg-[#4A369F]" /> : null}
-            </View>
-            <Text className="text-sm text-[#444444]">Limit Quantity</Text>
-          </TouchableOpacity>
-
-          <View className="mb-6 flex-row items-center gap-x-4">
-            <Text className="text-sm text-[#6A6A6A]">Quantity:</Text>
-            <QuantityStepper value={quantity} onChange={setQuantity} />
-          </View>
-
-          <Text className="mb-3 text-sm font-medium text-[#464646]">Select colors</Text>
-          <View className="mb-8 flex-row flex-wrap justify-between gap-y-4">
-            {colors.map((color) => {
-              const selected = selectedColor === color.name;
-              return (
-                <TouchableOpacity key={color.name} className="w-[15%] items-center" onPress={() => setSelectedColor(color.name)}>
-                  <View
-                    className={`h-8 w-8 rounded-sm border ${selected ? 'border-[#4A369F]' : 'border-transparent'}`}
-                    style={{ backgroundColor: color.value, borderColor: color.border ?? (selected ? '#4A369F' : 'transparent') }}
-                  />
-                  <Text className="mt-1 text-[10px] text-[#666666]">{color.name}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
-          <TouchableOpacity onPress={() => setItemSpecVisible(false)} className="rounded-2xl bg-[#4A369F] py-4">
-            <Text className="text-center text-base font-semibold text-white">Save</Text>
-          </TouchableOpacity>
-        </ScrollView>
-      </ProductActionSheet>
-
-      <ProductActionSheet visible={printSpecVisible} title="Print Specification" onClose={() => setPrintSpecVisible(false)}>
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 12 }}>
-          <Text className="mb-2 text-sm font-medium text-[#444444]">Select printing type</Text>
-          <TouchableOpacity
-            className="mb-4 flex-row items-center justify-between rounded-xl border border-[#E2E2E2] bg-white px-4 py-4"
-            onPress={() => setPrintingTypeMenuVisible(true)}>
-            <Text className="text-sm text-[#3F3F3F]">{printingType}</Text>
-            <Ionicons name="chevron-down" size={18} color="#7B7B7B" />
-          </TouchableOpacity>
-
-          <Text className="mb-2 text-sm font-medium text-[#444444]">Budget Range(₦)</Text>
-          <View className="mb-4 flex-row justify-between gap-x-3">
-            <TextInput
-              value={budgetFrom}
-              onChangeText={setBudgetFrom}
-              keyboardType="number-pad"
-              placeholder="From"
-              className="flex-1 rounded-xl border border-[#E2E2E2] px-4 py-4 text-sm text-[#2F2F2F]"
-            />
-            <TextInput
-              value={budgetTo}
-              onChangeText={setBudgetTo}
-              keyboardType="number-pad"
-              placeholder="To"
-              className="flex-1 rounded-xl border border-[#E2E2E2] px-4 py-4 text-sm text-[#2F2F2F]"
-            />
-          </View>
-
-          <Text className="mb-2 text-sm font-medium text-[#444444]">Preferred Date of Delivery</Text>
-          <TextInput
-            value={preferredDate}
-            onChangeText={setPreferredDate}
-            placeholder="Preferred delivery date"
-            className="mb-5 rounded-xl border border-[#E2E2E2] px-4 py-4 text-sm text-[#2F2F2F]"
-          />
-
-          <Text className="mb-3 text-sm font-medium text-[#444444]">Do You Have Your Own Item</Text>
-          <TouchableOpacity className="mb-3 flex-row gap-x-3" onPress={() => setHasOwnItem('pickup')}>
-            <View className={`mt-0.5 h-5 w-5 items-center justify-center rounded-full border ${hasOwnItem === 'pickup' ? 'border-[#4A369F]' : 'border-[#D0D0D0]'}`}>
-              {hasOwnItem === 'pickup' ? <View className="h-2.5 w-2.5 rounded-full bg-[#4A369F]" /> : null}
-            </View>
-            <Text className="flex-1 text-sm leading-5 text-[#555555]">Yes, I have my items and I would like a pickup and delivery service</Text>
-          </TouchableOpacity>
-          <TouchableOpacity className="mb-8 flex-row gap-x-3" onPress={() => setHasOwnItem('inventory')}>
-            <View className={`mt-0.5 h-5 w-5 items-center justify-center rounded-full border ${hasOwnItem === 'inventory' ? 'border-[#4A369F]' : 'border-[#D0D0D0]'}`}>
-              {hasOwnItem === 'inventory' ? <View className="h-2.5 w-2.5 rounded-full bg-[#4A369F]" /> : null}
-            </View>
-            <Text className="flex-1 text-sm leading-5 text-[#555555]">No, get item from the printer&apos;s inventory with delivery service</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity onPress={() => setPrintSpecVisible(false)} className="rounded-2xl bg-[#4A369F] py-4">
-            <Text className="text-center text-base font-semibold text-white">Apply</Text>
-          </TouchableOpacity>
-        </ScrollView>
-      </ProductActionSheet>
-
-      <ProductActionSheet visible={reviewVisible} title="Review" onClose={() => setReviewVisible(false)}>
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 12 }}>
-          <View className="flex-row justify-between gap-x-4">
-            <View className="w-[44%] items-center rounded-[18px] bg-[#F6F3FF] px-3 py-4">
-              <Text className="text-[30px] font-bold text-[#3F3190]">4/5</Text>
-              <View className="mt-2"><RatingStars value={4} /></View>
-              <Text className="mt-4 text-[24px] font-semibold text-[#2F2F2F]">152</Text>
-              <Text className="text-xs text-[#818181]">Reviews</Text>
-            </View>
-            <View className="flex-1 justify-center gap-y-2">
-              {reviewBreakdown.map((item) => (
-                <View key={item.stars} className="flex-row items-center gap-x-2">
-                  <Text className="w-5 text-xs text-[#444444]">{item.stars}</Text>
-                  <Ionicons name="star" size={12} color="#FDB022" />
-                  <Text className="w-8 text-xs text-[#7A7A7A]">({item.count})</Text>
-                  <View className="h-2 flex-1 rounded-full bg-[#ECE8FF]">
-                    <View className="h-2 rounded-full bg-[#4C3CA4]" style={{ width: item.width }} />
+                  <View style={[styles.summaryCard, { backgroundColor: isDark ? '#171717' : '#F6F4FF' }]}> 
+                    <Text style={[styles.summaryTitle, { color: theme.text }]}>Order summary</Text>
+                    <Text style={[styles.summaryText, { color: theme.subtext }]}>Base price: ₦{(selectedMock?.price || selectedDesign.amount || 0).toLocaleString()}</Text>
+                    <Text style={[styles.summaryText, { color: theme.subtext }]}>Mock availability: {selectedMock?.availableQty ?? 'N/A'}</Text>
+                    {selectedDesign.tags?.length ? (
+                      <Text style={[styles.summaryText, { color: theme.subtext }]}>Tags: {selectedDesign.tags.join(', ')}</Text>
+                    ) : null}
                   </View>
-                </View>
-              ))}
-            </View>
+                </ScrollView>
+
+                <TouchableOpacity
+                  style={[styles.addButton, { backgroundColor: theme.accent, opacity: isAddingToCart ? 0.7 : 1 }]}
+                  disabled={isAddingToCart}
+                  onPress={handleAddToCart}>
+                  <Text style={styles.addButtonText}>{isAddingToCart ? 'Adding...' : 'Add to cart'}</Text>
+                </TouchableOpacity>
+              </>
+            ) : null}
           </View>
 
           <View className="mt-7 gap-y-5">
@@ -612,3 +422,152 @@ export default function ProductsScreen() {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingTop: 54,
+    paddingBottom: 16,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+  },
+  headerIcon: {
+    width: 40,
+    alignItems: 'center',
+  },
+  headerTextWrap: {
+    flex: 1,
+    paddingHorizontal: 8,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  headerSubtitle: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  centerState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  productList: {
+    padding: 16,
+    paddingBottom: 120,
+  },
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    maxHeight: '90%',
+    padding: 20,
+    paddingBottom: 28,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  heroImage: {
+    width: '100%',
+    height: 240,
+    borderRadius: 20,
+    marginBottom: 16,
+  },
+  designTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  designMeta: {
+    fontSize: 14,
+    marginBottom: 12,
+  },
+  designDescription: {
+    fontSize: 14,
+    lineHeight: 22,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginTop: 20,
+    marginBottom: 12,
+  },
+  mockRow: {
+    paddingRight: 8,
+  },
+  mockChip: {
+    minWidth: 132,
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginRight: 12,
+  },
+  colourRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  colourChip: {
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  colourSwatch: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 1,
+    borderColor: '#D0D0D0',
+  },
+  summaryCard: {
+    borderRadius: 18,
+    padding: 16,
+    marginTop: 20,
+  },
+  summaryTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  summaryText: {
+    fontSize: 13,
+    lineHeight: 20,
+  },
+  addButton: {
+    borderRadius: 18,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginTop: 18,
+  },
+  addButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+});

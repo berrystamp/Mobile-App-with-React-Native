@@ -1,7 +1,7 @@
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Modal,
@@ -16,13 +16,14 @@ import {
   View,
 } from 'react-native';
 
-import {
-  chatMessagesByThread,
-  messageThreads,
-  type ChatMessage,
-  type ConversationSummary,
-} from '@/app/data/messages';
 import { AvatarBadge } from '@/components/messages/AvatarBadge';
+import {
+  normalizeConversationsResponse,
+  normalizeMessagesResponse,
+  type ChatMessageDto,
+  type ConversationSummaryDto,
+} from '@/lib/messages';
+import ApiService from '@/services/apiClient';
 
 const OFFER_DETAILS = {
   title: 'Screen printing on items (Long Sleeve and tote)',
@@ -36,23 +37,55 @@ const OFFER_DETAILS = {
 export default function ChatScreen() {
   const router = useRouter();
   const scrollViewRef = useRef<ScrollView>(null);
-  const { conversationId } = useLocalSearchParams<{ conversationId?: string }>();
+  const { conversationId, participantId, participantName, printerId } = useLocalSearchParams<{ conversationId?: string; participantId?: string; participantName?: string; printerId?: string }>();
 
-  const conversation = useMemo<ConversationSummary>(() => {
-    const found = messageThreads.find((thread) => thread.id === conversationId);
-    return found ?? messageThreads[0];
-  }, [conversationId]);
-
-  const [messages, setMessages] = useState<ChatMessage[]>(
-    chatMessagesByThread[conversation.id] ?? [],
-  );
+  const [conversation, setConversation] = useState<ConversationSummaryDto>({
+    id: String(conversationId || printerId || 'new-conversation'),
+    name: participantName || 'Conversation',
+    role: 'Designer',
+    avatarColor: '#A9D8FF',
+    avatarEmoji: '🤓',
+    lastMessage: '',
+    unreadCount: 0,
+    updatedAtLabel: 'Now',
+    participantId: participantId ? Number(participantId) : printerId ? Number(printerId) : undefined,
+  });
+  const [isLoading, setIsLoading] = useState(true);
+  const [messages, setMessages] = useState<ChatMessageDto[]>([]);
   const [draft, setDraft] = useState('');
   const [showConversationActions, setShowConversationActions] = useState(false);
   const [showOfferDetail, setShowOfferDetail] = useState(false);
 
   useEffect(() => {
-    setMessages(chatMessagesByThread[conversation.id] ?? []);
-  }, [conversation.id]);
+    const load = async () => {
+      try {
+        setIsLoading(true);
+        const me = await ApiService.getCurrentUser();
+
+        if (conversationId) {
+          const [convoRes, messagesRes] = await Promise.all([
+            ApiService.getConversations(0, 80),
+            ApiService.getConversationMessages(String(conversationId), 0, 100),
+          ]);
+
+          const allConversations = normalizeConversationsResponse(convoRes);
+          const selected = allConversations.find((item) => item.id === String(conversationId));
+          if (selected) {
+            setConversation((current) => ({ ...current, ...selected }));
+          }
+
+          setMessages(normalizeMessagesResponse(messagesRes, me?.id));
+        }
+      } catch (error) {
+        console.error('Failed to load chat', error);
+        setMessages([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    load();
+  }, [conversationId]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -62,13 +95,13 @@ export default function ChatScreen() {
     return () => clearTimeout(timer);
   }, [messages]);
 
-  const handleSend = () => {
+  const handleSend = async () => {
     const trimmed = draft.trim();
     if (!trimmed) {
       return;
     }
 
-    const newMessage: ChatMessage = {
+    const newMessage: ChatMessageDto = {
       id: `local-${Date.now()}`,
       type: 'text',
       author: 'me',
@@ -82,9 +115,18 @@ export default function ChatScreen() {
 
     setMessages((current) => [...current, newMessage]);
     setDraft('');
+
+    try {
+      await ApiService.sendMessage(String(conversation.id), {
+        content: trimmed,
+        receiverId: conversation.participantId,
+      });
+    } catch (error) {
+      console.warn('Message endpoint unavailable. Message queued locally.', error);
+    }
   };
 
-  const renderMessage = (message: ChatMessage) => {
+  const renderMessage = (message: ChatMessageDto) => {
     if (message.type === 'bundle' && message.bundle) {
       return (
         <View key={message.id} style={[styles.messageRow, styles.myRow]}>
@@ -190,7 +232,7 @@ export default function ChatScreen() {
             contentContainerStyle={styles.threadContent}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled">
-            {messages.map(renderMessage)}
+            {isLoading ? <View style={styles.threadLoader}><Ionicons name="chatbox-ellipses-outline" size={28} color="#8A8298" /><Text style={styles.threadLoaderText}>Loading messages...</Text></View> : messages.map(renderMessage)}
           </ScrollView>
 
           <View style={styles.composerBar}>
@@ -351,6 +393,16 @@ const styles = StyleSheet.create({
     paddingTop: 18,
     paddingBottom: 28,
     gap: 12,
+  },
+  threadLoader: {
+    paddingVertical: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  threadLoaderText: {
+    color: "#8A8298",
+    fontSize: 14,
   },
   messageRow: {
     width: '100%',

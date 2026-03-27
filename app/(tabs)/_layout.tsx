@@ -1,16 +1,22 @@
-import Header from '@/components/common/Header';
 import BottomNavigation from '@/components/common/BottomNavigation';
+import Header from '@/components/common/Header';
 import { AuthProvider } from '@/context/AuthContext';
 import { Stack, usePathname, useRouter } from 'expo-router';
 import React, { useMemo } from 'react';
-import { View } from 'react-native';
+import { View, useColorScheme } from 'react-native';
 
 export default function TabsLayout() {
   const router = useRouter();
   const pathname = usePathname();
+  const isDark = useColorScheme() === 'dark';
 
-  const hideChrome = useMemo(
-    () => ['/chat', '/checkout', '/Search', '/Filter', '/select-printer'].includes(pathname),
+  const hideHeader = useMemo(
+    () => ['/chat', '/checkout', '/Search', '/Filter', '/filter-product-category', '/filter-design-category', '/select-printer', '/products', '/custom-designs', '/custom-design', '/SelectDesignForScreen', '/SelectDesignThemeScreen', '/SelectItemsScreen'].includes(pathname),
+    [pathname],
+  );
+
+  const hideBottomNavigation = useMemo(
+    () => ['/chat', '/checkout', '/Filter', '/filter-product-category', '/filter-design-category', '/select-printer', '/products', '/custom-designs', '/custom-design', '/SelectDesignForScreen', '/SelectDesignThemeScreen', '/SelectItemsScreen'].includes(pathname),
     [pathname],
   );
 
@@ -19,13 +25,14 @@ export default function TabsLayout() {
     if (pathname === '/favorites') return 'Favorites';
     if (pathname === '/cart') return 'Cart';
     if (pathname === '/profile') return 'Profile';
+    if (pathname === '/Search') return 'Home';
     return 'Home';
   }, [pathname]);
 
   return (
     <AuthProvider>
-      <View style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
-        {!hideChrome ? (
+      <View style={{ flex: 1, backgroundColor: isDark ? '#121212' : '#FFFFFF' }}>
+        {!hideHeader ? (
           <Header
             type="main"
             onSearchPress={() => router.push('/Search')}
@@ -39,13 +46,23 @@ export default function TabsLayout() {
           <Stack.Screen name="checkout" />
           <Stack.Screen name="favorites" />
           <Stack.Screen name="Filter" />
+          <Stack.Screen name="filter-product-category" />
+          <Stack.Screen name="filter-design-category" />
           <Stack.Screen name="messages" />
           <Stack.Screen name="printers" />
+          <Stack.Screen name="products" />
           <Stack.Screen name="profile" />
+          <Stack.Screen name="edit-profile" />
+          <Stack.Screen name="payment-details" />
           <Stack.Screen name="Search" />
           <Stack.Screen name="select-printer" />
+          <Stack.Screen name="custom-designs" />
+          <Stack.Screen name="custom-design" />
+          <Stack.Screen name="SelectDesignForScreen" />
+          <Stack.Screen name="SelectDesignThemeScreen" />
+          <Stack.Screen name="SelectItemsScreen" />
         </Stack>
-        {!hideChrome ? <BottomNavigation activeRoute={activeRoute} /> : null}
+        {!hideBottomNavigation ? <BottomNavigation onNavigate={() => activeRoute} /> : null}
       </View>
     </AuthProvider>
   );

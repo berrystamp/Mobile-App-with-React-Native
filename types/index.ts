@@ -19,6 +19,8 @@ export interface Mock {
   imagePath: string;
   price: number;
   available: boolean;
+  availableQty?: number;
+  colours?: string[];
 }
 
 export interface Design {
@@ -41,6 +43,11 @@ export interface Design {
   };
   createdAt: string;
   updatedAt: string;
+  amount?: number;
+  tags?: string[];
+  categories?: string[];
+  designerId?: number;
+  designerName?: string;
 }
 
 export interface User {
@@ -54,6 +61,7 @@ export interface User {
   bio?: string;
   profileType: TProfileType;
   activated: boolean;
+  customerProfile?:{ profileType: TProfileType }
 }
 
 export interface CartItem {

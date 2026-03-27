@@ -55,9 +55,11 @@ export const ArtistCard: React.FC<ArtistCardProps> = ({ artist, onPress }) => {
     }
     return null;
   };
-
+  console.log(artist)
   const avatarUrl = getAvatarUrl();
-  const fullName = `${artist.firstName} ${artist.lastName}`;
+  const fullName = artist.username || 
+  `${artist.firstName || ''} ${artist.lastName || ''}`.trim() || 
+  'Unknown Artist';
 
   return (
     <TouchableOpacity style={styles.container} onPress={onPress}>

@@ -1,184 +1,145 @@
-import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import React from "react";
-import {
-    FlatList,
-    Image,
-    Text,
-    TouchableOpacity,
-    useColorScheme,
-    View,
-} from "react-native";
+import { Ionicons } from '@expo/vector-icons';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { FlatList, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-interface PrinterData {
-  id: string;
+import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { decodeDraft, encodeDraft } from '@/lib/customDesign';
+import ApiService from '@/services/apiClient';
+
+interface PrinterCard {
+  id: number;
   name: string;
+  avatar: string;
+  cover: string;
   role: string;
   jobs: number;
-  ratingScore: string;
-  stars: string;
-  location: string;
-  avatarSource: any;
-  bannerSource: any;
+  rating: string;
 }
+
+const fallbackImage = 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=400';
+
+const toAbsolutePath = (path?: string) => {
+  if (!path) return fallbackImage;
+  if (path.startsWith('http')) return path;
+  return `https://berrystamp-backend-dev-4cn29.ondigitalocean.app/${path.replace(/^\/+/, '')}`;
+};
 
 export default function SelectPrinterScreen() {
   const router = useRouter();
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === "dark";
+  const { draft } = useLocalSearchParams<{ draft?: string }>();
+  const parsed = useMemo(() => decodeDraft(draft), [draft]);
 
-  // Mock Data based on the UI design
-  const printers: PrinterData[] = [
-    {
-      id: "1",
-      name: "Mohh_Jumah",
-      role: "Abstract designer",
-      jobs: 235,
-      ratingScore: "98%",
-      stars: "4.5",
-      location: "Lagos state",
-      avatarSource: require("@/assets/images/item1.png"),
-      bannerSource: require("@/assets/images/item2.png"),
-    },
-    {
-      id: "2",
-      name: "Mohh_Jumah",
-      role: "Abstract designer",
-      jobs: 235,
-      ratingScore: "98%",
-      stars: "4.5",
-      location: "Lagos state",
-      avatarSource: require("@/assets/images/item1.png"),
-      bannerSource: require("@/assets/images/item2.png"),
-    },
-    {
-      id: "3",
-      name: "Mohh_Jumah",
-      role: "Abstract designer",
-      jobs: 235,
-      ratingScore: "98%",
-      stars: "4.5",
-      location: "Lagos state",
-      avatarSource: require("@/assets/images/item1.png"),
-      bannerSource: require("@/assets/images/item2.png"),
-    },
-    {
-      id: "4",
-      name: "Mohh_Jumah",
-      role: "Abstract designer",
-      jobs: 235,
-      ratingScore: "98%",
-      stars: "4.5",
-      location: "Lagos state",
-      avatarSource: require("@/assets/images/item1.png"),
-      bannerSource: require("@/assets/images/item2.png"),
-    },
-  ];
+  const [loading, setLoading] = useState(true);
+  const [printers, setPrinters] = useState<PrinterCard[]>([]);
 
-  const renderPrinterCard = ({ item }: { item: PrinterData }) => (
-    <View className="flex-1 bg-white dark:bg-[#1E1E1E] rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm m-2 overflow-hidden">
-      {/* Top Banner & Overlapping Avatar */}
-      <View className="h-16 w-full relative">
-        {/* Abstract Banner */}
-        <Image
-          source={item.bannerSource}
-          style={{ width: "100%", height: "100%" }}
-          resizeMode="cover"
-        />
+  const loadPrinters = useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await ApiService.getPrinters(0, 60);
+      const content = response?.responseBody?.content || response?.content || response?.responseBody || response || [];
+      const list = Array.isArray(content) ? content : [];
 
-        {/* Circular Avatar positioned absolute to overlap */}
-        <View className="absolute -bottom-6 w-full items-center">
-          <View className="w-[52px] h-[52px] rounded-full border-[3px] border-white dark:border-[#1E1E1E] bg-[#FDBA74] items-center justify-center overflow-hidden">
-            <Image
-              source={item.avatarSource}
-              style={{ width: "80%", height: "80%" }}
-              resizeMode="contain"
-            />
-          </View>
-        </View>
-      </View>
+      setPrinters(
+        list.map((item: any) => ({
+          id: Number(item.id),
+          name:
+            `${item.firstName || ''} ${item.lastName || ''}`.trim() ||
+            item.username ||
+            item.userName ||
+            item.name ||
+            'Printer',
+          avatar: toAbsolutePath(item.profilePicturePath || item.avatar || item.profileImage?.url),
+          cover: toAbsolutePath(item.coverPhotoPath || item.banner || item.bannerImage?.url || item.profilePicturePath),
+          role: item.bio || item.specialty || 'Abstract designer',
+          jobs: Number(item.totalJobs || item.completedJobs || item.totalDesigns || 0),
+          rating: item.rating ? String(item.rating) : '4.5',
+        })),
+      );
+    } catch (error) {
+      console.error('Unable to fetch printers', error);
+      setPrinters([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-      {/* Card Content (Starts with top padding to make room for avatar) */}
-      <View className="pt-8 pb-4 px-3 items-center">
-        {/* Name & Verified Badge */}
-        <View className="flex-row items-center gap-x-1">
-          <Text className="text-[#333333] dark:text-white font-bold text-sm">
-            {item.name}
-          </Text>
-          <Ionicons name="checkmark-circle" size={14} color="#0056D2" />
-        </View>
+  useEffect(() => {
+    loadPrinters();
+  }, [loadPrinters]);
 
-        {/* Role */}
-        <Text className="text-[#828282] dark:text-gray-400 text-xs mt-0.5">
-          {item.role}
-        </Text>
+  if (loading) {
+    return <LoadingSpinner message="Loading printers..." />;
+  }
 
-        {/* Stats Row */}
-        <View className="flex-row items-center mt-1.5 gap-x-1">
-          <Text className="text-[#BDBDBD] dark:text-gray-500 text-[10px]">
-            {item.jobs} |{" "}
-          </Text>
-          <Text className="text-[#219653] text-[10px] font-semibold">
-            {item.ratingScore}
-          </Text>
-          <Text className="text-[#BDBDBD] dark:text-gray-500 text-[10px]">
-            {" "}
-            |{" "}
-          </Text>
-          <Ionicons name="star" size={10} color="#F2C94C" />
-          <Text className="text-[#BDBDBD] dark:text-gray-500 text-[10px]">
-            {item.stars}
-          </Text>
-        </View>
-
-        {/* Location */}
-        <View className="flex-row items-center mt-1.5 mb-4 gap-x-1">
-          <Ionicons name="location-outline" size={12} color="#BDBDBD" />
-          <Text className="text-[#BDBDBD] dark:text-gray-500 text-[10px]">
-            {item.location}
-          </Text>
-        </View>
-
-        {/* Outline Message Button */}
-        <TouchableOpacity className="w-full border border-[#3B2D85] rounded-full py-1.5 items-center justify-center">
-          <Text className="text-[#3B2D85] dark:text-[#8D7BE3] font-semibold text-xs">
-            Message
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
+  const encodedDraft = encodeDraft(parsed || { designFor: '', designTheme: '', items: [] });
 
   return (
-    <View className="flex-1 bg-[#FDFDFD] dark:bg-[#121212]">
-      {/* Header */}
-      <View className="w-full flex flex-row justify-between items-center px-6 pt-16 pb-4">
-        <TouchableOpacity
-          onPress={() => router.push("/(tabs)/cart")}
-          className="w-8"
-        >
-          <Ionicons
-            name="arrow-back"
-            size={24}
-            color={isDark ? "#FFFFFF" : "#000000"}
-          />
+    <View style={styles.screen}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()}>
+          <Ionicons name="arrow-back" size={24} color="#252039" />
         </TouchableOpacity>
-        <View className="flex-1 items-center pr-8">
-          <Text className="text-[#333333] dark:text-white text-lg font-semibold">
-            Select Printer
-          </Text>
-        </View>
+        <Text style={styles.title}>Select Printer</Text>
+        <TouchableOpacity onPress={loadPrinters}>
+          <Ionicons name="refresh-outline" size={22} color="#252039" />
+        </TouchableOpacity>
       </View>
 
-      {/* 2-Column Grid using FlatList */}
+      <Text style={styles.subtitle}>Select and message a printer of your choice for design preferences and cost negotiation</Text>
+
       <FlatList
         data={printers}
-        keyExtractor={(item) => item.id}
-        renderItem={renderPrinterCard}
+        keyExtractor={(item) => String(item.id)}
         numColumns={2}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40 }}
-        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.grid}
+        renderItem={({ item }) => (
+          <View style={styles.card}>
+            <Image source={{ uri: item.cover }} style={styles.cover} />
+            <View style={styles.avatarWrap}>
+              <Image source={{ uri: item.avatar }} style={styles.avatar} />
+            </View>
+
+            <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
+            <Text style={styles.role} numberOfLines={1}>{item.role}</Text>
+            <Text style={styles.stats}>{item.jobs} jobs | ★ {item.rating}</Text>
+
+            <TouchableOpacity
+              style={styles.messageButton}
+              onPress={() =>
+                router.push({
+                  pathname: '/chat',
+                  params: {
+                    printerId: String(item.id),
+                    participantName: item.name,
+                    draft: encodedDraft,
+                  },
+                })
+              }>
+              <Text style={styles.messageButtonText}>Message</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        ListEmptyComponent={<Text style={styles.empty}>No printers available right now.</Text>}
       />
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: '#F7F7FA' },
+  header: { paddingHorizontal: 20, paddingTop: 58, paddingBottom: 14, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  title: { fontSize: 30, fontWeight: '600', color: '#252039' },
+  subtitle: { paddingHorizontal: 20, color: '#736E80', fontSize: 15, marginBottom: 8 },
+  grid: { paddingHorizontal: 12, paddingBottom: 24 },
+  card: { flex: 1, margin: 8, borderRadius: 16, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#ECE8F3', overflow: 'hidden', alignItems: 'center', paddingBottom: 14 },
+  cover: { width: '100%', height: 62 },
+  avatarWrap: { marginTop: -24, borderRadius: 24, padding: 2, backgroundColor: '#FFFFFF' },
+  avatar: { width: 48, height: 48, borderRadius: 24 },
+  name: { marginTop: 8, fontSize: 16, fontWeight: '600', color: '#2A2537' },
+  role: { marginTop: 2, fontSize: 13, color: '#8A8598' },
+  stats: { marginTop: 6, fontSize: 12, color: '#928BA2' },
+  messageButton: { marginTop: 10, borderRadius: 18, borderWidth: 1, borderColor: '#3C2D90', paddingVertical: 7, paddingHorizontal: 22 },
+  messageButtonText: { color: '#3C2D90', fontWeight: '600' },
+  empty: { textAlign: 'center', marginTop: 40, fontSize: 15, color: '#888193' },
+});

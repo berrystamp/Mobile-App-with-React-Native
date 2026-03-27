@@ -1,11 +1,12 @@
-import ApiService from '@/services/api';
+import { extractArtistsFromDesigns, normalizeDesignListResponse } from '@/lib/designs';
+import ApiService from '@/services/apiClient';
 import { Artist, Design } from '@/types';
 import { useCallback, useEffect, useState } from 'react';
 
 export function useHomeData() {
   const [topArtists, setTopArtists] = useState<Artist[]>([]);
-  const [trendingDesigns, setTrendingDesigns] = useState<Design[]>([]);
-  const [recommendedDesigns, setRecommendedDesigns] = useState<Design[]>([]);
+  const [recentDesigns, setRecentDesigns] = useState<Design[]>([]);
+  const [featuredDesigns, setFeaturedDesigns] = useState<Design[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -19,23 +20,22 @@ export function useHomeData() {
       }
       setError(null);
 
-      const [artistsData, trendingData, recommendedData] = await Promise.all([
+      const [artistsRes, recentRes, featuredRes] = await Promise.all([
         ApiService.getTopArtists(10),
-        ApiService.getTrendingDesigns(10),
-        ApiService.getRecommendedDesigns(10),
+        ApiService.getRecentDesigns(10),
+        ApiService.getFeaturedDesigns(10),
       ]);
+      console.log('Fetched home data:', { artistsRes, recentRes, featuredRes });
+      const artistSourceDesigns = normalizeDesignListResponse(artistsRes);
+      const recent = normalizeDesignListResponse(recentRes);
+      const featured = normalizeDesignListResponse(featuredRes);
 
-      
-      const artists = artistsData.content || artistsData.data || artistsData;
-      const trending = trendingData.content || trendingData.data || trendingData;
-      const recommended = recommendedData.content || recommendedData.data || recommendedData;
-
-      setTopArtists(artists);
-      setTrendingDesigns(trending);
-      setRecommendedDesigns(recommended);
+      setTopArtists(extractArtistsFromDesigns(artistSourceDesigns));
+      setRecentDesigns(recent);
+      setFeaturedDesigns(featured);
     } catch (err: any) {
       console.error('Error fetching home data:', err);
-      setError(err.response?.data?.message || 'Failed to load data. Please try again.');
+      setError(err.responseMessage || err.message || 'Failed to load data. Please try again.');
     } finally {
       setIsLoading(false);
       setRefreshing(false);
@@ -43,29 +43,31 @@ export function useHomeData() {
   }, []);
 
   const toggleFavorite = useCallback(async (designId: number) => {
+    const originalRecent = [...recentDesigns];
+    const originalFeatured = [...featuredDesigns];
+
+    const updateList = (list: Design[]) =>
+      list.map((design) =>
+        design.id === designId
+          ? {
+              ...design,
+              liked: !design.liked,
+              likes: design.liked ? Math.max(0, design.likes - 1) : design.likes + 1,
+            }
+          : design,
+      );
+
+    setRecentDesigns((prev) => updateList(prev));
+    setFeaturedDesigns((prev) => updateList(prev));
+
     try {
-      await ApiService.toggleFavorite(designId.toString());
-      
-     
-      setTrendingDesigns(prev => 
-        prev.map(design => 
-          design.id === designId 
-            ? { ...design, liked: !design.liked, likes: design.liked ? design.likes - 1 : design.likes + 1 }
-            : design
-        )
-      );
-      
-      setRecommendedDesigns(prev => 
-        prev.map(design => 
-          design.id === designId 
-            ? { ...design, liked: !design.liked, likes: design.liked ? design.likes - 1 : design.likes + 1 }
-            : design
-        )
-      );
+      await ApiService.toggleFavorite(String(designId));
     } catch (err) {
       console.error('Error toggling favorite:', err);
+      setRecentDesigns(originalRecent);
+      setFeaturedDesigns(originalFeatured);
     }
-  }, []);
+  }, [recentDesigns, featuredDesigns]);
 
   const refresh = useCallback(() => {
     fetchHomeData(true);
@@ -77,8 +79,8 @@ export function useHomeData() {
 
   return {
     topArtists,
-    trendingDesigns,
-    recommendedDesigns,
+    recentDesigns,
+    featuredDesigns,
     isLoading,
     error,
     refreshing,

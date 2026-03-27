@@ -1,6 +1,6 @@
 import { Design } from '@/types';
 import { Ionicons } from '@expo/vector-icons';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
     Dimensions,
     Image,
@@ -14,7 +14,7 @@ import {
 interface DesignCardProps {
   design: Design;
   onPress?: () => void;
-  onFavoriteToggle?: (designId: number) => void;
+  onFavoriteToggle?: (designId: number) => void | Promise<void>;
   width?: number;
   showPrice?: boolean;
 }
@@ -39,8 +39,12 @@ export const DesignCard: React.FC<DesignCardProps> = ({
     border: isDark ? '#2A2A2A' : '#F0F0F0',
   };
 
+  useEffect(() => {
+    setIsFavorite(design.liked);
+  }, [design.liked]);
+
   const handleFavorite = () => {
-    setIsFavorite(!isFavorite);
+    setIsFavorite((prev) => !prev);
     onFavoriteToggle?.(design.id);
   };
 

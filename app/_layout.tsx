@@ -6,7 +6,7 @@ import React, { useEffect, useState } from "react";
 import 'react-native-reanimated';
 import { LoadingSpinner } from "../components/LoadingSpinner";
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import "./global.css";
+import "./global.css"
 
 export const unstable_settings = {
   anchor: 'index',

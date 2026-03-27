@@ -1,29 +1,24 @@
-// src/components/filter/CheckboxList.jsx
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-const CheckboxList = ({ items, selectedItems, onToggle, label }) => {
+interface CheckboxListProps {
+  items: string[];
+  selectedItems: string[];
+  onToggle: (item: string) => void;
+  label?: string;
+}
+
+const CheckboxList = ({ items, selectedItems, onToggle, label }: CheckboxListProps) => {
   return (
     <View style={styles.container}>
-      {label && <Text style={styles.label}>{label}</Text>}
+      {label ? <Text style={styles.label}>{label}</Text> : null}
       <View style={styles.list}>
-        {items.map((item, index) => (
-          <TouchableOpacity
-            key={index}
-            style={styles.item}
-            onPress={() => onToggle(item)}
-          >
+        {items.map((item) => (
+          <TouchableOpacity key={item} style={styles.item} onPress={() => onToggle(item)}>
             <Text style={styles.itemText}>{item}</Text>
-            <View
-              style={[
-                styles.checkbox,
-                selectedItems.includes(item) && styles.checkboxChecked,
-              ]}
-            >
-              {selectedItems.includes(item) && (
-                <Ionicons name="checkmark" size={16} color="#FFF" />
-              )}
+            <View style={[styles.checkbox, selectedItems.includes(item) && styles.checkboxChecked]}>
+              {selectedItems.includes(item) ? <Ionicons name="checkmark" size={16} color="#FFF" /> : null}
             </View>
           </TouchableOpacity>
         ))}
