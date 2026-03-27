@@ -333,24 +333,59 @@ class ApiService {
   }
 
 
-  async getActiveProfileType() {
-    return (await AsyncStorage.getItem('profileType')) || 'CUSTOMER';
-  }
+  async getCustomDesigns(page: number = 0, size: number = 20) {
+    const headers = { profileType: 'CUSTOMER' };
 
-  async setActiveProfileType(profileType: 'CUSTOMER' | 'DESIGNER' | 'PRINTER') {
-    await AsyncStorage.setItem('profileType', profileType);
-    return { requestSuccessful: true, responseBody: { profileType } };
-  }
-
-  async getMyProfile() {
-    const profileType = await this.getActiveProfileType();
-    const headers = { profileType };
     const candidates = [
-      () => api.get('/berry/profiles/me', { headers }),
-      () => api.get('/profiles/me', { headers }),
-      () => api.get('/users/me', { headers }),
-      () => api.get('/auth/me', { headers }),
-      () => api.get('/user', { headers }),
+      () => api.get('/custom-designs', { params: { page, size, sort: 'id,desc' }, headers }),
+      () => api.get('/designs/custom', { params: { page, size, sort: 'id,desc' }, headers }),
+      () => api.get('/designs', { params: { page, size, sort: 'id,desc', mine: true }, headers }),
+      () => api.get('/designs', { params: { page, size, sort: 'id,desc' }, headers }),
+    ];
+
+    for (const request of candidates) {
+      try {
+        const response = await request();
+        return response.data;
+      } catch (error: any) {
+        if (error?.response?.status && ![404, 400].includes(error.response.status)) {
+          throw error;
+        }
+      }
+    }
+
+    return { responseBody: { content: [] } };
+  }
+
+  async deleteCustomDesign(designId: string | number) {
+    const headers = { profileType: 'CUSTOMER' };
+
+    const candidates = [
+      () => api.delete(`/custom-designs/${designId}`, { headers }),
+      () => api.delete(`/designs/custom/${designId}`, { headers }),
+      () => api.delete(`/designs/${designId}`, { headers }),
+    ];
+
+    for (const request of candidates) {
+      try {
+        const response = await request();
+        return response.data;
+      } catch (error: any) {
+        if (error?.response?.status && ![404, 400].includes(error.response.status)) {
+          throw error;
+        }
+      }
+    }
+
+    return { requestSuccessful: false };
+  }
+
+  async getPrintableItems() {
+    const headers = { profileType: 'CUSTOMER' };
+    const candidates = [
+      () => api.get('/catalog/items', { headers }),
+      () => api.get('/print-items', { headers }),
+      () => api.get('/design-catalog/items', { headers }),
     ];
 
     for (const request of candidates) {
@@ -364,47 +399,16 @@ class ApiService {
       }
     }
 
-    const storedUser = await this.getCurrentUser();
-    return { responseBody: storedUser };
+    return { responseBody: [] };
   }
 
-  async updateMyProfile(payload: { firstName?: string; lastName?: string; username?: string; address?: string; phoneNumber?: string }) {
-    const profileType = await this.getActiveProfileType();
-    const headers = { profileType };
+  async getDesignTaxonomy() {
+    const headers = { profileType: 'CUSTOMER' };
+
     const candidates = [
-      () => api.patch('/berry/profiles/me', payload, { headers }),
-      () => api.put('/berry/profiles/me', payload, { headers }),
-      () => api.patch('/profiles/me', payload, { headers }),
-      () => api.put('/profiles/me', payload, { headers }),
-      () => api.patch('/users/me', payload, { headers }),
-      () => api.put('/users/me', payload, { headers }),
-      () => api.patch('/user', payload, { headers }),
-      () => api.put('/user', payload, { headers }),
-    ];
-
-    for (const request of candidates) {
-      try {
-        const response = await request();
-        const current = await this.getCurrentUser();
-        await AsyncStorage.setItem('userData', JSON.stringify({ ...current, ...payload }));
-        return response.data;
-      } catch (error: any) {
-        if (error?.response?.status && error.response.status !== 404) {
-          throw error;
-        }
-      }
-    }
-
-    throw new Error('Unable to update profile. Endpoint not available.');
-  }
-
-  async getPaymentDetails() {
-    const profileType = await this.getActiveProfileType();
-    const headers = { profileType };
-    const candidates = [
-      () => api.get('/wallets/bank-account', { headers }),
-      () => api.get('/payments/bank-account', { headers }),
-      () => api.get('/profiles/me/payment-details', { headers }),
+      () => api.get('/designs/taxonomy', { headers }),
+      () => api.get('/design-taxonomy', { headers }),
+      () => api.get('/designs/meta', { headers }),
     ];
 
     for (const request of candidates) {
@@ -421,14 +425,14 @@ class ApiService {
     return { responseBody: {} };
   }
 
-  async savePaymentDetails(payload: { bankName: string; accountNumber: string; accountName?: string }) {
-    const profileType = await this.getActiveProfileType();
-    const headers = { profileType };
+  async getPrinters(page: number = 0, size: number = 50) {
+    const headers = { profileType: 'CUSTOMER' };
+
     const candidates = [
-      () => api.post('/wallets/bank-account', payload, { headers }),
-      () => api.put('/wallets/bank-account', payload, { headers }),
-      () => api.post('/payments/bank-account', payload, { headers }),
-      () => api.patch('/profiles/me/payment-details', payload, { headers }),
+      () => api.get('/berry/profiles', { params: { profileType: 'PRINTER', page, size, sort: 'id,desc' }, headers }),
+      () => api.get('/profiles', { params: { profileType: 'PRINTER', page, size, sort: 'id,desc' }, headers }),
+      () => api.get('/printers', { params: { page, size, sort: 'id,desc' }, headers }),
+      () => api.get('/berry/profiles/following', { params: { page, size, sort: 'id,desc' }, headers }),
     ];
 
     for (const request of candidates) {
@@ -442,9 +446,8 @@ class ApiService {
       }
     }
 
-    throw new Error('Unable to save payment details. Endpoint not available.');
+    return { responseBody: { content: [] } };
   }
-
 
   // Generic request method
   async request(config: AxiosRequestConfig) {

@@ -1,75 +1,36 @@
-import React, { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Image, RefreshControl, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect, useRouter } from 'expo-router';
-import { useAuth } from '@/context/AuthContext';
+import { useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import { Image, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+
 import ApiService from '@/services/apiClient';
-import { mergeUserAndProfile, normalizeProfileResponse } from '@/lib/profile';
+import type { User } from '@/types';
 
-const PURPLE = '#3B2D85';
+const defaultAvatar = 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400';
 
-type MenuItem = { label: string; icon: keyof typeof Ionicons.glyphMap; route?: string };
-
-const menuSections: { title: string; items: MenuItem[] }[] = [
-  {
-    title: 'My Account',
-    items: [
-      { label: 'Custom Designs', icon: 'document-text-outline' },
-      { label: 'Manage Orders', icon: 'receipt-outline' },
-      { label: 'Track Order', icon: 'heart-outline' },
-      { label: 'Update Interests', icon: 'albums-outline' },
-    ],
-  },
-  {
-    title: 'Others',
-    items: [
-      { label: 'Settings and Privacy', icon: 'settings-outline' },
-      { label: 'Terms and Condition', icon: 'newspaper-outline' },
-      { label: 'Report a problem', icon: 'flag-outline' },
-      { label: 'FAQ', icon: 'help-circle-outline' },
-      { label: 'Update account', icon: 'add-outline' },
-      { label: 'Payment details', icon: 'card-outline', route: '/payment-details' },
-    ],
-  },
-];
+const toAvatar = (path?: string) => {
+  if (!path) return defaultAvatar;
+  if (path.startsWith('http')) return path;
+  return `https://berrystamp-backend-dev-4cn29.ondigitalocean.app/${path.replace(/^\/+/, '')}`;
+};
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const [switchAccount, setSwitchAccount] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
 
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [switchEnabled, setSwitchEnabled] = useState(false);
-  const [activeProfileType, setActiveProfileType] = useState<'CUSTOMER' | 'DESIGNER' | 'PRINTER'>('CUSTOMER');
-  const [profile, setProfile] = useState(() => mergeUserAndProfile(user, {}));
+  useEffect(() => {
+    const load = async () => {
+      const current = await ApiService.getCurrentUser();
+      if (current) {
+        setUser(current as User);
+      }
+    };
 
-  const loadProfile = useCallback(async () => {
-    try {
-      const [profileData, profileType] = await Promise.all([
-        ApiService.getMyProfile(),
-        ApiService.getActiveProfileType(),
-      ]);
-      setActiveProfileType(profileType as 'CUSTOMER' | 'DESIGNER' | 'PRINTER');
-      setProfile(mergeUserAndProfile(user, normalizeProfileResponse(profileData)));
-    } catch (error: any) {
-      Alert.alert('Unable to load profile', error?.response?.data?.responseMessage || error?.message || 'Please try again.');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [user]);
+    load();
+  }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      setLoading(true);
-      loadProfile();
-    }, [loadProfile]),
-  );
-
-  const onRefresh = () => {
-    setRefreshing(true);
-    loadProfile();
-  };
+  const displayName = `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || user?.username || 'Customer';
 
   const handleSwitchRole = async () => {
     try {
@@ -97,99 +58,78 @@ export default function ProfileScreen() {
   }
 
   return (
-    <ScrollView
-      style={styles.screen}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-      contentContainerStyle={styles.content}
-      showsVerticalScrollIndicator={false}
-    >
+    <View style={styles.screen}>
       <View style={styles.hero}>
-        <Text style={styles.heroTitle}>Profile</Text>
-        {profile.avatar ? (
-          <Image source={{ uri: profile.avatar }} style={styles.avatar} />
-        ) : (
-          <View style={styles.avatarFallback}><Text style={styles.avatarText}>{initials}</Text></View>
-        )}
-        <Text style={styles.name}>{profile.fullName}</Text>
-        <Text style={styles.role}>{activeProfileType}</Text>
-        <View style={styles.statsRow}>
-          <Text style={styles.stats}>{profile.orders} orders</Text>
-          <Text style={styles.stats}>{profile.received} Received</Text>
+        <View style={styles.heroHeader}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.iconButton}>
+            <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
+          </TouchableOpacity>
+          <Text style={styles.heroTitle}>Profile</Text>
+          <TouchableOpacity style={styles.iconButton}>
+            <Ionicons name="notifications-outline" size={22} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.identityRow}>
+          <Image source={{ uri: toAvatar(user?.profilePicturePath) }} style={styles.avatar} />
+          <View>
+            <Text style={styles.name}>{displayName}</Text>
+            <Text style={styles.role}>Customer</Text>
+          </View>
+          <View style={styles.orderStats}>
+            <Text style={styles.orderText}>40 orders</Text>
+            <Text style={styles.orderText}>30 Received</Text>
+          </View>
         </View>
       </View>
 
-      <View style={styles.switchCard}>
+      <View style={styles.switchRow}>
         <Text style={styles.switchLabel}>Switch Account</Text>
-        <Switch value={switchEnabled} onValueChange={handleSwitchRole} trackColor={{ true: '#BDBDBD', false: '#E0E0E0' }} thumbColor="#C4C4C4" />
+        <Switch value={switchAccount} onValueChange={setSwitchAccount} thumbColor="#FFFFFF" trackColor={{ false: '#D3CFDE', true: '#6A56D5' }} />
       </View>
 
-      <TouchableOpacity style={styles.editBtn} onPress={() => router.push('/edit-profile')}>
-        <Text style={styles.editBtnText}>Edit profile</Text>
-      </TouchableOpacity>
+      <View style={styles.menuBlock}>
+        <Text style={styles.menuHeader}>My Account</Text>
 
-      {menuSections.map((section) => (
-        <View key={section.title}>
-          <Text style={styles.sectionTitle}>{section.title}</Text>
-          {section.items.map((item) => (
-            <TouchableOpacity
-              key={item.label}
-              style={styles.menuItem}
-              onPress={() => {
-                if (item.route) {
-                  router.push(item.route as never);
-                }
-              }}
-            >
-              <View style={styles.menuLeft}>
-                <Ionicons name={item.icon} size={20} color="#8C8C8C" />
-                <Text style={styles.menuText}>{item.label}</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color="#9E9E9E" />
-            </TouchableOpacity>
-          ))}
-        </View>
-      ))}
+        <TouchableOpacity style={styles.menuRow} onPress={() => router.push('/custom-designs')}>
+          <View style={styles.menuIcon}><Ionicons name="color-palette-outline" size={18} color="#3B2D85" /></View>
+          <Text style={styles.menuText}>Custom Designs</Text>
+          <Ionicons name="chevron-forward" size={18} color="#7F7992" />
+        </TouchableOpacity>
 
-      <TouchableOpacity style={styles.logoutBtn} onPress={logout}>
-        <Ionicons name="log-out-outline" size={18} color="#E53935" />
-        <Text style={styles.logoutText}>Logout</Text>
-      </TouchableOpacity>
-    </ScrollView>
+        <TouchableOpacity style={styles.menuRow} onPress={() => router.push('/messages')}>
+          <View style={styles.menuIcon}><Ionicons name="chatbubble-ellipses-outline" size={18} color="#3B2D85" /></View>
+          <Text style={styles.menuText}>Messages</Text>
+          <Ionicons name="chevron-forward" size={18} color="#7F7992" />
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.menuRow} onPress={() => router.push('/favorites')}>
+          <View style={styles.menuIcon}><Ionicons name="heart-outline" size={18} color="#3B2D85" /></View>
+          <Text style={styles.menuText}>Favorites</Text>
+          <Ionicons name="chevron-forward" size={18} color="#7F7992" />
+        </TouchableOpacity>
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#F5F5F6' },
-  content: { paddingBottom: 120 },
-  loaderWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F5F5F6' },
-  hero: { backgroundColor: PURPLE, paddingTop: 48, paddingHorizontal: 20, paddingBottom: 20, alignItems: 'center' },
-  heroTitle: { color: '#FFFFFF', fontSize: 28, fontWeight: '600', marginBottom: 18 },
-  avatar: { width: 72, height: 72, borderRadius: 36, marginBottom: 10 },
-  avatarFallback: { width: 72, height: 72, borderRadius: 36, marginBottom: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: '#A5D6A7' },
-  avatarText: { color: '#1A1A1A', fontSize: 26, fontWeight: '700' },
-  name: { color: '#FFFFFF', fontSize: 30, fontWeight: '600' },
-  role: { color: '#D8D4F2', fontSize: 18, marginTop: 2 },
-  statsRow: { flexDirection: 'row', gap: 20, marginTop: 16 },
-  stats: { color: '#FFFFFF', fontSize: 16, fontWeight: '500' },
-  switchCard: {
-    marginHorizontal: 16,
-    marginTop: -12,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    elevation: 1,
-  },
-  switchLabel: { color: '#262626', fontSize: 17, fontWeight: '500' },
-  editBtn: { marginTop: 16, marginHorizontal: 16, backgroundColor: '#ECEBF4', borderRadius: 20, paddingVertical: 12, alignItems: 'center' },
-  editBtnText: { color: PURPLE, fontWeight: '600' },
-  sectionTitle: { marginTop: 22, marginHorizontal: 16, marginBottom: 10, color: '#777777', fontSize: 32, fontWeight: '600' },
-  menuItem: { marginHorizontal: 16, marginBottom: 12, backgroundColor: '#FFFFFF', borderRadius: 12, paddingVertical: 16, paddingHorizontal: 14, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  menuLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  menuText: { color: '#3D3D3D', fontSize: 17, fontWeight: '500' },
-  logoutBtn: { marginHorizontal: 16, marginTop: 12, backgroundColor: '#FFFFFF', borderRadius: 12, paddingVertical: 14, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  logoutText: { color: '#E53935', fontSize: 16, fontWeight: '600' },
+  screen: { flex: 1, backgroundColor: '#F4F4F6' },
+  hero: { backgroundColor: '#342684', paddingHorizontal: 16, paddingTop: 56, paddingBottom: 18 },
+  heroHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  iconButton: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.15)' },
+  heroTitle: { color: '#FFFFFF', fontSize: 28, fontWeight: '600' },
+  identityRow: { marginTop: 18, flexDirection: 'row', alignItems: 'center' },
+  avatar: { width: 56, height: 56, borderRadius: 28, marginRight: 12, backgroundColor: '#E3E3E8' },
+  name: { color: '#FFFFFF', fontSize: 24, fontWeight: '600' },
+  role: { marginTop: 2, color: '#D9D3F3', fontSize: 14 },
+  orderStats: { marginLeft: 'auto', alignItems: 'flex-end' },
+  orderText: { color: '#DCD5F8', fontSize: 13, marginBottom: 2 },
+  switchRow: { marginHorizontal: 16, marginTop: 14, borderRadius: 12, backgroundColor: '#FFFFFF', paddingHorizontal: 14, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  switchLabel: { fontSize: 17, color: '#2F2A39', fontWeight: '500' },
+  menuBlock: { marginTop: 14, marginHorizontal: 16, borderRadius: 12, backgroundColor: '#FFFFFF', padding: 14 },
+  menuHeader: { fontSize: 22, color: '#2D273A', fontWeight: '600', marginBottom: 8 },
+  menuRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#EEEAF5' },
+  menuIcon: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#EEEAFB', alignItems: 'center', justifyContent: 'center', marginRight: 10 },
+  menuText: { flex: 1, fontSize: 16, color: '#2E2939', fontWeight: '500' },
 });

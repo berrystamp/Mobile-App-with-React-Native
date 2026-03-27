@@ -11,12 +11,12 @@ export default function TabsLayout() {
   const isDark = useColorScheme() === 'dark';
 
   const hideHeader = useMemo(
-    () => ['/chat', '/checkout', '/Search', '/Filter', '/filter-product-category', '/filter-design-category', '/select-printer', '/products', '/profile', '/edit-profile', '/payment-details'].includes(pathname),
+    () => ['/chat', '/checkout', '/Search', '/Filter', '/filter-product-category', '/filter-design-category', '/select-printer', '/products', '/custom-designs', '/custom-design', '/SelectDesignForScreen', '/SelectDesignThemeScreen', '/SelectItemsScreen'].includes(pathname),
     [pathname],
   );
 
   const hideBottomNavigation = useMemo(
-    () => ['/chat', '/checkout', '/Filter', '/filter-product-category', '/filter-design-category', '/select-printer', '/products', '/edit-profile', '/payment-details'].includes(pathname),
+    () => ['/chat', '/checkout', '/Filter', '/filter-product-category', '/filter-design-category', '/select-printer', '/products', '/custom-designs', '/custom-design', '/SelectDesignForScreen', '/SelectDesignThemeScreen', '/SelectItemsScreen'].includes(pathname),
     [pathname],
   );
 
@@ -56,6 +56,11 @@ export default function TabsLayout() {
           <Stack.Screen name="payment-details" />
           <Stack.Screen name="Search" />
           <Stack.Screen name="select-printer" />
+          <Stack.Screen name="custom-designs" />
+          <Stack.Screen name="custom-design" />
+          <Stack.Screen name="SelectDesignForScreen" />
+          <Stack.Screen name="SelectDesignThemeScreen" />
+          <Stack.Screen name="SelectItemsScreen" />
         </Stack>
         {!hideBottomNavigation ? <BottomNavigation onNavigate={() => activeRoute} /> : null}
       </View>
