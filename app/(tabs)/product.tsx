@@ -9,8 +9,9 @@ import {
   View,
 } from 'react-native';
 import { Feather, Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import ActionFeedbackModal from '@/components/common/ActionFeedbackModal';
+import ApiService from '@/services/apiClient';
 
 type ProductCard = {
   id: string;
@@ -38,8 +39,29 @@ const RELATED_PRODUCTS: ProductCard[] = [
 
 export default function ProductScreen() {
   const router = useRouter();
+  const { designId } = useLocalSearchParams<{ designId?: string }>();
   const isDark = useColorScheme() === 'dark';
   const [feedback, setFeedback] = useState<{ title: string; message: string } | null>(null);
+  const [isFavorite, setIsFavorite] = useState(false);
+
+  const handleAddToFavorite = async () => {
+    if (!designId) {
+      setIsFavorite(true);
+      setFeedback({ title: 'Added to favourites', message: 'This design has been saved to your favourites.' });
+      return;
+    }
+
+    const nextFavoriteState = !isFavorite;
+    setIsFavorite(nextFavoriteState);
+
+    try {
+      await ApiService.toggleFavorite(String(designId));
+      setFeedback({ title: nextFavoriteState ? 'Added to favourites' : 'Removed from favourites', message: nextFavoriteState ? 'This design has been saved to your favourites.' : 'This design was removed from your favourites.' });
+    } catch (error: any) {
+      setIsFavorite((prev) => !prev);
+      setFeedback({ title: 'Action failed', message: error?.response?.data?.message || 'Unable to update favourites right now.' });
+    }
+  };
 
   return (
     <View className="flex-1 bg-[#F5F5F5] dark:bg-[#121212]">
@@ -66,10 +88,10 @@ export default function ProductScreen() {
 
                 <View className="flex-row items-center">
                   <TouchableOpacity
-                    onPress={() => setFeedback({ title: 'Added to favourites', message: 'This design has been saved to your favourites.' })}
+                    onPress={handleAddToFavorite}
                     className="mx-1 h-9 w-9 items-center justify-center"
                   >
-                    <Ionicons name="heart-outline" size={22} color="#FFFFFF" />
+                    <Ionicons name={isFavorite ? 'heart' : 'heart-outline'} size={22} color="#FFFFFF" />
                   </TouchableOpacity>
                   <TouchableOpacity className="h-9 w-9 items-center justify-center">
                     <Feather name="share-2" size={21} color="#FFFFFF" />
@@ -140,10 +162,10 @@ export default function ProductScreen() {
                 <View className="relative h-44 bg-[#F2F2F2] dark:bg-[#2A2A2A]">
                   <Image source={item.image} className="h-full w-full" resizeMode="cover" />
                   <TouchableOpacity
-                    onPress={() => setFeedback({ title: 'Added to favourites', message: 'This design has been saved to your favourites.' })}
+                    onPress={handleAddToFavorite}
                     className="absolute right-3 top-3 h-8 w-8 items-center justify-center rounded-full bg-white/90"
                   >
-                    <Ionicons name="heart-outline" size={18} color={isDark ? '#FFFFFF' : '#333333'} />
+                    <Ionicons name={isFavorite ? 'heart' : 'heart-outline'} size={18} color={isFavorite ? '#FF4458' : isDark ? '#FFFFFF' : '#333333'} />
                   </TouchableOpacity>
                 </View>
                 <View className="px-3 py-3">

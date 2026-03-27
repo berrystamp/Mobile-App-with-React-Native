@@ -1,12 +1,12 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import type { ConversationSummary } from '@/app/data/messages';
+import type { ConversationSummaryDto } from '@/lib/messages';
 import { AvatarBadge } from './AvatarBadge';
 
 interface ConversationRowProps {
-  conversation: ConversationSummary;
-  onPress: (conversation: ConversationSummary) => void;
-  onLongPress: (conversation: ConversationSummary) => void;
+  conversation: ConversationSummaryDto;
+  onPress: (conversation: ConversationSummaryDto) => void;
+  onLongPress: (conversation: ConversationSummaryDto) => void;
 }
 
 export function ConversationRow({ conversation, onPress, onLongPress }: ConversationRowProps) {
