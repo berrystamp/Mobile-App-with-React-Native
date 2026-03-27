@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, usePathname, Href } from 'expo-router';
+import { useAppTheme } from '@/lib/theme/appTheme';
 import Svg, { Path } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -33,20 +34,21 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({ onNavigate }) => {
   const pathname = usePathname();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
+  const themeColors = useAppTheme();
 
   const theme = {
     background: isDark 
-      ? ['rgba(20, 20, 30, 0.95)', 'rgba(30, 30, 40, 0.85)'] 
-      : ['rgba(255, 255, 255, 0.95)', 'rgba(245, 245, 255, 0.85)'],
-    activeTint: '#4A3F8F',
-    inactiveTint: isDark ? '#A0A0A0' : '#6C6C6C',
+      ? ['rgba(46, 37, 94, 0.95)', 'rgba(75, 58, 153, 0.85)']
+      : ['rgba(255, 255, 255, 0.95)', 'rgba(242, 242, 242, 0.85)'],
+    activeTint: themeColors.primary,
+    inactiveTint: themeColors.textMuted,
     liquidColor: isDark 
-      ? ['rgba(110, 90, 200, 0.4)', 'rgba(74, 63, 143, 0.3)'] 
-      : ['rgba(74, 63, 143, 0.25)', 'rgba(94, 83, 163, 0.2)'],
-    borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
-    shadowColor: isDark ? '#000000' : '#4A3F8F',
-    middleBackground: isDark ? '#2A2A3A' : '#FFFFFF',
-    middleBorder: isDark ? '#4A3F8F' : '#4A3F8F',
+      ? ['rgba(138, 122, 230, 0.45)', 'rgba(75, 58, 153, 0.35)']
+      : ['rgba(75, 58, 153, 0.25)', 'rgba(75, 58, 153, 0.15)'],
+    borderColor: themeColors.border,
+    shadowColor: isDark ? '#000000' : themeColors.primary,
+    middleBackground: themeColors.surface,
+    middleBorder: themeColors.primary,
   };
 
   const navItems: NavItem[] = [
