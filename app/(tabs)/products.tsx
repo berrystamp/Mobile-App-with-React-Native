@@ -1,5 +1,4 @@
 import { DesignCard } from '@/components/DesignCard';
-import { formatNaira } from '@/lib/currency';
 import { normalizeDesign, normalizeDesignListResponse } from '@/lib/designs';
 import ApiService from '@/services/apiClient';
 import { Design, Mock } from '@/types';
@@ -17,68 +16,6 @@ import {
   View,
   useColorScheme,
 } from 'react-native';
-
-function RatingStars({ value }: { value: number }) {
-  return (
-    <View className="flex-row items-center gap-x-1">
-      {Array.from({ length: 5 }).map((_, index) => (
-        <Ionicons
-          key={index}
-          name={index < value ? 'star' : 'star-outline'}
-          size={12}
-          color="#FDB022"
-        />
-      ))}
-    </View>
-  );
-}
-
-function SectionCard({
-  title,
-  subtitle,
-  details,
-  onPress,
-}: {
-  title: string;
-  subtitle: string;
-  details: string;
-  onPress: () => void;
-}) {
-  return (
-    <TouchableOpacity
-      onPress={onPress}
-      className="mb-3 rounded-[18px] border border-[#ECE8FF] bg-white px-4 py-4"
-      activeOpacity={0.85}>
-      <View className="flex-row items-center gap-x-3">
-        <View className="h-10 w-10 items-center justify-center rounded-xl bg-[#F2EFFF]">
-          <Ionicons name="add" size={22} color={brand} />
-        </View>
-        <View className="flex-1">
-          <Text className="text-base font-semibold text-[#2F2F2F]">{title}</Text>
-          <Text className="mt-1 text-xs text-[#8A8A8A]">{subtitle}</Text>
-          <Text className="mt-1 text-xs font-medium text-[#5D5D5D]">{details}</Text>
-        </View>
-        <Ionicons name="chevron-forward" size={18} color="#979797" />
-      </View>
-    </TouchableOpacity>
-  );
-}
-
-function QuantityStepper({ value, onChange }: { value: number; onChange: (next: number) => void }) {
-  return (
-    <View className="flex-row items-center gap-x-3">
-      <TouchableOpacity
-        className="h-8 w-8 items-center justify-center rounded-md bg-[#0F4AA3]"
-        onPress={() => onChange(Math.max(1, value - 1))}>
-        <Ionicons name="remove" size={16} color="#FFFFFF" />
-      </TouchableOpacity>
-      <Text className="min-w-[14px] text-center text-sm font-semibold text-[#2F2F2F]">{value}</Text>
-      <TouchableOpacity className="h-8 w-8 items-center justify-center rounded-md bg-[#0F4AA3]" onPress={() => onChange(value + 1)}>
-        <Ionicons name="add" size={16} color="#FFFFFF" />
-      </TouchableOpacity>
-    </View>
-  );
-}
 
 export default function ProductsScreen() {
   const router = useRouter();
@@ -201,41 +138,6 @@ export default function ProductsScreen() {
     }
   };
 
-
-  const handleFavoriteToggle = useCallback(async (designIdToToggle: number) => {
-    const updateList = (list: Design[]) =>
-      list.map((item) =>
-        item.id === designIdToToggle
-          ? {
-              ...item,
-              liked: !item.liked,
-              likes: item.liked ? Math.max(0, item.likes - 1) : item.likes + 1,
-            }
-          : item,
-      );
-
-    const previousProducts = [...products];
-    const previousSelectedDesign = selectedDesign;
-
-    setProducts((current) => updateList(current));
-    setSelectedDesign((current) => {
-      if (!current || current.id !== designIdToToggle) return current;
-      return {
-        ...current,
-        liked: !current.liked,
-        likes: current.liked ? Math.max(0, current.likes - 1) : current.likes + 1,
-      };
-    });
-
-    try {
-      await ApiService.toggleFavorite(String(designIdToToggle));
-    } catch (err: any) {
-      setProducts(previousProducts);
-      setSelectedDesign(previousSelectedDesign);
-      Alert.alert('Could not update favourite', err?.response?.data?.message || 'Please try again.');
-    }
-  }, [products, selectedDesign]);
-
   const title = artistName
     ? `${artistName}'s products`
     : searchField
@@ -277,12 +179,7 @@ export default function ProductsScreen() {
         <ScrollView contentContainerStyle={styles.productList} showsVerticalScrollIndicator={false}>
           <View style={styles.grid}>
             {products.map((product) => (
-              <DesignCard
-                key={product.id}
-                design={product}
-                onPress={() => openDetails(product)}
-                onFavoriteToggle={handleFavoriteToggle}
-              />
+              <DesignCard key={product.id} design={product} onPress={() => openDetails(product)} />
             ))}
           </View>
         </ScrollView>
@@ -299,11 +196,6 @@ export default function ProductsScreen() {
                     <Ionicons name="close" size={24} color={theme.text} />
                   </TouchableOpacity>
                 </View>
-              ))}
-            </View>
-          </View>
-        </View>
-      </ScrollView>
 
                 <ScrollView showsVerticalScrollIndicator={false}>
                   <Image source={{ uri: selectedDesign.imagePath }} style={styles.heroImage} resizeMode="cover" />
@@ -331,7 +223,7 @@ export default function ProductsScreen() {
                           onPress={() => handleMockSelect(mock)}>
                           <Text style={{ color: theme.text, fontWeight: isActive ? '700' : '500' }}>{mock.name}</Text>
                           <Text style={{ color: theme.subtext, marginTop: 4 }}>
-                            {formatNaira(mock.price || selectedDesign.amount || 0)}
+                            ₦{(mock.price || selectedDesign.amount || 0).toLocaleString()}
                           </Text>
                         </TouchableOpacity>
                       );
@@ -360,7 +252,7 @@ export default function ProductsScreen() {
 
                   <View style={[styles.summaryCard, { backgroundColor: isDark ? '#171717' : '#F6F4FF' }]}> 
                     <Text style={[styles.summaryTitle, { color: theme.text }]}>Order summary</Text>
-                    <Text style={[styles.summaryText, { color: theme.subtext }]}>Base price: {formatNaira(selectedMock?.price || selectedDesign.amount || 0)}</Text>
+                    <Text style={[styles.summaryText, { color: theme.subtext }]}>Base price: ₦{(selectedMock?.price || selectedDesign.amount || 0).toLocaleString()}</Text>
                     <Text style={[styles.summaryText, { color: theme.subtext }]}>Mock availability: {selectedMock?.availableQty ?? 'N/A'}</Text>
                     {selectedDesign.tags?.length ? (
                       <Text style={[styles.summaryText, { color: theme.subtext }]}>Tags: {selectedDesign.tags.join(', ')}</Text>
@@ -377,49 +269,8 @@ export default function ProductsScreen() {
               </>
             ) : null}
           </View>
-
-          <View className="mt-7 gap-y-5">
-            {reviews.map((review) => (
-              <View key={review.id} className="border-b border-[#F0F0F0] pb-5">
-                <View className="flex-row gap-x-3">
-                  <Image source={review.avatar} className="h-12 w-12 rounded-full" />
-                  <View className="flex-1">
-                    <Text className="text-lg font-semibold text-[#2F2F2F]">{review.name}</Text>
-                    <View className="mt-1 flex-row items-center gap-x-2">
-                      <RatingStars value={review.rating} />
-                      <Text className="text-xs text-[#7A7A7A]">• {review.date}</Text>
-                    </View>
-                    <Text className="mt-3 text-base leading-8 text-[#444444]">{review.comment}</Text>
-                  </View>
-                </View>
-              </View>
-            ))}
-          </View>
-        </ScrollView>
-      </ProductActionSheet>
-
-      <ProductActionSheet
-        visible={printingTypeMenuVisible}
-        title="Printing types"
-        onClose={() => setPrintingTypeMenuVisible(false)}>
-        <View>
-          {printingTypes.map((type, index) => (
-            <TouchableOpacity
-              key={type}
-              onPress={() => {
-                setPrintingType(type);
-                setPrintingTypeMenuVisible(false);
-              }}
-              className={`flex-row items-center justify-between py-4 ${index !== printingTypes.length - 1 ? 'border-b border-[#EFEFEF]' : ''}`}>
-              <View>
-                <Text className="text-base text-[#2F2F2F]">{type}</Text>
-                {type === 'Direct to garment' ? <Text className="mt-1 text-xs text-[#8A8A8A]">Best for detailed artwork and low-volume orders</Text> : null}
-              </View>
-              {printingType === type ? <MaterialCommunityIcons name="check-circle" size={22} color={brand} /> : null}
-            </TouchableOpacity>
-          ))}
         </View>
-      </ProductActionSheet>
+      </Modal>
     </View>
   );
 }
