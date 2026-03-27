@@ -332,6 +332,123 @@ class ApiService {
     return { requestSuccessful: true };
   }
 
+
+  async getCustomDesigns(page: number = 0, size: number = 20) {
+    const headers = { profileType: 'CUSTOMER' };
+
+    const candidates = [
+      () => api.get('/custom-designs', { params: { page, size, sort: 'id,desc' }, headers }),
+      () => api.get('/designs/custom', { params: { page, size, sort: 'id,desc' }, headers }),
+      () => api.get('/designs', { params: { page, size, sort: 'id,desc', mine: true }, headers }),
+      () => api.get('/designs', { params: { page, size, sort: 'id,desc' }, headers }),
+    ];
+
+    for (const request of candidates) {
+      try {
+        const response = await request();
+        return response.data;
+      } catch (error: any) {
+        if (error?.response?.status && ![404, 400].includes(error.response.status)) {
+          throw error;
+        }
+      }
+    }
+
+    return { responseBody: { content: [] } };
+  }
+
+  async deleteCustomDesign(designId: string | number) {
+    const headers = { profileType: 'CUSTOMER' };
+
+    const candidates = [
+      () => api.delete(`/custom-designs/${designId}`, { headers }),
+      () => api.delete(`/designs/custom/${designId}`, { headers }),
+      () => api.delete(`/designs/${designId}`, { headers }),
+    ];
+
+    for (const request of candidates) {
+      try {
+        const response = await request();
+        return response.data;
+      } catch (error: any) {
+        if (error?.response?.status && ![404, 400].includes(error.response.status)) {
+          throw error;
+        }
+      }
+    }
+
+    return { requestSuccessful: false };
+  }
+
+  async getPrintableItems() {
+    const headers = { profileType: 'CUSTOMER' };
+    const candidates = [
+      () => api.get('/catalog/items', { headers }),
+      () => api.get('/print-items', { headers }),
+      () => api.get('/design-catalog/items', { headers }),
+    ];
+
+    for (const request of candidates) {
+      try {
+        const response = await request();
+        return response.data;
+      } catch (error: any) {
+        if (error?.response?.status && error.response.status !== 404) {
+          throw error;
+        }
+      }
+    }
+
+    return { responseBody: [] };
+  }
+
+  async getDesignTaxonomy() {
+    const headers = { profileType: 'CUSTOMER' };
+
+    const candidates = [
+      () => api.get('/designs/taxonomy', { headers }),
+      () => api.get('/design-taxonomy', { headers }),
+      () => api.get('/designs/meta', { headers }),
+    ];
+
+    for (const request of candidates) {
+      try {
+        const response = await request();
+        return response.data;
+      } catch (error: any) {
+        if (error?.response?.status && error.response.status !== 404) {
+          throw error;
+        }
+      }
+    }
+
+    return { responseBody: {} };
+  }
+
+  async getPrinters(page: number = 0, size: number = 50) {
+    const headers = { profileType: 'CUSTOMER' };
+
+    const candidates = [
+      () => api.get('/berry/profiles', { params: { profileType: 'PRINTER', page, size, sort: 'id,desc' }, headers }),
+      () => api.get('/profiles', { params: { profileType: 'PRINTER', page, size, sort: 'id,desc' }, headers }),
+      () => api.get('/printers', { params: { page, size, sort: 'id,desc' }, headers }),
+      () => api.get('/berry/profiles/following', { params: { page, size, sort: 'id,desc' }, headers }),
+    ];
+
+    for (const request of candidates) {
+      try {
+        const response = await request();
+        return response.data;
+      } catch (error: any) {
+        if (error?.response?.status && error.response.status !== 404) {
+          throw error;
+        }
+      }
+    }
+
+    return { responseBody: { content: [] } };
+  }
+
   // Generic request method
   async request(config: AxiosRequestConfig) {
     const response = await api.request(config);
