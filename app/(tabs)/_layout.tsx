@@ -52,6 +52,8 @@ export default function TabsLayout() {
           <Stack.Screen name="printers" />
           <Stack.Screen name="products" />
           <Stack.Screen name="profile" />
+          <Stack.Screen name="edit-profile" />
+          <Stack.Screen name="payment-details" />
           <Stack.Screen name="Search" />
           <Stack.Screen name="select-printer" />
           <Stack.Screen name="custom-designs" />

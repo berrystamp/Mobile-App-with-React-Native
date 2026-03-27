@@ -32,6 +32,31 @@ export default function ProfileScreen() {
 
   const displayName = `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || user?.username || 'Customer';
 
+  const handleSwitchRole = async () => {
+    try {
+      const nextType = activeProfileType === 'CUSTOMER' ? 'DESIGNER' : 'CUSTOMER';
+      await ApiService.setActiveProfileType(nextType);
+      setSwitchEnabled((v) => !v);
+      setActiveProfileType(nextType);
+      await loadProfile();
+    } catch (error: any) {
+      Alert.alert('Unable to switch account', error?.response?.data?.responseMessage || error?.message || 'Please try again.');
+    }
+  };
+
+  const initials = useMemo(() => {
+    const first = profile.fullName?.trim()?.charAt(0) || 'U';
+    return first.toUpperCase();
+  }, [profile.fullName]);
+
+  if (loading) {
+    return (
+      <View style={styles.loaderWrap}>
+        <ActivityIndicator size="large" color={PURPLE} />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.screen}>
       <View style={styles.hero}>
