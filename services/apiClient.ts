@@ -359,6 +359,115 @@ class ApiService {
     return response.data;
   }
 
+  async getInterestOptions() {
+    const headers = { profileType: await this.getActiveProfileType() };
+    const taxonomy = await this.getDesignTaxonomy();
+    const source = taxonomy?.responseBody || taxonomy || {};
+
+    const buckets = [
+      source.categories,
+      source.interests,
+      source.tags,
+      source.content,
+      source,
+    ];
+
+    const flattened = buckets
+      .flatMap((bucket: any) => {
+        if (Array.isArray(bucket)) return bucket;
+        if (Array.isArray(bucket?.content)) return bucket.content;
+        if (Array.isArray(bucket?.items)) return bucket.items;
+        return [];
+      })
+      .map((item: any) => {
+        if (typeof item === 'string') return item.trim();
+        return String(item?.name || item?.label || item?.title || item?.value || '').trim();
+      })
+      .filter(Boolean);
+
+    if (flattened.length) return Array.from(new Set(flattened));
+
+    const fallbackResponse = await api.get('/designs', {
+      params: { page: 0, size: 100, sort: 'id,desc' },
+      headers,
+    });
+    const designs = fallbackResponse.data?.responseBody?.content || fallbackResponse.data?.content || [];
+    const inferred = designs
+      .flatMap((item: any) => [item?.category, ...(Array.isArray(item?.tags) ? item.tags : [])])
+      .map((item: any) => String(item || '').trim())
+      .filter(Boolean);
+
+    return Array.from(new Set(inferred));
+  }
+
+  async getMyInterests() {
+    const profileResponse = await this.getMyProfile();
+    const body = profileResponse?.responseBody || profileResponse || {};
+    const activeProfileType = (body?.profileType || (await this.getActiveProfileType())) as ProfileType;
+
+    const profileByType =
+      activeProfileType === 'DESIGNER'
+        ? body.designerProfile
+        : activeProfileType === 'PRINTER'
+          ? body.printerProfile
+          : body.customerProfile;
+
+    const interests = profileByType?.categories || body.categories || body.interests || [];
+    return Array.isArray(interests) ? interests.map((item: any) => String(item).trim()).filter(Boolean) : [];
+  }
+
+  async updateMyInterests(interests: string[]) {
+    const cleanedInterests = Array.from(new Set(interests.map((item) => item.trim()).filter(Boolean)));
+    const payload = { categories: cleanedInterests, interests: cleanedInterests };
+    return this.updateMyProfile(payload);
+  }
+
+  async findOrderByTrackingNumber(trackingNumber: string) {
+    const normalizedTrackingNumber = trackingNumber.trim();
+    if (!normalizedTrackingNumber) return null;
+
+    const headers = { profileType: await this.getActiveProfileType() };
+    const encodedTrackingNumber = encodeURIComponent(normalizedTrackingNumber);
+    const candidates = [
+      () => api.get(`/orders/tracking/${encodedTrackingNumber}`, { headers }),
+      () => api.get(`/orders/track/${encodedTrackingNumber}`, { headers }),
+      () => api.get('/orders', { params: { trackingNumber: normalizedTrackingNumber, page: 0, size: 1, sort: 'id,desc' }, headers }),
+      () => api.get('/orders', { params: { searchField: normalizedTrackingNumber, page: 0, size: 10, sort: 'id,desc' }, headers }),
+      () => api.get('/orders', { params: { page: 0, size: 50, sort: 'id,desc' }, headers }),
+    ];
+
+    for (const request of candidates) {
+      try {
+        const response = await request();
+        const body = response.data?.responseBody || response.data || {};
+        const list = Array.isArray(body)
+          ? body
+          : Array.isArray(body?.content)
+            ? body.content
+            : Array.isArray(body?.orders)
+              ? body.orders
+              : body
+                ? [body]
+                : [];
+
+        const matched = list.find((item: any) => {
+          const orderIdCandidates = [item?.orderNumber, item?.trackingNumber, item?.reference, item?.id]
+            .map((value: any) => String(value || '').trim().toLowerCase())
+            .filter(Boolean);
+          return orderIdCandidates.includes(normalizedTrackingNumber.toLowerCase());
+        });
+
+        if (matched) return matched;
+      } catch (error: any) {
+        if (error?.response?.status && ![400, 404].includes(error.response.status)) {
+          throw error;
+        }
+      }
+    }
+
+    return null;
+  }
+
   async getPaymentDetails() {
     const headers = { profileType: await this.getActiveProfileType() };
     const candidates = [
