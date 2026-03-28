@@ -92,8 +92,8 @@ export default function ProfileScreen() {
     return [
       { icon: 'color-palette-outline' as const, label: 'Custom Designs', onPress: () => router.push('/custom-designs') },
       { icon: 'document-text-outline' as const, label: 'Manage Orders', onPress: () => router.push('/messages') },
-      { icon: 'heart-outline' as const, label: 'Track Order', onPress: () => router.push('/favorites') },
-      { icon: 'copy-outline' as const, label: 'Update Interests', onPress: () => {} },
+      { icon: 'heart-outline' as const, label: 'Track Order', onPress: () => router.push('/track-order') },
+      { icon: 'copy-outline' as const, label: 'Update Interests', onPress: () => router.push('/interests') },
     ];
   }, [activeRole, router]);
 
