@@ -1,11 +1,9 @@
-import React from 'react';
-import { useColorScheme, View } from 'react-native';
-import { Stack } from 'expo-router';
-import BottomNavigation from '@/components/common/BottomNavigation';
-import { AuthProvider } from '@/context/AuthContext';
-import { Stack, usePathname, useRouter } from 'expo-router';
 import React, { useMemo } from 'react';
 import { View, useColorScheme } from 'react-native';
+import { Stack, usePathname, useRouter } from 'expo-router';
+import Header from '@/components/common/Header';
+import BottomNavigation from '@/components/common/BottomNavigation';
+import { AuthProvider } from '@/context/AuthContext';
 
 export default function TabsLayout() {
   const router = useRouter();

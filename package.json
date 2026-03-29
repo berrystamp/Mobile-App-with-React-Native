@@ -3,7 +3,7 @@
   "main": "expo-router/entry",
   "version": "1.0.0",
   "metro": {
-    "config": "metro.config.cjs"
+    "config": "metro.config.js"
   },
   "engines": {
     "node": "^20.19.4 || ^22.13.0"

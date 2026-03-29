@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import '../global.css'; // Ensure global styles are imported
+
 export default function CheckoutScreen() {
   const router = useRouter();
   const isDark = useColorScheme() === 'dark';

@@ -23,7 +23,7 @@ const Header: React.FC<HeaderProps> = ({
   rightAction,
   rightActionText,
   onRightAction,
-}: HeaderProps) {
+}) => {
   const isDark = useColorScheme() === 'dark';
   const theme = {
     mainBg: isDark ? '#121212' : '#FFFFFF',
@@ -53,18 +53,6 @@ const Header: React.FC<HeaderProps> = ({
             </TouchableOpacity>
           ) : null}
         </View>
-        <View style={styles.headerIcons}>
-          {onSearchPress && (
-            <TouchableOpacity style={styles.iconBtn} onPress={onSearchPress}>
-              <Ionicons name="search-outline" size={24} color={theme.text} />
-            </TouchableOpacity>
-          )}
-          {onNotificationPress && (
-            <TouchableOpacity style={styles.iconBtn} onPress={onNotificationPress}>
-              <Ionicons name="notifications-outline" size={24} color={theme.text} />
-            </TouchableOpacity>
-          )}
-        </View>
       </View>
     );
   }
@@ -73,7 +61,7 @@ const Header: React.FC<HeaderProps> = ({
     return (
       <View style={[
         styles.headerBack, 
-        { backgroundColor: theme.background, borderBottomColor: theme.border }
+        { backgroundColor: theme.mainBg, borderBottomColor: theme.subtleBorder }
       ]}>
         <TouchableOpacity onPress={onBackPress} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color={theme.text} />
@@ -81,7 +69,7 @@ const Header: React.FC<HeaderProps> = ({
         <Text style={[styles.headerTitle, { color: theme.text }]}>{title}</Text>
         {rightAction ? (
           <TouchableOpacity onPress={onRightAction}>
-            <Text style={styles.rightActionText}>{rightActionText}</Text>
+            <Text style={[styles.rightActionText, { color: theme.accent }]}>{rightActionText}</Text>
           </TouchableOpacity>
         ) : (
           <View style={{ width: 60 }} />

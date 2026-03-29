@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios, { AxiosInstance } from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router"; // Added for automatic redirection
 
@@ -63,10 +63,6 @@ class ApiService {
       },
     );
   }
-  return config;
-}, (error) => {
-  return Promise.reject(error);
-});
 
   async login(email: string, password: string) {
     const response = await this.api.post('/auth/login', { email, password }, {
@@ -87,7 +83,6 @@ class ApiService {
 
     return response.data;
   }
-);
 
   async logout() {
     await Promise.all([
