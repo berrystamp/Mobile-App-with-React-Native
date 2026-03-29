@@ -1,7 +1,7 @@
 // src/components/common/Header.tsx
+import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View, useColorScheme } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 
 export interface HeaderProps {
   type?: 'main' | 'search' | 'back';
@@ -23,7 +23,7 @@ const Header: React.FC<HeaderProps> = ({
   rightAction,
   rightActionText,
   onRightAction,
-}) => {
+}: HeaderProps) => {
   const isDark = useColorScheme() === 'dark';
   const theme = {
     mainBg: isDark ? '#121212' : '#FFFFFF',
