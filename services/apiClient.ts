@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AxiosRequestConfig } from 'axios';
 import api from './api';
+import { extractFaqFromHtml, type FaqItem } from '@/lib/faq';
 
 type ProfileType = 'CUSTOMER' | 'DESIGNER' | 'PRINTER';
 const ACTIVE_PROFILE_TYPE_KEY = 'activeProfileType';
@@ -870,6 +871,106 @@ class ApiService {
       headers: { profileType: await this.getActiveProfileType() },
     });
     return response.data;
+  }
+
+  async getFaqItems(): Promise<FaqItem[]> {
+    const headers = { profileType: await this.getActiveProfileType() };
+    const endpointCandidates = [
+      () => api.get('/faqs', { headers }),
+      () => api.get('/faq', { headers }),
+      () => api.get('/contents/faqs', { headers }),
+    ];
+
+    for (const request of endpointCandidates) {
+      try {
+        const response = await request();
+        const body = response.data?.responseBody || response.data || {};
+        const list = Array.isArray(body)
+          ? body
+          : Array.isArray(body?.content)
+            ? body.content
+            : Array.isArray(body?.items)
+              ? body.items
+              : [];
+
+        const items = list
+          .map((item: any, index: number) => ({
+            id: String(item?.id || item?.faqId || index + 1),
+            question: String(item?.question || item?.title || '').trim(),
+            answer: String(item?.answer || item?.description || '').trim(),
+          }))
+          .filter((item: FaqItem) => item.question && item.answer);
+
+        if (items.length) return items;
+      } catch (error: any) {
+        if (error?.response?.status && error.response.status !== 404) throw error;
+      }
+    }
+
+    const pageResponse = await fetch('https://berrystamp.com/faq');
+    const html = await pageResponse.text();
+    return extractFaqFromHtml(html);
+  }
+
+  async getReferralSummary() {
+    const headers = { profileType: await this.getActiveProfileType() };
+    const candidates = [
+      () => api.get('/referrals/summary', { headers }),
+      () => api.get('/referrals', { headers }),
+      () => api.get('/referral/summary', { headers }),
+      () => api.get('/referral', { headers }),
+    ];
+
+    for (const request of candidates) {
+      try {
+        const response = await request();
+        return response.data?.responseBody || response.data;
+      } catch (error: any) {
+        if (error?.response?.status && error.response.status !== 404) throw error;
+      }
+    }
+
+    return {};
+  }
+
+  async getReferralHistory(page: number = 0, size: number = 20) {
+    const headers = { profileType: await this.getActiveProfileType() };
+    const candidates = [
+      () => api.get('/referrals/histories', { params: { page, size, sort: 'id,desc' }, headers }),
+      () => api.get('/referrals/history', { params: { page, size, sort: 'id,desc' }, headers }),
+      () => api.get('/referrals', { params: { page, size, sort: 'id,desc' }, headers }),
+    ];
+
+    for (const request of candidates) {
+      try {
+        const response = await request();
+        return response.data;
+      } catch (error: any) {
+        if (error?.response?.status && error.response.status !== 404) throw error;
+      }
+    }
+
+    return { responseBody: { content: [] } };
+  }
+
+  async redeemReferralReward(payload: { amount?: number; mode: 'WALLET' | 'CASH'; bankName?: string; accountNumber?: string }) {
+    const headers = { profileType: await this.getActiveProfileType() };
+    const candidates = [
+      () => api.post('/referrals/redeem', payload, { headers }),
+      () => api.post('/referral/redeem', payload, { headers }),
+      () => api.post('/wallets/referrals/redeem', payload, { headers }),
+    ];
+
+    for (const request of candidates) {
+      try {
+        const response = await request();
+        return response.data;
+      } catch (error: any) {
+        if (error?.response?.status && error.response.status !== 404) throw error;
+      }
+    }
+
+    return { requestSuccessful: false, responseMessage: 'Redeem endpoint unavailable.' };
   }
 
   // Generic request method

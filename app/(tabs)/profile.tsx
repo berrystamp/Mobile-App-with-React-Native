@@ -92,6 +92,7 @@ export default function ProfileScreen() {
     return [
       { icon: 'color-palette-outline' as const, label: 'Custom Designs', onPress: () => router.push('/custom-designs') },
       { icon: 'document-text-outline' as const, label: 'Manage Orders', onPress: () => router.push('/messages') },
+      { icon: 'people-outline' as const, label: 'Referrals', onPress: () => router.push('/referral') },
       { icon: 'heart-outline' as const, label: 'Track Order', onPress: () => router.push('/track-order') },
       { icon: 'copy-outline' as const, label: 'Update Interests', onPress: () => router.push('/interests') },
     ];
@@ -102,9 +103,9 @@ export default function ProfileScreen() {
       { icon: 'settings-outline' as const, label: 'Settings and privacy', onPress: () => {} },
       { icon: 'document-text-outline' as const, label: 'Terms and Condition', onPress: () => {} },
       { icon: 'flag-outline' as const, label: activeRole === 'DESIGNER' ? 'Make suggestion/Report' : 'Report a problem', onPress: () => {} },
-      { icon: 'help-circle-outline' as const, label: 'FAQ', onPress: () => {} },
+      { icon: 'help-circle-outline' as const, label: 'FAQ', onPress: () => router.push('/faq') },
     ];
-  }, [activeRole]);
+  }, [activeRole, router]);
 
   const handleSelectRole = async (nextType: TProfileType) => {
     try {
