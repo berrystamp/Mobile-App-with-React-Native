@@ -126,7 +126,10 @@ export interface User {
     bio?: string;
     categories?: string[];
     profilePic?: string;
+    coverPic?: string;
+    coverPhotoPath?: string;
     profileImage?: { url?: string };
+    coverImage?: { url?: string };
     insight?: {
       totalFollowers?: number;
       totalFollowing?: number;
@@ -149,7 +152,10 @@ export interface User {
     bio?: string;
     categories?: string[];
     profilePic?: string;
+    coverPic?: string;
+    coverPhotoPath?: string;
     profileImage?: { url?: string };
+    coverImage?: { url?: string };
     insight?: {
       totalFollowers?: number;
       totalFollowing?: number;
@@ -172,7 +178,10 @@ export interface User {
     bio?: string;
     categories?: string[];
     profilePic?: string;
+    coverPic?: string;
+    coverPhotoPath?: string;
     profileImage?: { url?: string };
+    coverImage?: { url?: string };
     insight?: {
       totalFollowers?: number;
       totalFollowing?: number;
@@ -205,6 +214,25 @@ export interface Order {
   items: CartItem[];
   createdAt: string;
   updatedAt: string;
+}
+
+export type ManageOrderStatus = 'Active' | 'Completed' | 'Canceled';
+
+export interface ManageOrderItem {
+  id: string;
+  code: string;
+  title: string;
+  shopName: string;
+  amount: number;
+  status: ManageOrderStatus;
+  description: string;
+  designer: string;
+  updatedAt: string;
+  createdAt: string;
+  dueOn: string;
+  purpose: string;
+  itemsToPrint: string[];
+  uploadedDesigns?: string[];
 }
 
 export interface Conversation {

@@ -1,4 +1,4 @@
-import { User } from '@/types';
+import { TProfileType, User } from '@/types';
 
 export type ProfilePayload = {
   id?: number;
@@ -15,6 +15,8 @@ export type ProfilePayload = {
   postalCode?: string;
   profilePicturePath?: string;
   profileImageUrl?: string;
+  coverPic?: string;
+  coverImageUrl?: string;
   profileType?: 'CUSTOMER' | 'DESIGNER' | 'PRINTER';
   role?: 'CUSTOMER' | 'DESIGNER' | 'PRINTER';
   ordersCount?: number;
@@ -70,6 +72,13 @@ export const normalizeProfileResponse = (input: any): ProfilePayload => {
       nestedProfile?.profileImage?.url ||
       nestedProfile?.profilePic,
     profileImageUrl: body.profileImageUrl || body.avatar || body.image || nestedProfile?.profileImage?.url,
+    coverPic:
+      body.coverPic ||
+      body.coverPhotoPath ||
+      body.coverImagePath ||
+      nestedProfile?.coverPic ||
+      nestedProfile?.coverPhotoPath,
+    coverImageUrl: body.coverImageUrl || body.coverUrl || nestedProfile?.coverImage?.url,
     profileType: body.profileType || body.role,
     role: body.role || body.profileType,
     ordersCount: body.ordersCount || body.totalOrders || insight.totalCompletedOrders,
@@ -113,4 +122,25 @@ export const normalizePaymentDetails = (input: any): PaymentDetails => {
     accountNumber: body.accountNumber || body.accountNo || '',
     accountName: body.accountName || body.name || '',
   };
+};
+
+export const getAvailableProfileTypes = (user: User | null, profile: ProfilePayload): TProfileType[] => {
+  const roleSet = new Set<TProfileType>();
+  const addRole = (value?: string | null) => {
+    const normalized = String(value || '').toUpperCase();
+    if (normalized === 'CUSTOMER' || normalized === 'DESIGNER' || normalized === 'PRINTER') {
+      roleSet.add(normalized as TProfileType);
+    }
+  };
+
+  addRole(user?.profileType);
+  addRole(profile.profileType);
+  addRole(profile.role);
+  (user?.roles || profile.roles || []).forEach(addRole);
+  if (user?.customerProfile || profile.customerProfile) roleSet.add('CUSTOMER');
+  if (user?.designerProfile || profile.designerProfile) roleSet.add('DESIGNER');
+  if (user?.printerProfile || profile.printerProfile) roleSet.add('PRINTER');
+
+  if (!roleSet.size) roleSet.add('CUSTOMER');
+  return Array.from(roleSet);
 };

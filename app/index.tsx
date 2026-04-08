@@ -5,7 +5,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect } from 'react';
 import { Image, StatusBar, StyleSheet, useColorScheme, View } from 'react-native';
 
-NativeSplashScreen.preventAutoHideAsync();
 
 export default function SplashScreen() {
   const router = useRouter();
@@ -19,18 +18,7 @@ export default function SplashScreen() {
     const timer = setTimeout(async () => {
       if (!isLoggedIn) {
         router.replace('/(auth)/choose-account');
-      } else if (role === 'customer' && !hasSelectedInterests) {
-        router.replace('/(auth)/interests');
-      } else if (role === 'customer') {
-        router.replace('/(tabs)');
-      } else if (role === 'designer') {
-        router.replace('/(tabs)');
-      } else if (role === 'printer') {
-        router.replace('/(tabs)');
-      } else {
-        router.replace('/(auth)/choose-account');
-      }
-
+      } 
       await NativeSplashScreen.hideAsync();
     }, 1200);
 

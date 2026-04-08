@@ -1,20 +1,19 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import React, { useEffect, useMemo, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Image,
   ScrollView,
-  Switch,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
 
-import { mergeUserAndProfile, normalizeProfileResponse } from '@/lib/profile';
+import { getAvailableProfileTypes, mergeUserAndProfile, normalizeProfileResponse } from '@/lib/profile';
 import ApiService from '@/services/apiClient';
-import { useAuthStore } from '@/store/authStore';
+import { toAccountType, toProfileType, useAuthStore } from '@/store/authStore';
 import type { TProfileType, User } from '@/types';
 
 const defaultAvatar = 'https://images.unsplash.com/photo-1472099645785-5658abf4e?w=400';
@@ -33,38 +32,58 @@ const profileLabels: Record<TProfileType, string> = {
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { setAccountType } = useAuthStore();
+  const { role, setAccountType } = useAuthStore();
   const tabBarHeight = 40;
-  const [switchAccount, setSwitchAccount] = useState(false);
   const [user, setUser] = useState<User | null>(null);
+  const [profilePayload, setProfilePayload] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [notificationCount, setNotificationCount] = useState(0);
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const current = (await ApiService.getCurrentUser()) as User | null;
-        const profileResponse = await ApiService.getMyProfile();
-        const normalized = normalizeProfileResponse(profileResponse);
-        const merged = { ...(current || {}), ...normalized } as User;
-        setUser(merged);
-        setSwitchAccount((merged.profileType || 'CUSTOMER') !== 'CUSTOMER');
-      } catch (error: any) {
-        Alert.alert('Unable to load profile', error?.response?.data?.responseMessage || error?.message || 'Please try again.');
-      } finally {
-        setLoading(false);
-      }
-    };
+  const activeRole = toProfileType(role) as TProfileType;
 
-    load();
-  }, []);
+  const load = useCallback(async () => {
+    try {
+      setLoading(true);
+      const [current, profileResponse, notificationsResponse] = await Promise.all([
+        ApiService.getCurrentUser() as Promise<User | null>,
+        ApiService.getMyProfile(),
+        ApiService.getNotifications(0, 50).catch(() => null),
+      ]);
+      const normalized = normalizeProfileResponse(profileResponse);
+      const merged = { ...(current || {}), ...normalized, profileType: activeRole } as User;
+      const notificationsBody = notificationsResponse?.responseBody || notificationsResponse?.content || notificationsResponse || [];
+      const notifications = Array.isArray(notificationsBody)
+        ? notificationsBody
+        : Array.isArray(notificationsBody?.content)
+          ? notificationsBody.content
+          : [];
+      setProfilePayload(normalized);
+      setUser(merged);
+      setNotificationCount(notifications.filter((item: any) => !(item?.read ?? item?.isRead ?? false)).length);
+    } catch (error: any) {
+      Alert.alert('Unable to load profile', error?.response?.data?.responseMessage || error?.message || 'Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }, [activeRole]);
+
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load]),
+  );
 
   const profile = useMemo(() => mergeUserAndProfile(user, {}), [user]);
+  const availableProfiles = useMemo(() => getAvailableProfileTypes(user, profilePayload || {}), [profilePayload, user]);
+  const switchTargets = useMemo(
+    () => availableProfiles.filter((item) => item !== activeRole),
+    [activeRole, availableProfiles],
+  );
 
-  const activeRole = (user?.profileType || 'CUSTOMER') as TProfileType;
   const accountItems = useMemo(() => {
     if (activeRole === 'DESIGNER') {
       return [
-        { icon: 'document-text-outline' as const, label: 'Manage Order', onPress: () => router.push('/messages') },
+        { icon: 'document-text-outline' as const, label: 'Manage Order', onPress: () => router.push('/manage-order') },
         { icon: 'storefront-outline' as const, label: 'My Shop', onPress: () => router.push('/custom-designs') },
         { icon: 'wallet-outline' as const, label: 'Wallet', onPress: () => router.push('/payment-details') },
       ];
@@ -72,18 +91,18 @@ export default function ProfileScreen() {
 
     if (activeRole === 'PRINTER') {
       return [
-        { icon: 'document-text-outline' as const, label: 'Manage Order', onPress: () => router.push('/messages') },
+        { icon: 'document-text-outline' as const, label: 'Manage Order', onPress: () => router.push('/manage-order') },
         { icon: 'print-outline' as const, label: 'Print Jobs', onPress: () => router.push('/printers') },
         { icon: 'wallet-outline' as const, label: 'Wallet', onPress: () => router.push('/payment-details') },
       ];
     }
 
     return [
-      { icon: 'color-palette-outline' as const, label: 'Custom Designs', onPress: () => router.push('/custom-designs') },
-      { icon: 'document-text-outline' as const, label: 'Manage Orders', onPress: () => router.push('/messages') },
-      { icon: 'people-outline' as const, label: 'Referrals', onPress: () => router.push('/referral') },
+      { icon: 'color-palette-outline' as const, label: 'Custom Designs', onPress: () => router.push('/custom-design') },
+      { icon: 'document-text-outline' as const, label: 'Manage Orders', onPress: () => router.push('/manage-order') },
+      // { icon: 'people-outline' as const, label: 'Referrals', onPress: () => router.push('/referral') },
       { icon: 'heart-outline' as const, label: 'Track Order', onPress: () => router.push('/track-order') },
-      { icon: 'copy-outline' as const, label: 'Update Interests', onPress: () => router.push('/interests') },
+      { icon: 'copy-outline' as const, label: 'Update Interests', onPress: () => router.push('/update-interest') },
     ];
   }, [activeRole, router]);
 
@@ -96,10 +115,11 @@ export default function ProfileScreen() {
     ];
   }, [activeRole, router]);
 
-  const handleChangeAccountType = () => {
-    const current = (activeRole || 'CUSTOMER').toLowerCase() as 'customer' | 'designer' | 'printer';
-    setAccountType(current);
-    router.push('/(auth)/choose-account');
+  const handleSwitchAccount = async (target: TProfileType) => {
+    const accountType = toAccountType(target);
+    setAccountType(accountType);
+    await ApiService.setActiveProfileType(target);
+    router.replace('/(tabs)');
   };
 
   if (loading) {
@@ -128,9 +148,11 @@ export default function ProfileScreen() {
             <Text className="text-base font-medium text-white">Profile</Text>
             <TouchableOpacity onPress={() => router.push('/notification')} className="relative h-9 w-9 items-center justify-center rounded-xl bg-white/10">
               <Ionicons name="notifications-outline" size={20} color="#FFFFFF" />
-              <View className="absolute -right-0.5 -top-0.5 h-4 min-w-[16px] items-center justify-center rounded-full bg-[#FF6B63] px-1">
-                <Text className="text-[10px] font-bold text-white">8</Text>
-              </View>
+              {notificationCount > 0 ? (
+                <View className="absolute -right-0.5 -top-0.5 h-4 min-w-[16px] items-center justify-center rounded-full bg-[#FF6B63] px-1">
+                  <Text className="text-[10px] font-bold text-white">{notificationCount > 99 ? '99+' : notificationCount}</Text>
+                </View>
+              ) : null}
             </TouchableOpacity>
           </View>
 
@@ -158,19 +180,26 @@ export default function ProfileScreen() {
         </View>
 
         <View className="px-4 pt-3">
-          <View className="mb-5 flex-row items-center justify-between rounded-2xl bg-white px-4 py-3 shadow-sm dark:bg-[#1E1E1E]">
-            <Text className="text-sm font-medium text-[#2B2833] dark:text-white">Change account type</Text>
-            <Switch
-              value={switchAccount}
-              onValueChange={handleChangeAccountType}
-              thumbColor="#FFFFFF"
-              trackColor={{ false: '#D8D8D8', true: '#C7C1E8' }}
-            />
-          </View>
-
           <ProfileSection
             title="My Account"
             items={accountItems}
+            footer={
+              switchTargets.length ? (
+                <View className="pt-2">
+                  {switchTargets.map((target) => (
+                    <TouchableOpacity
+                      key={target}
+                      onPress={() => handleSwitchAccount(target)}
+                      className="mb-3 rounded-2xl bg-[#F5F4F9] px-4 py-3 dark:bg-[#2A2A2A]">
+                      <Text className="text-sm font-semibold text-[#4B3A99] dark:text-[#B8ADFF]">
+                       Switch to {target.toLowerCase()} account
+                       
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              ) : null
+            }
           />
 
           <View className="mt-6">
@@ -179,7 +208,6 @@ export default function ProfileScreen() {
           </View>
         </View>
       </ScrollView>
-
     </View>
   );
 }
@@ -187,6 +215,7 @@ export default function ProfileScreen() {
 function ProfileSection({
   title,
   items,
+  footer,
 }: {
   title?: string;
   items: {
@@ -194,6 +223,7 @@ function ProfileSection({
     label: string;
     onPress: () => void;
   }[];
+  footer?: React.ReactNode;
 }) {
   return (
     <View>
@@ -211,6 +241,7 @@ function ProfileSection({
             <Ionicons name="chevron-forward" size={18} color="#A09BAE" />
           </TouchableOpacity>
         ))}
+        {footer}
       </View>
     </View>
   );

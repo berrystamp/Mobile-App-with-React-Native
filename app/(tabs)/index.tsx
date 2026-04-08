@@ -7,6 +7,7 @@ import { formatNaira } from '@/lib/currency';
 import { addRecentDesign } from '@/lib/localStorage';
 import { mergeUserAndProfile, normalizeProfileResponse } from '@/lib/profile';
 import ApiService from '@/services/apiClient';
+import { toProfileType, useAuthStore } from '@/store/authStore';
 import type { Design, TProfileType, User } from '@/types';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -15,6 +16,7 @@ import {
   Image,
   Modal,
   RefreshControl,
+  StatusBar,
   ScrollView,
   StyleSheet,
   Text,
@@ -23,7 +25,8 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import Svg, { Circle, Path, Polyline } from 'react-native-svg';
+import Svg, { Circle, Path, Polyline, Defs, Pattern, Rect } from 'react-native-svg';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 function HomeDesignCard({
   design,
@@ -91,13 +94,16 @@ export default function HomeScreen() {
   const router = useRouter();
   const isDark = useColorScheme() === 'dark';
   const { width: screenWidth } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const [profileLoading, setProfileLoading] = useState(true);
   const [dashboardRefreshing, setDashboardRefreshing] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [wallet, setWallet] = useState<any>(null);
   const [walletHistory, setWalletHistory] = useState<any[]>([]);
   const [filterStage, setFilterStage] = useState<'hidden' | 'range' | 'calendar'>('hidden');
-  const [rangeLabel, setRangeLabel] = useState('This Month');
+  const [, setRangeLabel] = useState('This Month');
+  const role = useAuthStore((state) => state.role);
+  const activeRole = toProfileType(role) as TProfileType;
   const {
     topArtists,
     recentDesigns,
@@ -108,8 +114,8 @@ export default function HomeScreen() {
     refresh,
     toggleFavorite,
     retry,
-  } = useHomeData((currentUser?.profileType || 'CUSTOMER') === 'CUSTOMER');
-
+  } = useHomeData(activeRole === 'CUSTOMER');
+  
   const loadProfileDashboard = useCallback(async () => {
     try {
       setProfileLoading(true);
@@ -123,7 +129,7 @@ export default function HomeScreen() {
       const merged = {
         ...(current || {}),
         ...normalized,
-        profileType: normalized.profileType || current?.profileType || 'CUSTOMER',
+        profileType: activeRole,
       } as User;
       setCurrentUser(merged);
       setWallet(walletResponse?.responseBody || walletResponse || null);
@@ -132,7 +138,7 @@ export default function HomeScreen() {
       setProfileLoading(false);
       setDashboardRefreshing(false);
     }
-  }, []);
+  }, [activeRole]);
 
   useFocusEffect(
     useCallback(() => {
@@ -141,12 +147,12 @@ export default function HomeScreen() {
   );
 
   const theme = {
-    background: isDark ? '#121212' : '#FFFFFF',
+    background: isDark ? '#121212' : '#FAFAFA',
     surface: isDark ? '#1C1C1F' : '#FFFFFF',
     surfaceAlt: isDark ? '#232327' : '#F6F6F8',
-    border: isDark ? '#2C2C31' : '#F1EDF6',
-    text: isDark ? '#FFFFFF' : '#2F2A36',
-    subtext: isDark ? '#B8B8B8' : '#6B6B6B',
+    border: isDark ? '#2C2C31' : '#F1F1F1',
+    text: isDark ? '#FFFFFF' : '#1A1A1A',
+    subtext: isDark ? '#B8B8B8' : '#8A8A8A',
     accent: isDark ? '#A99BFF' : '#4A34A7',
   };
 
@@ -165,7 +171,6 @@ export default function HomeScreen() {
   );
 
   const mergedProfile = useMemo(() => mergeUserAndProfile(currentUser, {}), [currentUser]);
-  const activeRole = (currentUser?.profileType || 'CUSTOMER') as TProfileType;
   const activeProfile = useMemo(() => {
     if (!currentUser) return null;
     if (activeRole === 'DESIGNER') return currentUser.designerProfile;
@@ -183,7 +188,8 @@ export default function HomeScreen() {
   const totalOrders = completedOrders + cancelledOrders;
   const jobSuccess = insight.jobSuccessPercentage || 0;
   const activeName = activeProfile?.userName || activeProfile?.name || mergedProfile.username || mergedProfile.fullName;
-  const historyItems = walletHistory.slice(0, 6);
+  const dashboardTopInset = Math.max(insets.top, StatusBar.currentHeight || 0);
+  
   const paymentSegments = useMemo(() => {
     const credits = walletHistory
       .filter((item: any) => String(item.type).toUpperCase() === 'CREDIT')
@@ -194,18 +200,19 @@ export default function HomeScreen() {
     const balance = Number(wallet?.balance || 0);
 
     const rawSegments = [
-      { label: 'Credits', value: credits, color: '#4430A3' },
-      { label: 'Debits', value: debits, color: '#F4BE1A' },
-      { label: 'Available balance', value: balance, color: '#FF5A6B' },
+      { label: 'Paid', value: credits, color: '#322783' },
+      { label: 'Pending', value: debits, color: '#0A66C2' },
+      { label: 'Canceled', value: balance, color: '#F90A3F' },
     ].filter((item) => item.value > 0);
 
-    return rawSegments.length ? rawSegments : [{ label: 'Available balance', value: 1, color: '#4430A3' }];
+    return rawSegments.length ? rawSegments : [{ label: 'Paid', value: 1, color: '#322783' }];
   }, [wallet?.balance, walletHistory]);
+  
   const totalSegmentValue = paymentSegments.reduce((sum, item) => sum + item.value, 0) || 1;
   const paymentArcs = useMemo(() => {
     let rotation = -90;
     return paymentSegments.map((segment) => {
-      const circumference = 2 * Math.PI * 32;
+      const circumference = 2 * Math.PI * 45;
       const length = (segment.value / totalSegmentValue) * circumference;
       const arc = {
         ...segment,
@@ -216,6 +223,7 @@ export default function HomeScreen() {
       return arc;
     });
   }, [paymentSegments, totalSegmentValue]);
+  
   const chartData = useMemo(() => {
     const grouped = new Map<string, number>();
     walletHistory.forEach((item: any) => {
@@ -227,6 +235,7 @@ export default function HomeScreen() {
     const entries = Array.from(grouped.entries()).slice(-6);
     return entries.length ? entries : [];
   }, [walletHistory]);
+  
   const chartPoints = useMemo(() => {
     if (!chartData.length) return '';
     const maxValue = Math.max(...chartData.map((item) => item[1]), 1);
@@ -238,6 +247,7 @@ export default function HomeScreen() {
       })
       .join(' ');
   }, [chartData]);
+  
   const topChartValue = useMemo(() => {
     if (!chartData.length) return null;
     return Math.max(...chartData.map((item) => item[1]));
@@ -330,7 +340,7 @@ export default function HomeScreen() {
     <View style={{ flex: 1, backgroundColor: theme.background }}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 14, paddingBottom: 110 }}
+        contentContainerStyle={{ paddingHorizontal: 20, paddingTop: dashboardTopInset + 12, paddingBottom: 110 }}
         refreshControl={
           <RefreshControl
             refreshing={dashboardRefreshing}
@@ -340,142 +350,146 @@ export default function HomeScreen() {
             }}
           />
         }>
-        <View style={{ borderRadius: 18, backgroundColor: '#4832A8', padding: 18, overflow: 'hidden' }}>
-          <View style={styles.dashboardPatternCircleLg} />
-          <View style={styles.dashboardPatternCircleSm} />
-          <View style={styles.dashboardPatternDot} />
-          <Text style={{ textAlign: 'center', color: '#FFFFFF', fontSize: 20, fontWeight: '700' }}>{activeName || 'Account'}</Text>
-          <Text style={{ marginTop: 4, textAlign: 'center', color: 'rgba(255,255,255,0.85)', fontSize: 12 }}>
-            {activeRole === 'DESIGNER' ? 'Verified Account' : activeRole === 'PRINTER' ? 'Printer Account' : 'Account'}
-          </Text>
-          <View style={{ marginTop: 20, flexDirection: 'row', justifyContent: 'space-between' }}>
-            <DashboardStat label="Earnings" value={formatNaira(Number(totalEarnings || 0))} />
-            <DashboardStat label="Rating" value={rating.toFixed(1)} />
-            <DashboardStat label="Followers" value={String(followers)} />
+        
+        {/* Top Balance Card */}
+        <View style={styles.balanceCard}>
+          <Svg style={StyleSheet.absoluteFill}>
+            <Defs>
+              <Pattern id="maze" patternUnits="userSpaceOnUse" width="60" height="60">
+                <Path d="M0 30 L30 0 M30 60 L60 30 M0 0 L30 30 M30 30 L60 0 M0 60 L30 30 L60 60" stroke="rgba(255,255,255,0.08)" strokeWidth="1" fill="none" />
+              </Pattern>
+            </Defs>
+            <Rect width="100%" height="100%" fill="url(#maze)" />
+          </Svg>
+          <View style={styles.balanceHeader}>
+            <Text style={styles.balanceLabel}>Balance</Text>
+            <Ionicons name="eye-off-outline" size={20} color="#FFFFFF" />
+          </View>
+          <Text style={styles.balanceAmount}>{formatNaira(Number(wallet?.balance || 0))}</Text>
+          <View style={styles.balanceFooter}>
+            <Text style={styles.balanceUser}>{activeName || 'Account'}</Text>
+            <Text style={styles.balanceRole}>
+              {activeRole === 'DESIGNER' ? 'Verified Account' : activeRole === 'PRINTER' ? 'Printer Account' : 'Verified Account'}
+            </Text>
           </View>
         </View>
 
+        {/* Business Performance Stats Card */}
         <View style={[styles.dashboardCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <Text style={[styles.dashboardCardTitle, { color: theme.text }]}>Designer&apos;s statistics</Text>
-          <View style={{ alignItems: 'center', paddingVertical: 20 }}>
-            <View style={{ width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: isDark ? '#2B2448' : '#EEE8FF' }}>
-              <Ionicons name="stats-chart-outline" size={18} color={theme.accent} />
+          <Text style={[styles.cardTitle, { color: theme.text }]}>Designer&apos;s statistics</Text>
+          <View style={{ alignItems: 'center', paddingVertical: 10 }}>
+            <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#F4F0FF', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+              <Ionicons name="stats-chart" size={20} color="#4A34A7" />
             </View>
-            <Text style={{ marginTop: 10, color: theme.accent, fontSize: 28, fontWeight: '700' }}>{jobSuccess || 0}%</Text>
-            <Text style={{ marginTop: 4, color: theme.subtext, fontSize: 12 }}>Business Performance</Text>
+            <Text style={{ fontSize: 24, fontWeight: '700', color: '#322783' }}>{jobSuccess}%</Text>
+            <Text style={{ fontSize: 13, color: '#8A8A8A', marginTop: 4 }}>Business Performance</Text>
           </View>
         </View>
 
+        {/* Metrics Grid */}
+        <View style={styles.metricGrid}>
+          <MetricBox icon="bag-outline" color="#F2994A" value={completedOrders} label="Completed order" theme={theme} />
+          <MetricBox icon="wallet-outline" color="#27AE60" value={formatNaira(Number(totalEarnings || 0))} label="Overall Earning" theme={theme} />
+          <MetricBox icon="star-outline" color="#9B51E0" value={rating.toFixed(1)} label="Overall Rating" theme={theme} />
+          <MetricBox icon="checkbox-outline" color="#56CCF2" value={`${jobSuccess}%`} label="Job Success" theme={theme} />
+          <MetricBox icon="close-square-outline" color="#EB5757" value={cancelledOrders} label="Canceled order" theme={theme} />
+          <MetricBox icon="cube-outline" color="#2F80ED" value={totalOrders} label="Total Order" theme={theme} />
+        </View>
+
+        {/* Column Stats Card */}
         <View style={[styles.dashboardCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <View style={{ marginBottom: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Text style={[styles.dashboardCardTitle, { color: theme.text }]}>Insights and analytics</Text>
-            <TouchableOpacity onPress={() => setFilterStage('range')}>
-              <Ionicons name="options-outline" size={18} color={theme.subtext} />
-            </TouchableOpacity>
-          </View>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
-            <MetricBox icon="people-outline" color={isDark ? '#2C224F' : '#C9B9FF'} value={following} label="Following you" theme={theme} />
-            <MetricBox icon="person-add-outline" color={isDark ? '#33295A' : '#E1D7FF'} value={followers} label="You follow" theme={theme} />
-            <MetricBox icon="briefcase-outline" color={isDark ? '#4A2D24' : '#FFE2D0'} value={completedOrders} label="Completed order" theme={theme} />
-            <MetricBox icon="cash-outline" color={isDark ? '#1F403A' : '#D5FFF5'} value={formatNaira(Number(totalEarnings || 0))} label="Overall Earning" theme={theme} />
-            <MetricBox icon="star-outline" color={isDark ? '#34254D' : '#F0E4FF'} value={rating.toFixed(1)} label="Overall Rating" theme={theme} />
-            <MetricBox icon="shield-checkmark-outline" color={isDark ? '#1F3347' : '#DDF4FF'} value={`${jobSuccess}%`} label="Job Success" theme={theme} />
-            <MetricBox icon="close-circle-outline" color={isDark ? '#482A33' : '#FFE0E6'} value={cancelledOrders} label="Canceled order" theme={theme} />
-            <MetricBox icon="cube-outline" color={isDark ? '#22324C' : '#E2F0FF'} value={totalOrders} label="Total Order" theme={theme} />
+          <Text style={[styles.cardTitle, { color: theme.text }]}>Designer&apos;s statistics</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10 }}>
+            <View style={{ alignItems: 'center' }}>
+               <Text style={{ fontSize: 20, fontWeight: '700', color: theme.text }}>0%</Text>
+               <Text style={{ fontSize: 12, color: theme.subtext, marginTop: 4 }}>Customer Retent.</Text>
+            </View>
+            <View style={{ alignItems: 'center' }}>
+               <Text style={{ fontSize: 20, fontWeight: '700', color: theme.text }}>{followers >= 1000 ? (followers/1000).toFixed(1)+'k' : followers}</Text>
+               <Text style={{ fontSize: 12, color: theme.subtext, marginTop: 4 }}>Followers</Text>
+            </View>
+            <View style={{ alignItems: 'center' }}>
+               <Text style={{ fontSize: 20, fontWeight: '700', color: theme.text }}>{following}</Text>
+               <Text style={{ fontSize: 12, color: theme.subtext, marginTop: 4 }}>Following</Text>
+            </View>
           </View>
         </View>
 
+        {/* Overall Payment Status */}
         <View style={[styles.dashboardCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <View style={{ marginBottom: 14, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Text style={[styles.dashboardCardTitle, { color: theme.text }]}>Overall Payment Status</Text>
-            <TouchableOpacity onPress={() => router.push('/payments')} style={{ borderRadius: 8, backgroundColor: '#4A34A7', paddingHorizontal: 12, paddingVertical: 7 }}>
-              <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '600' }}>Wallet history</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={{ alignItems: 'center', paddingVertical: 8 }}>
-            <Svg width="120" height="120" viewBox="0 0 120 120">
-              <Circle cx="60" cy="60" r="32" stroke={isDark ? '#303038' : '#EFEAF8'} strokeWidth="8" fill="none" />
+          <Text style={[styles.cardTitle, { color: theme.text, marginBottom: 20 }]}>Overall Payment Status</Text>
+          <View style={{ alignItems: 'center', paddingBottom: 20 }}>
+            <Svg width="140" height="140" viewBox="0 0 140 140">
+              <Circle cx="70" cy="70" r="45" stroke={isDark ? '#303038' : '#EFEAF8'} strokeWidth="10" fill="none" />
               {paymentArcs.map((segment) => (
                 <Circle
                   key={segment.label}
-                  cx="60"
-                  cy="60"
-                  r="32"
+                  cx="70"
+                  cy="70"
+                  r="45"
                   stroke={segment.color}
-                  strokeWidth="8"
+                  strokeWidth="10"
                   fill="none"
                   strokeDasharray={segment.dash}
                   strokeLinecap="round"
                   rotation={segment.rotation}
-                  origin="60,60"
+                  origin="70,70"
                 />
               ))}
             </Svg>
           </View>
-
-          <View style={{ marginTop: 8 }}>
+          
+          <View style={styles.legendRow}>
             {paymentSegments.map((item) => (
-              <View key={item.label} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-                <View style={{ width: 10, height: 2, backgroundColor: item.color, marginRight: 8 }} />
+              <View key={item.label} style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: item.color }]} />
                 <Text style={{ color: theme.subtext, fontSize: 12 }}>{item.label}</Text>
               </View>
             ))}
           </View>
+          
+          <TouchableOpacity style={styles.paymentButton} onPress={() => router.push('/payments')}>
+            <Text style={styles.paymentButtonText}>Payment history</Text>
+          </TouchableOpacity>
         </View>
 
+        {/* Account Overview */}
         <View style={[styles.dashboardCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <View style={{ marginBottom: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Text style={[styles.dashboardCardTitle, { color: theme.text }]}>Account Overview</Text>
-            <TouchableOpacity onPress={() => setFilterStage('range')} style={{ flexDirection: 'row', alignItems: 'center', borderRadius: 10, backgroundColor: theme.surfaceAlt, paddingHorizontal: 12, paddingVertical: 7 }}>
-              <Text style={{ color: theme.subtext, fontSize: 12, marginRight: 6 }}>{rangeLabel}</Text>
-              <Ionicons name="chevron-down" size={14} color={theme.subtext} />
+          <View style={styles.overviewHeader}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={[styles.cardTitle, { color: theme.text, marginBottom: 0 }]}>Account overview</Text>
+              <Text style={styles.overviewSubtitle}> (this month)</Text>
+            </View>
+            <TouchableOpacity onPress={() => setFilterStage('range')}>
+              <Ionicons name="chevron-down" size={16} color="#8A8A8A" />
             </TouchableOpacity>
           </View>
-          {chartData.length ? (
-            <>
-              <Text style={{ marginBottom: 12, color: theme.subtext, fontSize: 10 }}>{topChartValue ? formatNaira(topChartValue) : ''}</Text>
+          
+          <Text style={[styles.overviewAmount, { color: theme.text }]}>
+            {topChartValue ? formatNaira(topChartValue) : formatNaira(0)}
+          </Text>
+
+          {chartData.length > 0 ? (
+            <View style={{ alignItems: 'center', position: 'relative', marginTop: 30 }}>
+              <View style={[styles.chartTooltip, { top: -15, left: '35%' }]}>
+                <Text style={styles.tooltipAmount}>{formatNaira(chartData[chartData.length - 1][1])}</Text>
+                <Text style={styles.tooltipMonth}>{chartData[chartData.length - 1][0]}</Text>
+              </View>
               <Svg width="100%" height="150" viewBox="0 0 345 150">
                 <Path d="M15 110 H330" stroke={isDark ? '#303038' : '#F0EDF6'} strokeWidth="1" />
                 <Polyline points={chartPoints} fill="none" stroke="#2970FF" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
               </Svg>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 8 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 8, width: '100%', marginTop: -20 }}>
                 {chartData.map(([month]) => (
                   <Text key={month} style={{ color: theme.subtext, fontSize: 11 }}>{month}</Text>
                 ))}
               </View>
-            </>
+            </View>
           ) : (
-            <Text style={{ color: theme.subtext, fontSize: 13 }}>No wallet history available for account overview yet.</Text>
+            <Text style={{ color: theme.subtext, fontSize: 13, marginTop: 20 }}>No wallet history available for account overview yet.</Text>
           )}
         </View>
 
-        {historyItems.length ? (
-          <View style={[styles.dashboardCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <Text style={[styles.dashboardCardTitle, { marginBottom: 12, color: theme.text }]}>Recent Payments</Text>
-            {historyItems.map((item: any, index: number) => (
-              <View
-                key={String(item.id || index)}
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  paddingVertical: 12,
-                  borderBottomWidth: index === historyItems.length - 1 ? 0 : 1,
-                  borderBottomColor: theme.border,
-                }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-                  <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: '#2970FF', marginRight: 10 }} />
-                  <View>
-                    <Text style={{ color: theme.text, fontSize: 13, fontWeight: '600' }}>{item.description || 'Wallet transaction'}</Text>
-                    <Text style={{ marginTop: 4, color: theme.subtext, fontSize: 11 }}>{item.reference || item.createdAt || 'Wallet'}</Text>
-                  </View>
-                </View>
-                <Text style={{ color: theme.accent, fontSize: 13, fontWeight: '700' }}>{formatNaira(Number(item.amount || 0))}</Text>
-              </View>
-            ))}
-          </View>
-        ) : null}
       </ScrollView>
 
       <Modal transparent visible={filterStage !== 'hidden'} animationType="fade" onRequestClose={() => setFilterStage('hidden')}>
@@ -534,15 +548,6 @@ export default function HomeScreen() {
   );
 }
 
-function DashboardStat({ value, label }: { value: string; label: string }) {
-  return (
-    <View style={{ flex: 1, alignItems: 'center' }}>
-      <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '700' }}>{value}</Text>
-      <Text style={{ marginTop: 4, color: 'rgba(255,255,255,0.78)', fontSize: 11 }}>{label}</Text>
-    </View>
-  );
-}
-
 function MetricBox({
   icon,
   color,
@@ -554,15 +559,17 @@ function MetricBox({
   color: string;
   value: string | number;
   label: string;
-  theme: { surfaceAlt: string; border: string; text: string; subtext: string };
+  theme: { surface: string; border: string; text: string; subtext: string };
 }) {
   return (
-    <View style={{ width: '48.5%', borderRadius: 14, backgroundColor: theme.surfaceAlt, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: theme.border }}>
-      <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: color, alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
-        <Ionicons name={icon} size={16} color="#5B54A0" />
+    <View style={[styles.metricBox, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+      <View style={[styles.metricIconWrap, { borderColor: color }]}>
+        <Ionicons name={icon} size={18} color={color} />
       </View>
-      <Text style={{ color: theme.text, fontSize: 22, fontWeight: '700' }}>{value}</Text>
-      <Text style={{ marginTop: 3, color: theme.subtext, fontSize: 11 }}>{label}</Text>
+      <View style={styles.metricTextWrap}>
+        <Text style={[styles.metricValue, { color: theme.text }]} numberOfLines={1}>{value}</Text>
+        <Text style={[styles.metricLabel, { color: theme.subtext }]} numberOfLines={1}>{label}</Text>
+      </View>
     </View>
   );
 }
@@ -641,44 +648,168 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 14,
   },
-  dashboardCard: {
-    marginTop: 12,
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
+  
+  // Dashboard Refined UI Styles
+  balanceCard: {
+    borderRadius: 12,
+    backgroundColor: '#3D248D',
+    padding: 24,
+    overflow: 'hidden',
+    marginBottom: 24,
   },
-  dashboardCardTitle: {
-    color: '#2F2A36',
+  balanceHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  balanceLabel: {
+    color: '#E0D8FF',
+    fontSize: 13,
+    fontWeight: '400',
+  },
+  balanceAmount: {
+    color: '#FFFFFF',
+    fontSize: 34,
+    fontWeight: '700',
+    marginBottom: 28,
+  },
+  balanceFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  balanceUser: {
+    color: '#E0D8FF',
+    fontSize: 13,
+  },
+  balanceRole: {
+    color: '#E0D8FF',
+    fontSize: 13,
+  },
+  dashboardCard: {
+    borderRadius: 12,
+    padding: 20,
+    borderWidth: 1,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  cardTitle: {
     fontSize: 14,
     fontWeight: '600',
+    marginBottom: 12,
   },
-  dashboardPatternCircleLg: {
-    position: 'absolute',
-    top: 10,
-    left: 12,
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    borderWidth: 6,
-    borderColor: 'rgba(255,255,255,0.14)',
+  metricGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginBottom: 8,
   },
-  dashboardPatternCircleSm: {
-    position: 'absolute',
-    bottom: 16,
-    right: 18,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.15)',
+  metricBox: {
+    width: '48%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 14,
+    marginBottom: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.02,
+    shadowRadius: 4,
+    elevation: 1,
   },
-  dashboardPatternDot: {
+  metricIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  metricTextWrap: {
+    marginLeft: 10,
+    flex: 1,
+  },
+  metricValue: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  metricLabel: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  legendRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+    gap: 16,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  legendDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: 6,
+  },
+  paymentButton: {
+    backgroundColor: '#322783',
+    borderRadius: 24,
+    paddingVertical: 12,
+    paddingHorizontal: 28,
+    alignSelf: 'center',
+    marginTop: 16,
+  },
+  paymentButtonText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  overviewHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  overviewSubtitle: {
+    color: '#8A8A8A',
+    fontSize: 13,
+  },
+  overviewAmount: {
+    fontSize: 22,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  chartTooltip: {
     position: 'absolute',
-    bottom: 18,
-    right: 42,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: 'rgba(255,255,255,0.18)',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 3,
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  tooltipAmount: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#1A1A1A',
+  },
+  tooltipMonth: {
+    fontSize: 10,
+    color: '#8A8A8A',
+    marginTop: 2,
   },
 });

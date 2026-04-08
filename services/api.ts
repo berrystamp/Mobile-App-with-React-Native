@@ -15,8 +15,12 @@ const api = axios.create({
 // Request interceptor: Always attach the latest token from storage
 api.interceptors.request.use(async (config) => {
   const token = await AsyncStorage.getItem("userToken");
+  const profileType = await AsyncStorage.getItem("profileType");
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+  }
+  if (profileType && !config.headers.profileType) {
+    config.headers.profileType = profileType;
   }
   return config;
 }, (error) => {

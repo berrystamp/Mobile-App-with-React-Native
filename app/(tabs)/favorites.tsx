@@ -6,11 +6,13 @@ import { ActivityIndicator, Alert, FlatList, Image, SafeAreaView, Text, Touchabl
 import { formatNaira } from '@/lib/currency';
 import { normalizeDesignListResponse } from '@/lib/designs';
 import ApiService from '@/services/apiClient';
+import { isCustomerRole, useAuthStore } from '@/store/authStore';
 import type { Design } from '@/types';
 
 export default function FavoritesScreen() {
   const router = useRouter();
   const isDark = useColorScheme() === 'dark';
+  const role = useAuthStore((state) => state.role);
   const [designs, setDesigns] = useState<Design[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -35,8 +37,12 @@ export default function FavoritesScreen() {
   }, []);
 
   useEffect(() => {
+    if (!isCustomerRole(role)) {
+      router.replace('/manage-order');
+      return;
+    }
     fetchData();
-  }, [fetchData]);
+  }, [fetchData, role, router]);
 
   const confirmRemoveFavorite = useCallback((design: Design) => {
     Alert.alert('Remove item', 'Are you sure you want to remove this item from favorite?', [

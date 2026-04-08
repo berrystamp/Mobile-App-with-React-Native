@@ -1,12 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useAppTheme } from '@/lib/theme/appTheme';
+import { useAuthStore, isCustomerRole } from '@/store/authStore';
 import { useRouter, usePathname } from 'expo-router';
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Text, TouchableOpacity, View, useColorScheme } from 'react-native';
+import { Image } from 'expo-image';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface HeaderProps {
   onSearchPress?: () => void;
-  onNotificationPress?: () => void;
   type?: string;
   title?: string;
   onBackPress?: () => void;
@@ -17,7 +19,6 @@ interface HeaderProps {
 
 const Header: React.FC<HeaderProps> = ({
   onSearchPress,
-  onNotificationPress,
   type,
   title,
   onBackPress,
@@ -28,25 +29,54 @@ const Header: React.FC<HeaderProps> = ({
   const theme = useAppTheme();
   const router = useRouter();
   const pathname = usePathname();
+  const role = useAuthStore((state) => state.role);
+  const insets = useSafeAreaInsets();
+  
+  // Use React Native's built-in hook to detect the current system/app theme
+  const colorScheme = useColorScheme();
 
   const hiddenRoutes = ['/cart', '/printers', '/products', '/chat', '/select-printer', '/checkout'];
+  if (type !== 'back' && !isCustomerRole(role)) {
+    return null;
+  }
   if (type !== 'back' && hiddenRoutes.includes(pathname)) {
     return null;
   }
+  // Dynamically set the logo based on the color scheme
+  const logoSource = colorScheme === 'dark' 
+    ? require('@/assets/splash-dark.png')
+    : require('@/assets/splash-light.png');
 
   if (type === 'back') {
     return (
-      <View style={[styles.backContainer, { backgroundColor: theme.background, borderBottomColor: theme.border }]}>
-        <TouchableOpacity style={styles.backButton} onPress={onBackPress || (() => router.back())}>
+      <View 
+        className="flex-row items-center justify-between pb-[14px] px-4 border-b bg-transparent"
+        style={{ borderBottomColor: theme.border, paddingTop: Math.max(insets.top, 16) + 10 }}
+      >
+        <TouchableOpacity 
+          className="w-10 h-10 rounded-full items-center justify-center" 
+          onPress={onBackPress || (() => router.back())}
+        >
           <Ionicons name="arrow-back" size={22} color={theme.text} />
         </TouchableOpacity>
-        <Text style={[styles.backTitle, { color: theme.text }]} numberOfLines={1}>
+        
+        <Text 
+          className="flex-1 text-center text-lg font-bold mx-3" 
+          style={{ color: theme.text }} 
+          numberOfLines={1}
+        >
           {title || ''}
         </Text>
-        <View style={styles.backRightWrap}>
+        
+        <View className="min-w-[40px] items-end">
           {rightAction ? (
             <TouchableOpacity onPress={onRightAction}>
-              <Text style={[styles.rightActionText, { color: theme.primary }]}>{rightActionText || 'Action'}</Text>
+              <Text 
+                className="text-[15px] font-semibold" 
+                style={{ color: theme.primary }}
+              >
+                {rightActionText || 'Action'}
+              </Text>
             </TouchableOpacity>
           ) : null}
         </View>
@@ -55,115 +85,27 @@ const Header: React.FC<HeaderProps> = ({
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}> 
-      <View style={styles.logoContainer}>
-        <View style={[styles.logo, { backgroundColor: theme.primary }]}>
-          <View style={[styles.logoCircle, { backgroundColor: theme.background }]} />
-          <View style={[styles.logoArc, { backgroundColor: theme.primary }]} />
-        </View>
-        <Text style={[styles.logoText, { color: theme.text }]}>
-          <Text style={{ color: theme.primary }}>Berry</Text>stamp
-        </Text>
+    <View className="flex-row justify-between items-center px-5 pb-6 bg-transparent" style={{ paddingTop: Math.max(insets.top, 16) + 12 }}> 
+      <View>
+        <Image 
+          source={logoSource} 
+    
+           style={{width: 140, height: 30}}
+          contentFit="contain" 
+        />
       </View>
 
-      <View style={styles.iconsContainer}>
+      <View className="flex-row gap-3">
         <TouchableOpacity
-          style={[styles.iconButton, { backgroundColor: theme.iconBg }]}
-          onPress={onSearchPress || (() => router.push('/(tabs)/Search'))}>
-          <Ionicons name="search-outline" size={22} color={theme.text} />
-        </TouchableOpacity>
+          className="w-10 h-10 rounded-full justify-center items-center"
 
-        <TouchableOpacity
-          style={[styles.iconButton, { backgroundColor: theme.iconBg }]}
-          onPress={onNotificationPress || (() => console.log('Notifications'))}>
-          <Ionicons name="notifications-outline" size={22} color={theme.text} />
+          onPress={onSearchPress || (() => router.push('/(tabs)/Search'))}
+        >
+          <Ionicons name="search-outline" size={22} color={theme.text} />
         </TouchableOpacity>
       </View>
     </View>
   );
 };
-export default Header;
 
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 50,
-    paddingBottom: 16,
-  },
-  backContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: 50,
-    paddingBottom: 14,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  backTitle: {
-    flex: 1,
-    textAlign: 'center',
-    fontSize: 18,
-    fontWeight: '700',
-    marginHorizontal: 12,
-  },
-  backRightWrap: {
-    minWidth: 40,
-    alignItems: 'flex-end',
-  },
-  rightActionText: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  logoContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  logo: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 8,
-    position: 'relative',
-  },
-  logoCircle: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    position: 'absolute',
-  },
-  logoArc: {
-    width: 20,
-    height: 10,
-    borderTopLeftRadius: 10,
-    borderTopRightRadius: 10,
-    position: 'absolute',
-    bottom: 8,
-  },
-  logoText: {
-    fontSize: 20,
-    fontWeight: '700',
-  },
-  iconsContainer: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  iconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-});
+export default Header;

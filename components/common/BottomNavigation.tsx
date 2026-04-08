@@ -10,12 +10,12 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, usePathname, Href } from 'expo-router';
-import { useAppTheme } from '@/lib/theme/appTheme';
+import { useAuthStore, isCustomerRole } from '@/store/authStore';
 import Svg, { Path } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const ITEM_WIDTH = SCREEN_WIDTH / 5;
 const MIDDLE_ITEM_SIZE = 64;
 const LIGHT_BACKGROUND = ['rgba(255, 255, 255, 0.95)', 'rgba(245, 245, 255, 0.85)'] as const;
 const DARK_BACKGROUND = ['rgba(20, 20, 30, 0.95)', 'rgba(30, 30, 40, 0.85)'] as const;
@@ -38,6 +38,9 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({ onNavigate }) => {
   const pathname = usePathname();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
+  const role = useAuthStore((state) => state.role);
+  const isCustomer = isCustomerRole(role);
+  const insets = useSafeAreaInsets();
 
   const theme = {
     background: isDark ? DARK_BACKGROUND : LIGHT_BACKGROUND,
@@ -50,28 +53,41 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({ onNavigate }) => {
     middleBorder: isDark ? '#4A3F8F' : '#4A3F8F',
   };
 
-  const navItems: NavItem[] = [
-    { name: 'Home', link: '/', icon: 'home', iconOutline: 'home-outline' },
-    { name: 'Favorites', link: '/favorites', icon: 'heart', iconOutline: 'heart-outline' },
-    { name: 'Messages', link: '/messages', icon: 'mail', iconOutline: 'mail-outline' },
-    { name: 'Cart', link: '/cart', icon: 'cart', iconOutline: 'cart-outline' },
-    { name: 'Profile', link: '/profile', icon: 'person', iconOutline: 'person-outline' },
-  ];
+  const navItems: NavItem[] = isCustomer
+    ? [
+        { name: 'Home', link: '/', icon: 'home', iconOutline: 'home-outline' },
+        { name: 'Favorites', link: '/favorites', icon: 'heart', iconOutline: 'heart-outline' },
+        { name: 'Messages', link: '/messages', icon: 'mail', iconOutline: 'mail-outline' },
+        { name: 'Cart', link: '/cart', icon: 'cart', iconOutline: 'cart-outline' },
+        { name: 'Profile', link: '/profile', icon: 'person', iconOutline: 'person-outline' },
+      ]
+    : [
+        { name: 'Home', link: '/', icon: 'home', iconOutline: 'home-outline' },
+        { name: 'Messages', link: '/messages', icon: 'mail', iconOutline: 'mail-outline' },
+        { name: 'Manage Order', link: '/manage-order', icon: 'document-text', iconOutline: 'document-text-outline' },
+        { name: 'Profile', link: '/profile', icon: 'person', iconOutline: 'person-outline' },
+      ];
+  const itemWidth = SCREEN_WIDTH / navItems.length;
+  const hasElevatedMiddleItem = navItems.length === 5;
+  const middleIndex = Math.floor(navItems.length / 2);
 
   const checkIsActive = (link: string) => {
     if (link === '/') {
       return pathname === '/' || pathname === '/index' || pathname === '/(tabs)';
     }
+    if (link === '/manage-order') {
+      return pathname === '/manage-order' || pathname.startsWith('/order/');
+    }
     return pathname.startsWith(link);
   };
 
   const activeIndex = navItems.findIndex((item) => checkIsActive(item.link as string));
-  const liquidAnim = useRef(new Animated.Value(activeIndex === -1 ? 2 : activeIndex)).current;
+  const liquidAnim = useRef(new Animated.Value(activeIndex === -1 ? middleIndex : activeIndex)).current;
   const middlePulseAnim = useRef(new Animated.Value(1)).current;
   const waveAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    const targetIndex = activeIndex === -1 ? 2 : activeIndex;
+    const targetIndex = activeIndex === -1 ? middleIndex : activeIndex;
     
     Animated.parallel([
       Animated.spring(liquidAnim, {
@@ -97,7 +113,7 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({ onNavigate }) => {
     ]).start();
 
     // Pulse animation for middle item when active
-    if (targetIndex === 2) {
+    if (targetIndex === middleIndex) {
       Animated.loop(
         Animated.sequence([
           Animated.timing(middlePulseAnim, {
@@ -115,17 +131,17 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({ onNavigate }) => {
     } else {
       middlePulseAnim.setValue(1);
     }
-  }, [activeIndex, liquidAnim, middlePulseAnim, waveAnim]);
+  }, [activeIndex, liquidAnim, middleIndex, middlePulseAnim, waveAnim]);
 
   const waveTranslateX = waveAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [-ITEM_WIDTH, ITEM_WIDTH * 2],
+    outputRange: [-itemWidth, itemWidth * 2],
   });
 
-  const scaleMap = [0, 1, 2, 3, 4].map((i) =>
+  const scaleMap = navItems.map((_, i) =>
     liquidAnim.interpolate({
       inputRange: [i - 0.6, i, i + 0.6],
-      outputRange: [1, i === 2 ? 1.4 : 1.2, 1],
+      outputRange: [1, hasElevatedMiddleItem && i === middleIndex ? 1.4 : 1.2, 1],
       extrapolate: 'clamp',
     })
   );
@@ -137,7 +153,14 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({ onNavigate }) => {
         colors={theme.background}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
-        style={[styles.container, { borderTopColor: theme.borderColor }]}
+        style={[
+          styles.container,
+          {
+            borderTopColor: theme.borderColor,
+            height: 70 + Math.max(insets.bottom, Platform.OS === 'ios' ? 12 : 8),
+            paddingBottom: Math.max(insets.bottom, Platform.OS === 'ios' ? 12 : 8),
+          },
+        ]}
       >
         {/* Frosted overlay effect */}
         <View style={[
@@ -154,9 +177,9 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({ onNavigate }) => {
             },
           ]}
         >
-          <Svg height="70" width={ITEM_WIDTH * 3}>
+          <Svg height="70" width={itemWidth * 3}>
             <Path
-              d={`M0,35 Q${ITEM_WIDTH * 0.75},20 ${ITEM_WIDTH * 1.5},35 T${ITEM_WIDTH * 3},35`}
+              d={`M0,35 Q${itemWidth * 0.75},20 ${itemWidth * 1.5},35 T${itemWidth * 3},35`}
               stroke={theme.liquidColor[0]}
               strokeWidth="2"
               fill="none"
@@ -168,7 +191,7 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({ onNavigate }) => {
         {/* Navigation items */}
         {navItems.map((item, index) => {
           const isActive = checkIsActive(item.link as string);
-          const isMiddle = index === 2;
+          const isMiddle = hasElevatedMiddleItem && index === middleIndex;
 
           if (isMiddle) {
             return (
@@ -241,7 +264,7 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({ onNavigate }) => {
                   color={isActive ? theme.activeTint : theme.inactiveTint}
                 />
               </Animated.View>
-              {isActive && index !== 2 && (
+              {isActive && (!hasElevatedMiddleItem || index !== middleIndex) && (
                 <View style={[styles.activeDot, { backgroundColor: theme.activeTint }]} />
               )}
             </TouchableOpacity>
@@ -278,9 +301,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
-    height: 70,
     borderTopWidth: 1,
-    paddingBottom: Platform.OS === 'ios' ? 20 : 0,
     overflow: 'visible',
     width: '100%',
     position: 'relative',
@@ -292,7 +313,7 @@ const styles = StyleSheet.create({
   waveContainer: {
     position: 'absolute',
     height: 70,
-    width: ITEM_WIDTH * 3,
+    width: SCREEN_WIDTH,
     left: 0,
     top: 0,
     zIndex: 1,

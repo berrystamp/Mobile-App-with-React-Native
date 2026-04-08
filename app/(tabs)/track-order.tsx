@@ -1,9 +1,19 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
-import { ActivityIndicator, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useAppTheme } from '@/lib/theme/appTheme';
 import ApiService from '@/services/apiClient';
 
 type TrackingStage = {
@@ -28,25 +38,25 @@ function mapOrder(order: any): TrackingOrder {
     : Array.isArray(order?.events)
       ? order.events
       : [];
+  const status = String(order?.status || '').toUpperCase();
 
   const fallbackStages: TrackingStage[] = [
-    { title: 'Item pickup via dispatcher rider from customer', at: order?.createdAt || order?.orderDate || '', done: true },
-    { title: "Item delivered by dispatcher rider to printer's office", at: order?.updatedAt || order?.processingAt || '', done: true },
-    { title: 'Printer indicated job completion of item', at: order?.completedAt || '', done: order?.status === 'COMPLETED' },
-    { title: 'Order on its way to customer', at: order?.deliveryStartedAt || '', done: order?.status === 'SHIPPED' || order?.status === 'DELIVERED' },
+    { title: 'Item pickup via dispatcher rider from customer', at: String(order?.createdAt || order?.orderDate || ''), done: true },
+    { title: "Item delivered by dispatcher rider to printer's office", at: String(order?.updatedAt || order?.processingAt || ''), done: true },
+    { title: 'Printer indicated job completion of item', at: String(order?.completedAt || ''), done: ['COMPLETED', 'DELIVERED'].includes(status) },
+    { title: 'Order on its way to customer', at: String(order?.deliveryStartedAt || ''), done: ['SHIPPED', 'DELIVERED'].includes(status) },
   ];
 
-  const stages =
-    events.length > 0
-      ? events.map((item: any) => ({
-          title: String(item.description || item.title || item.status || 'Order update'),
-          at: String(item.createdAt || item.time || item.timestamp || ''),
-          done: item.done === undefined ? true : Boolean(item.done),
-        }))
-      : fallbackStages;
+  const stages = events.length
+    ? events.map((item: any) => ({
+        title: String(item.description || item.title || item.status || 'Order update'),
+        at: String(item.createdAt || item.time || item.timestamp || ''),
+        done: item.done === undefined ? true : Boolean(item.done),
+      }))
+    : fallbackStages;
 
-  const first = stages[0]?.at;
-  const last = stages[stages.length - 1]?.at;
+  const first = stages[0]?.at || '';
+  const last = stages[stages.length - 1]?.at || '';
 
   return {
     title: String(order?.designName || order?.title || order?.itemName || 'Order tracking'),
@@ -75,6 +85,8 @@ function formatDateTime(value?: string) {
 
 export default function TrackOrderScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const theme = useAppTheme();
   const [trackingNumber, setTrackingNumber] = useState('');
   const [loading, setLoading] = useState(false);
   const [order, setOrder] = useState<TrackingOrder | null>(null);
@@ -82,6 +94,9 @@ export default function TrackOrderScreen() {
   const [mapVisible, setMapVisible] = useState(false);
 
   const canSubmit = trackingNumber.trim().length > 0;
+  const completedStages = order?.stages.filter((stage) => stage.done).length || 0;
+  const totalStages = order?.stages.length || 1;
+  const progressWidth = `${Math.max(completedStages / totalStages, 0.08) * 100}%`;
 
   const mapCoordinates = useMemo(() => {
     if (!order?.latitude || !order?.longitude) return 'Location not available yet';
@@ -97,95 +112,113 @@ export default function TrackOrderScreen() {
       const response = await ApiService.findOrderByTrackingNumber(trackingNumber);
       setOrder(response ? mapOrder(response) : null);
       setMapVisible(false);
+    } catch (error: any) {
+      setOrder(null);
+      Alert.alert('Unable to track order', error?.response?.data?.responseMessage || error?.message || 'Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-[#FBFBFD]">
-      <View className="px-5 pt-10 pb-2 flex-row items-center justify-between">
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="#2B2833" />
+    <View style={[styles.screen, { backgroundColor: theme.background, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+      <View style={[styles.header, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
+        <TouchableOpacity onPress={() => router.back()} style={[styles.iconButton, { backgroundColor: theme.surfaceMuted }]}>
+          <Ionicons name="arrow-back" size={22} color={theme.text} />
         </TouchableOpacity>
-        <Text className="text-[22px] font-medium text-[#2B2833]">Track Order</Text>
-        <Text className="text-[19px] font-medium text-[#2D71E3]">{order ? '1 order' : '0 order'}</Text>
+        <Text style={[styles.headerTitle, { color: theme.text }]}>Track Order</Text>
+        <Text style={[styles.headerCount, { color: theme.primary }]}>{order ? '1 order' : '0 order'}</Text>
       </View>
 
       {!searched || (!order && !loading) ? (
-        <View className="flex-1 px-6 pt-10">
-          <Text className="text-center text-[34px] font-medium leading-[44px] text-[#2E2B36]">
-            Input order tracking Number to track the progress of your order
-          </Text>
-          <Text className="mt-3 text-center text-[18px] leading-8 text-[#8A8594]">
-            Order tracking number is a unique key sent to your mail immediately an order is placed
+        <View style={styles.searchWrap}>
+          <Text style={[styles.heroTitle, { color: theme.text }]}>Input order tracking number to track your order</Text>
+          <Text style={[styles.heroText, { color: theme.textMuted }]}>
+            Your tracking number is a unique key sent to your email immediately after an order is placed.
           </Text>
 
           <TextInput
-            value={trackingNumber}
-            onChangeText={setTrackingNumber}
-            placeholder="Tracking Number"
-            placeholderTextColor="#B2AEBA"
-            className="mt-8 h-[58px] rounded-[10px] border border-[#DCD8E6] px-4 text-[19px] text-[#2B2833]"
             autoCapitalize="characters"
             autoCorrect={false}
+            onChangeText={setTrackingNumber}
+            placeholder="e.g. TRK-12345678"
+            placeholderTextColor={theme.textMuted}
+            style={[styles.input, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text }]}
+            value={trackingNumber}
           />
 
           {!order && searched ? (
-            <View className="mt-16 items-center px-6">
-              <Ionicons name="alert-circle-outline" size={88} color="#BDBCC4" />
-              <Text className="mt-5 text-[36px] font-medium text-[#2B2833]">Order not found</Text>
-              <Text className="mt-4 text-center text-[19px] leading-8 text-[#8C8798]">
-                There is no order registered with this number, check the number and try again or contact customer support
+            <View style={styles.emptyState}>
+              <View style={[styles.emptyIconWrap, { backgroundColor: theme.surfaceMuted }]}>
+                <Ionicons name="alert-circle" size={52} color="#EF4444" />
+              </View>
+              <Text style={[styles.emptyTitle, { color: theme.text }]}>Order not found</Text>
+              <Text style={[styles.emptyText, { color: theme.textMuted }]}>
+                We couldn&apos;t find an order with this number. Please check the number and try again.
               </Text>
             </View>
           ) : null}
 
-          <View className="mt-auto pb-8">
+          <View style={styles.footerButtonWrap}>
             <TouchableOpacity
+              activeOpacity={0.85}
               disabled={!canSubmit || loading}
               onPress={handleTrack}
-              className={`h-[56px] items-center justify-center rounded-full ${!canSubmit || loading ? 'bg-[#44309D]/40' : 'bg-[#44309D]'}`}>
-              {loading ? <ActivityIndicator color="#FFFFFF" /> : <Text className="text-[24px] font-semibold text-white">Track Order</Text>}
+              style={[
+                styles.primaryButton,
+                { backgroundColor: !canSubmit || loading ? theme.border : theme.primary },
+              ]}>
+              {loading ? <ActivityIndicator color={theme.onPrimary} /> : <Text style={[styles.primaryButtonText, { color: theme.onPrimary }]}>Track Order</Text>}
             </TouchableOpacity>
           </View>
         </View>
       ) : (
-        <View className="flex-1">
-          <View className="items-center pt-4 pb-4 px-6">
-            <Text className="text-center text-[24px] font-medium text-[#2A2734]">{order?.title}</Text>
-            <Text className="mt-2 text-[20px] text-[#94909F]">{order?.orderRef}</Text>
+        <View style={styles.resultsWrap}>
+          <View style={[styles.orderCard, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
+            <Text style={[styles.orderTitle, { color: theme.text }]}>{order?.title}</Text>
+            <Text style={[styles.orderRef, { color: theme.textMuted }]}>#{order?.orderRef}</Text>
           </View>
 
-          <View className="px-6 pb-5">
-            <View className="flex-row items-center justify-between">
-              <Text className="text-[14px] font-medium text-[#44309D]">{formatDate(order?.timelineStart)}</Text>
-              <Text className="text-[14px] text-[#A8A3B3]">{formatDate(order?.timelineEnd)}</Text>
+          <View style={[styles.progressCard, { backgroundColor: theme.surface }]}>
+            <View style={styles.progressLabelRow}>
+              <Text style={[styles.progressStart, { color: theme.primary }]}>{formatDate(order?.timelineStart)}</Text>
+              <Text style={[styles.progressEnd, { color: theme.textMuted }]}>{formatDate(order?.timelineEnd)}</Text>
             </View>
-            <View className="mt-2 h-1 rounded-full bg-[#E7E2F4]">
-              <View className="h-1 w-2/3 rounded-full bg-[#44309D]" />
+            <View style={[styles.progressTrack, { backgroundColor: theme.border }]}>
+              <View style={[styles.progressFill, { backgroundColor: theme.primary, width: progressWidth }]} />
             </View>
           </View>
 
           {mapVisible ? (
-            <View className="mx-6 mt-1 mb-4 flex-1 rounded-2xl bg-[#EFEAF9] items-center justify-center px-5">
-              <Ionicons name="locate" size={44} color="#44309D" />
-              <Text className="mt-4 text-center text-[18px] text-[#514C62]">Live courier location preview</Text>
-              <Text className="mt-2 text-center text-[14px] text-[#7F7A8D]">{mapCoordinates}</Text>
+            <View style={[styles.mapCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+              <View style={[styles.mapIconWrap, { backgroundColor: theme.surfaceMuted }]}>
+                <Ionicons name="location" size={34} color={theme.primary} />
+              </View>
+              <Text style={[styles.mapTitle, { color: theme.text }]}>Live courier location</Text>
+              <Text style={[styles.mapCoords, { color: theme.textMuted }]}>{mapCoordinates}</Text>
             </View>
           ) : (
-            <ScrollView className="flex-1 px-6" contentContainerStyle={{ paddingBottom: 20 }}>
+            <ScrollView contentContainerStyle={styles.timelineContent} style={styles.timelineScroll} showsVerticalScrollIndicator={false}>
               {order?.stages.map((stage, index) => {
                 const isLast = index === order.stages.length - 1;
                 return (
-                  <View key={`${stage.title}-${index}`} className="flex-row">
-                    <View className="mr-4 items-center">
-                      <View className={`h-4 w-4 rounded-full border ${stage.done ? 'border-[#44309D] bg-[#44309D]' : 'border-[#D7D2E3] bg-white'}`} />
-                      {!isLast ? <View className={`w-[2px] flex-1 ${stage.done ? 'bg-[#44309D]' : 'bg-[#E2DFEA]'}`} /> : null}
+                  <View key={`${stage.title}-${index}`} style={styles.timelineRow}>
+                    <View style={styles.timelineRail}>
+                      <View
+                        style={[
+                          styles.timelineDot,
+                          {
+                            backgroundColor: stage.done ? theme.primary : theme.surface,
+                            borderColor: stage.done ? theme.primary : theme.border,
+                          },
+                        ]}>
+                        {stage.done ? <Ionicons name="checkmark" size={11} color={theme.onPrimary} /> : null}
+                      </View>
+                      {!isLast ? <View style={[styles.timelineLine, { backgroundColor: stage.done ? theme.primary : theme.border }]} /> : null}
                     </View>
-                    <View className="pb-8 flex-1">
-                      <Text className="text-[14px] text-[#8F8B99]">{formatDateTime(stage.at)}</Text>
-                      <Text className={`mt-1 text-[20px] leading-8 ${stage.done ? 'text-[#2D2938]' : 'text-[#B8B4C1]'}`}>{stage.title}</Text>
+                    <View style={styles.timelineTextWrap}>
+                      <Text style={[styles.timelineDate, { color: theme.textMuted }]}>{formatDateTime(stage.at)}</Text>
+                      <Text style={[styles.timelineTitle, { color: stage.done ? theme.text : theme.textMuted }]}>{stage.title}</Text>
                     </View>
                   </View>
                 );
@@ -193,13 +226,232 @@ export default function TrackOrderScreen() {
             </ScrollView>
           )}
 
-          <View className="px-6 pb-6 pt-2">
-            <TouchableOpacity onPress={() => setMapVisible((prev) => !prev)} className="h-[56px] items-center justify-center rounded-full bg-[#44309D]">
-              <Text className="text-[24px] font-semibold text-white">{mapVisible ? 'Back to track' : 'View on Map'}</Text>
+          <View style={[styles.bottomAction, { backgroundColor: theme.background }]}>
+            <TouchableOpacity activeOpacity={0.85} onPress={() => setMapVisible((prev) => !prev)} style={[styles.primaryButton, { backgroundColor: theme.primary }]}>
+              <Text style={[styles.primaryButtonText, { color: theme.onPrimary }]}>{mapVisible ? 'Back to timeline' : 'View on Map'}</Text>
             </TouchableOpacity>
           </View>
         </View>
       )}
-    </SafeAreaView>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+  },
+  header: {
+    alignItems: 'center',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+  },
+  iconButton: {
+    alignItems: 'center',
+    borderRadius: 20,
+    height: 40,
+    justifyContent: 'center',
+    width: 40,
+  },
+  headerTitle: {
+    flex: 1,
+    fontSize: 20,
+    fontWeight: '700',
+    marginHorizontal: 12,
+  },
+  headerCount: {
+    fontSize: 16,
+    fontWeight: '700',
+    minWidth: 64,
+    textAlign: 'right',
+  },
+  searchWrap: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 28,
+  },
+  heroTitle: {
+    fontSize: 30,
+    fontWeight: '800',
+    lineHeight: 38,
+    textAlign: 'center',
+  },
+  heroText: {
+    fontSize: 15,
+    lineHeight: 23,
+    marginTop: 14,
+    textAlign: 'center',
+  },
+  input: {
+    borderRadius: 18,
+    borderWidth: 1,
+    fontSize: 17,
+    marginTop: 28,
+    minHeight: 56,
+    paddingHorizontal: 16,
+  },
+  emptyState: {
+    alignItems: 'center',
+    marginTop: 56,
+    paddingHorizontal: 16,
+  },
+  emptyIconWrap: {
+    alignItems: 'center',
+    borderRadius: 48,
+    height: 96,
+    justifyContent: 'center',
+    marginBottom: 18,
+    width: 96,
+  },
+  emptyTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+  },
+  emptyText: {
+    fontSize: 15,
+    lineHeight: 23,
+    marginTop: 10,
+    textAlign: 'center',
+  },
+  footerButtonWrap: {
+    marginTop: 'auto',
+    paddingBottom: 8,
+    paddingTop: 16,
+  },
+  primaryButton: {
+    alignItems: 'center',
+    borderRadius: 16,
+    justifyContent: 'center',
+    minHeight: 56,
+    paddingHorizontal: 18,
+  },
+  primaryButtonText: {
+    fontSize: 17,
+    fontWeight: '700',
+  },
+  resultsWrap: {
+    flex: 1,
+  },
+  orderCard: {
+    alignItems: 'center',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 24,
+    paddingVertical: 22,
+  },
+  orderTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  orderRef: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginTop: 8,
+  },
+  progressCard: {
+    marginTop: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 20,
+  },
+  progressLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  progressStart: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  progressEnd: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  progressTrack: {
+    borderRadius: 999,
+    height: 8,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    borderRadius: 999,
+    height: '100%',
+  },
+  mapCard: {
+    alignItems: 'center',
+    borderRadius: 24,
+    borderWidth: 1,
+    flex: 1,
+    justifyContent: 'center',
+    margin: 20,
+    paddingHorizontal: 24,
+  },
+  mapIconWrap: {
+    alignItems: 'center',
+    borderRadius: 40,
+    height: 80,
+    justifyContent: 'center',
+    marginBottom: 18,
+    width: 80,
+  },
+  mapTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  mapCoords: {
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: 'center',
+  },
+  timelineScroll: {
+    flex: 1,
+  },
+  timelineContent: {
+    paddingBottom: 28,
+    paddingHorizontal: 24,
+    paddingTop: 24,
+  },
+  timelineRow: {
+    flexDirection: 'row',
+  },
+  timelineRail: {
+    alignItems: 'center',
+    marginRight: 18,
+  },
+  timelineDot: {
+    alignItems: 'center',
+    borderRadius: 10,
+    borderWidth: 1.5,
+    height: 20,
+    justifyContent: 'center',
+    width: 20,
+    zIndex: 1,
+  },
+  timelineLine: {
+    flex: 1,
+    marginVertical: 4,
+    width: 2,
+  },
+  timelineTextWrap: {
+    flex: 1,
+    paddingBottom: 28,
+    paddingTop: 1,
+  },
+  timelineDate: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 6,
+  },
+  timelineTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    lineHeight: 24,
+  },
+  bottomAction: {
+    paddingHorizontal: 20,
+    paddingTop: 10,
+  },
+});

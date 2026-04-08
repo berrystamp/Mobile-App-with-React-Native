@@ -2,97 +2,35 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AxiosRequestConfig } from 'axios';
 import api from './api';
 import { extractFaqFromHtml, type FaqItem } from '@/lib/faq';
+import { useAuthStore } from '@/store/authStore';
 
-type ProfileType = 'CUSTOMER' | 'DESIGNER' | 'PRINTER';
-const ACTIVE_PROFILE_TYPE_KEY = 'activeProfileType';
+type ProfileTypeInterface = 'CUSTOMER' | 'DESIGNER' | 'PRINTER';
+
+// Safe non-reactive read for Zustand store outside of React components
+const getProfileType = () => {
+  const state = useAuthStore.getState();
+  return state.role?.toUpperCase() || 'CUSTOMER';
+};
 
 class ApiService {
-  private async persistUser(user: Record<string, unknown>, activeProfileType?: ProfileType) {
-    const resolvedProfileType = (activeProfileType || user.profileType) as ProfileType | undefined;
-    const nextUser = resolvedProfileType ? { ...user, profileType: resolvedProfileType } : user;
-    await AsyncStorage.setItem('userData', JSON.stringify(nextUser));
-    if (resolvedProfileType) {
-      await AsyncStorage.setItem(ACTIVE_PROFILE_TYPE_KEY, resolvedProfileType);
-    }
-    return nextUser;
-  }
-
-  private sanitizeProfileImage(value: unknown) {
-    if (typeof value !== 'string') return '';
-    const trimmed = value.trim();
-    if (!trimmed || ['string', 'null', 'undefined'].includes(trimmed)) return '';
-    return trimmed;
-  }
-
-  private async getActiveProfileType(): Promise<ProfileType> {
-    const currentUser = await this.getCurrentUser();
-    const storedProfileType = await AsyncStorage.getItem(ACTIVE_PROFILE_TYPE_KEY);
-    return (currentUser?.profileType as ProfileType) || (storedProfileType as ProfileType) || 'CUSTOMER';
-  }
-
-  private buildUserUpdatePayload(
-    currentUser: any,
-    payload: Record<string, unknown>,
-    options?: { includeProfilePicture?: boolean },
-  ) {
-    const fullName =
-      payload.name ||
-      currentUser?.name ||
-      currentUser?.customerProfile?.name ||
-      currentUser?.designerProfile?.name ||
-      currentUser?.printerProfile?.name ||
-      [currentUser?.firstName, currentUser?.lastName].filter(Boolean).join(' ').trim() ||
-      currentUser?.username ||
-      currentUser?.customerProfile?.userName ||
-      currentUser?.designerProfile?.userName ||
-      currentUser?.printerProfile?.userName ||
-      'User';
-
-    const includeProfilePicture = options?.includeProfilePicture ?? true;
-    const currentProfilePicture = this.sanitizeProfileImage(
-      currentUser?.profilePicture ||
-        currentUser?.profilePicturePath ||
-        currentUser?.profileImage?.url ||
-        currentUser?.profileImage ||
-        currentUser?.customerProfile?.profilePic ||
-        currentUser?.designerProfile?.profilePic ||
-        currentUser?.printerProfile?.profilePic,
-    );
-
-    return {
-      name: fullName,
-      phoneNumber: currentUser?.phoneNumber || '',
-      areaCode: currentUser?.areaCode || '',
-      gender: currentUser?.gender || 'FEMALE',
-      profileType: (payload.profileType as ProfileType) || currentUser?.profileType || 'CUSTOMER',
-      address: currentUser?.address || '',
-      city: currentUser?.city || '',
-      state: currentUser?.state || '',
-      postalCode: currentUser?.postalCode || '',
-      longitude: currentUser?.longitude || 0,
-      latitude: currentUser?.latitude || 0,
-      ...(includeProfilePicture ? { profilePicture: currentProfilePicture } : {}),
-      ...payload,
-    };
-  }
-
   // --- Auth Methods ---
   async login(email: string, password: string, profileType: string = 'CUSTOMER') {
     const payload = { 
-      email: email.trim(), 
+      email: email.trim(),
       password, 
       rememberMe: true 
     };
 
     const response = await api.post('/auth/login', payload, {
-      headers: { profileType }
+      headers: { profileType: profileType.toUpperCase() }
     });
 
     const result = response.data;
 
     if (result.requestSuccessful && result.responseBody?.token) {
       await AsyncStorage.setItem('userToken', result.responseBody.token);
-      await this.persistUser(result.responseBody.user, profileType as ProfileType);
+      await AsyncStorage.setItem('userData', JSON.stringify(result.responseBody.user));
+      await AsyncStorage.setItem('profileType', profileType.toUpperCase());
     }
     
     return result;
@@ -101,8 +39,9 @@ class ApiService {
   async logout() {
     await AsyncStorage.removeItem('userToken');
     await AsyncStorage.removeItem('userData');
-    await AsyncStorage.removeItem(ACTIVE_PROFILE_TYPE_KEY);
+    await AsyncStorage.removeItem('profileType');
   }
+
   async getUserProfile(profileId: string | number) {
     const response = await api.get(`/berry/profiles/${profileId}`);
     return response.data;
@@ -132,61 +71,67 @@ class ApiService {
   }
 
   // --- Data Fetching Methods ---
-  // Notice the params object now perfectly matches the Spring Boot Pageable expectation
   
   async getTopArtists(size: number = 10, page: number = 0) {
+    const profileType = getProfileType();
     const response = await api.get('/designs', {
       params: { page, size, sort: 'id,desc' }, 
       headers: {
-        'profileType': 'CUSTOMER' 
+        profileType 
       }
     });
     return response.data;
   }
+
   async toggleFavorite(designId: string) {
+    const profileType = getProfileType();
     const response = await api.patch(`/designs/${designId}/likes`, {}, {
       headers: {
-        profileType: 'CUSTOMER',
+        profileType
       },
     });
     return response.data;
   }
 
   async getTrendingDesigns(size: number = 10, page: number = 0) {
+    const profileType = getProfileType();
     const response = await api.get('/designs', {
       params: { page, size, sort: 'id,desc' },
       headers: {
-        'profileType': 'CUSTOMER' 
-      }
+        profileType
+      },
     });
     return response.data;
   }
 
   async getRecommendedDesigns(size: number = 10, page: number = 0) {
+    const profileType = getProfileType();
     const response = await api.get('/designs', {
       params: { page, size, sort: 'id,desc' },
       headers: {
-        'profileType': 'CUSTOMER' 
+        profileType
       }
     });
     return response.data;
   }
 
   async getRecentDesigns(size: number = 10, page: number = 0) {
+    const profileType = getProfileType();
     const response = await api.get('/designs', {
       params: { page, size, sort: 'id,desc' },
       headers: {
-        profileType: 'CUSTOMER',
+        profileType
       },
     });
     return response.data;
   }
 
   async getFeaturedDesigns(size: number = 10, page: number = 0) {
+    const profileType = getProfileType();
     const response = await api.get('/designs', {
       params: { page, size, sort: 'id,desc' },
       headers: {
-        profileType: 'CUSTOMER',
+        profileType
       },
     });
     return response.data;
@@ -198,114 +143,146 @@ class ApiService {
   }
 
   async syncCurrentUserFromBackend() {
-    const activeProfileType = await this.getActiveProfileType();
-    const headers = { profileType: activeProfileType };
-    const response = await api.get('/user', { headers });
+    const response = await api.get('/user');
     const body = response.data?.responseBody || response.data;
-    if (body) {
-      await this.persistUser(body, activeProfileType);
-    }
+    const profileType = getProfileType();
+
     return {
       ...response.data,
       responseBody: {
         ...(body || {}),
-        profileType: body?.profileType || activeProfileType,
+        profileType,
       },
     };
   }
 
   async getMyProfile() {
-    const activeProfileType = await this.getActiveProfileType();
-    const headers = { profileType: activeProfileType };
-
-      try {
-        const response = await  api.get('/user', { headers });
-        const body = response.data?.responseBody || response.data;
-        if (body) {
-          await this.persistUser(body, activeProfileType);
-        }
-        return {
-          ...response.data,
-          responseBody: {
-            ...(body || {}),
-            profileType: body?.profileType || activeProfileType,
-          },
-        };
-      } catch (error: any) {
-        if (error?.response?.status && error.response.status !== 404) {
-          throw error;
-        }
-      }
-
-    const user = await this.getCurrentUser();
-    return { responseBody: { ...(user || {}), profileType: user?.profileType || activeProfileType } };
-  }
-
-  async updateMyProfile(payload: Record<string, unknown>) {
-    const activeProfileType = await this.getActiveProfileType();
-    const headers = { profileType: activeProfileType };
-    const currentUser = (await this.getCurrentUser()) || {};
-    const requestPayload = this.buildUserUpdatePayload(currentUser, payload);
-
-      try {
-        const response = await api.put('/user', requestPayload, { headers });
-        const body = response.data?.responseBody || response.data;
-        if (body) {
-          await this.persistUser(body, (requestPayload.profileType as ProfileType) || activeProfileType);
-        }
-        return response.data;
-      } catch (error: any) {
-        if (error?.response?.status && error.response.status !== 404) {
-          throw error;
-        }
-      }
-    
-
-    const nextUser = { ...(currentUser || {}), ...requestPayload };
-    await this.persistUser(nextUser, (requestPayload.profileType as ProfileType) || activeProfileType);
-    return { requestSuccessful: true, responseBody: nextUser };
-  }
-
-  async setActiveProfileType(profileType: ProfileType) {
-    const headers = { profileType: await this.getActiveProfileType() };
-    const localUser = (await this.getCurrentUser()) || {};
-    const hydratedProfile = await this.getMyProfile().catch(() => null);
-    const hydratedBody = hydratedProfile?.responseBody || hydratedProfile || {};
-    const currentUser = { ...localUser, ...hydratedBody };
-    const requestPayload = this.buildUserUpdatePayload(currentUser, { profileType }, { includeProfilePicture: false });
-
     try {
-      const response = await api.put('/user', requestPayload, { headers });
+      const response = await api.get('/user');
       const body = response.data?.responseBody || response.data;
-      if (body) {
-        await this.persistUser(body, profileType);
-      }
-      return response.data;
+      const profileType = getProfileType();
+
+      return {
+        ...response.data,
+        responseBody: {
+          ...(body || {}),
+          profileType,
+        },
+      };
     } catch (error: any) {
       if (error?.response?.status && error.response.status !== 404) {
         throw error;
       }
     }
 
-    const synced = await this.syncCurrentUserFromBackend().catch(() => null);
-    const nextUser = { ...(currentUser || {}), ...requestPayload };
-    await this.persistUser(nextUser, profileType);
-    return synced || { requestSuccessful: true, responseBody: nextUser };
+    const user = await this.getCurrentUser();
+    return { responseBody: { ...(user || {}), profileType: user?.profileType } };
   }
 
-  async uploadProfileImage(imageUri: string) {
-    const fileName = imageUri.split('/').pop() || `profile-${Date.now()}.jpg`;
+  async updateMyProfile(payload: Record<string, unknown>) {
+    const profileType = getProfileType();
+    console.log(profileType)
+    console.log(payload)
+    try {
+      const response = await api.put('/profile', payload, {
+        headers: {
+          profileType
+        },
+      });
+      return response.data;
+    } catch (error: any) {
+      if (error?.response?.status && error.response.status !== 404) {
+        throw error;
+      }
+    }
+  }
+
+  async getManageOrders(options?: {
+    profileType?: ProfileTypeInterface;
+    page?: number;
+    size?: number;
+    search?: string;
+    status?: string;
+  }) {
+    const profileType = getProfileType();
+    const params: Record<string, unknown> = {
+      page: options?.page ?? 0,
+      size: options?.size ?? 50,
+      sort: 'id,desc',
+    };
+
+    const normalizedSearch = options?.search?.trim();
+    const normalizedStatus = options?.status?.trim();
+    if (normalizedSearch) {
+      params.search = normalizedSearch;
+      params.query = normalizedSearch;
+      params.searchField = normalizedSearch;
+    }
+    if (normalizedStatus) {
+      params.status = normalizedStatus.toUpperCase();
+    }
+
+    const headers = { profileType };
+    const candidates = [
+      () => api.get('/orders', { params, headers }),
+      () => api.get('/orders/manage', { params, headers }),
+      () => api.get('/manage-orders', { params, headers }),
+      () => api.get('/berry/orders', { params, headers }),
+    ];
+
+    for (const request of candidates) {
+      try {
+        const response = await request();
+        return response.data;
+      } catch (error: any) {
+        if (error?.response?.status && error.response.status !== 404) {
+          throw error;
+        }
+      }
+    }
+
+    return { responseBody: { content: [] } };
+  }
+
+  async getManageOrderById(orderId: string | number, profileType?: ProfileTypeInterface) {
+    const activeProfileType = profileType;
+    const headers = { profileType: activeProfileType };
+    const candidates = [
+      () => api.get(`/orders/${orderId}`, { headers }),
+      () => api.get(`/orders/details/${orderId}`, { headers }),
+      () => api.get(`/manage-orders/${orderId}`, { headers }),
+      () => api.get(`/berry/orders/${orderId}`, { headers }),
+    ];
+
+    for (const request of candidates) {
+      try {
+        const response = await request();
+        return response.data;
+      } catch (error: any) {
+        if (error?.response?.status && error.response.status !== 404) {
+          throw error;
+        }
+      }
+    }
+
+    return { responseBody: null };
+  }
+
+  async uploadSingleFile(fileUri: string, fieldName: string = 'file') {
+    const fileName = fileUri.split('/').pop() || `upload-${Date.now()}.jpg`;
     const fileExtension = fileName.split('.').pop()?.toLowerCase();
     const mimeType =
       fileExtension === 'png'
         ? 'image/png'
         : fileExtension === 'webp'
           ? 'image/webp'
-          : 'image/jpeg';
+          : fileExtension === 'gif'
+            ? 'image/gif'
+            : 'image/jpeg';
 
     const formData = new FormData();
-    formData.append('file', {
-      uri: imageUri,
+    formData.append(fieldName, {
+      uri: fileUri,
       name: fileName,
       type: mimeType,
     } as any);
@@ -313,14 +290,49 @@ class ApiService {
     const response = await api.post('/files/single', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
-        profileType: await this.getActiveProfileType(),
       },
     });
 
-    const body = response.data?.responseBody || response.data || {};
+    return response.data?.responseBody || response.data || {};
+  }
+
+  async uploadMultipleFiles(fileUris: string[], fieldName: string = 'files') {
+    const formData = new FormData();
+
+    fileUris.forEach((fileUri, index) => {
+      const fileName = fileUri.split('/').pop() || `upload-${Date.now()}-${index}.jpg`;
+      const fileExtension = fileName.split('.').pop()?.toLowerCase();
+      const mimeType =
+        fileExtension === 'png'
+          ? 'image/png'
+          : fileExtension === 'webp'
+            ? 'image/webp'
+            : fileExtension === 'gif'
+              ? 'image/gif'
+              : 'image/jpeg';
+
+      formData.append(fieldName, {
+        uri: fileUri,
+        name: fileName,
+        type: mimeType,
+      } as any);
+    });
+
+    const response = await api.post('/files/multi', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+
+    return response.data?.responseBody || response.data || [];
+  }
+
+  async uploadProfileImage(imageUri: string) {
+    const body = await this.uploadSingleFile(imageUri);
     return (
-      body.url ||
       body.path ||
+      body.originalFilePath ||
+      body.url ||
       body.originalUrl ||
       body.previewUrl ||
       body.thumbnailUrl ||
@@ -330,11 +342,9 @@ class ApiService {
 
   async updateProfileImage(imageUri: string) {
     const uploadedImage = await this.uploadProfileImage(imageUri);
-    const imageString = this.sanitizeProfileImage(
-      typeof uploadedImage === 'string' ? uploadedImage : uploadedImage?.url || uploadedImage?.path || '',
-    );
+    const imageString = String(uploadedImage || '').trim();
     return this.updateMyProfile({
-      profilePicture: imageString,
+      profilePic: imageString,
     });
   }
 
@@ -361,7 +371,6 @@ class ApiService {
   }
 
   async getInterestOptions() {
-    const headers = { profileType: await this.getActiveProfileType() };
     const taxonomy = await this.getDesignTaxonomy();
     const source = taxonomy?.responseBody || taxonomy || {};
 
@@ -390,7 +399,6 @@ class ApiService {
 
     const fallbackResponse = await api.get('/designs', {
       params: { page: 0, size: 100, sort: 'id,desc' },
-      headers,
     });
     const designs = fallbackResponse.data?.responseBody?.content || fallbackResponse.data?.content || [];
     const inferred = designs
@@ -402,39 +410,51 @@ class ApiService {
   }
 
   async getMyInterests() {
+    try {
+      const response = await api.get('/user/design-interest');
+      const body = response.data?.responseBody || response.data || {};
+      const interests = body.interests || body.categories || body.content || [];
+      if (Array.isArray(interests)) {
+        return interests.map((item: any) => String(item).trim()).filter(Boolean);
+      }
+    } catch (error: any) {
+      if (error?.response?.status && error.response.status !== 404) {
+        throw error;
+      }
+    }
+
     const profileResponse = await this.getMyProfile();
     const body = profileResponse?.responseBody || profileResponse || {};
-    const activeProfileType = (body?.profileType || (await this.getActiveProfileType())) as ProfileType;
-
+    const profileType = getProfileType();
+    
     const profileByType =
-      activeProfileType === 'DESIGNER'
+      profileType === 'DESIGNER'
         ? body.designerProfile
-        : activeProfileType === 'PRINTER'
+        : profileType === 'PRINTER'
           ? body.printerProfile
           : body.customerProfile;
-
+          
     const interests = profileByType?.categories || body.categories || body.interests || [];
     return Array.isArray(interests) ? interests.map((item: any) => String(item).trim()).filter(Boolean) : [];
   }
 
   async updateMyInterests(interests: string[]) {
     const cleanedInterests = Array.from(new Set(interests.map((item) => item.trim()).filter(Boolean)));
-    const payload = { categories: cleanedInterests, interests: cleanedInterests };
-    return this.updateMyProfile(payload);
+    const response = await api.put('/user/design-interest', { interests: cleanedInterests });
+    return response.data;
   }
 
   async findOrderByTrackingNumber(trackingNumber: string) {
     const normalizedTrackingNumber = trackingNumber.trim();
     if (!normalizedTrackingNumber) return null;
 
-    const headers = { profileType: await this.getActiveProfileType() };
     const encodedTrackingNumber = encodeURIComponent(normalizedTrackingNumber);
     const candidates = [
-      () => api.get(`/orders/tracking/${encodedTrackingNumber}`, { headers }),
-      () => api.get(`/orders/track/${encodedTrackingNumber}`, { headers }),
-      () => api.get('/orders', { params: { trackingNumber: normalizedTrackingNumber, page: 0, size: 1, sort: 'id,desc' }, headers }),
-      () => api.get('/orders', { params: { searchField: normalizedTrackingNumber, page: 0, size: 10, sort: 'id,desc' }, headers }),
-      () => api.get('/orders', { params: { page: 0, size: 50, sort: 'id,desc' }, headers }),
+      () => api.get(`/orders/tracking/${encodedTrackingNumber}`),
+      () => api.get(`/orders/track/${encodedTrackingNumber}`),
+      () => api.get('/orders', { params: { trackingNumber: normalizedTrackingNumber, page: 0, size: 1, sort: 'id,desc' } }),
+      () => api.get('/orders', { params: { searchField: normalizedTrackingNumber, page: 0, size: 10, sort: 'id,desc' } }),
+      () => api.get('/orders', { params: { page: 0, size: 50, sort: 'id,desc' } }),
     ];
 
     for (const request of candidates) {
@@ -470,11 +490,11 @@ class ApiService {
   }
 
   async getPaymentDetails() {
-    const headers = { profileType: await this.getActiveProfileType() };
     const candidates = [
-      () => api.get('/payments/details', { headers }),
-      () => api.get('/payment-details', { headers }),
-      () => api.get('/berry/profiles/payment-details', { headers }),
+      () => api.get('/user/payment-detail'),
+      () => api.get('/payments/details'),
+      () => api.get('/payment-details'),
+      () => api.get('/berry/profiles/payment-details'),
     ];
 
     for (const request of candidates) {
@@ -492,11 +512,11 @@ class ApiService {
   }
 
   async savePaymentDetails(payload: Record<string, unknown>) {
-    const headers = { profileType: await this.getActiveProfileType() };
     const candidates = [
-      () => api.post('/payments/details', payload, { headers }),
-      () => api.post('/payment-details', payload, { headers }),
-      () => api.put('/berry/profiles/payment-details', payload, { headers }),
+      () => api.put('/user/payment-detail', payload),
+      () => api.post('/payments/details', payload),
+      () => api.post('/payment-details', payload),
+      () => api.put('/berry/profiles/payment-details', payload),
     ];
 
     for (const request of candidates) {
@@ -575,7 +595,6 @@ class ApiService {
     return this.addToCart(designId, mockId, payload);
   }
 
-
    async searchDesigns(filters: string | object) {
     const params =
       typeof filters === 'string'
@@ -591,8 +610,6 @@ class ApiService {
     return response.data;
   }
 
-
-
   async getFavoriteDesigns(size: number = 50, page: number = 0) {
     const headers = { profileType: 'CUSTOMER' };
 
@@ -606,7 +623,6 @@ class ApiService {
         }
       }
   
-
     return { responseBody: { content: [] } };
   }
 
@@ -741,7 +757,6 @@ class ApiService {
     return { requestSuccessful: true };
   }
 
-
   async getCustomDesigns(page: number = 0, size: number = 20) {
     const headers = { profileType: 'CUSTOMER' };
 
@@ -859,26 +874,22 @@ class ApiService {
   }
 
   async getWallet() {
-    const response = await api.get('/wallets', {
-      headers: { profileType: await this.getActiveProfileType() },
-    });
+    const response = await api.get('/wallets');
     return response.data;
   }
 
   async getWalletHistory(page: number = 0, size: number = 20) {
     const response = await api.get('/wallets/histories', {
-      params: { page, size, sort: 'id,desc' },
-      headers: { profileType: await this.getActiveProfileType() },
+      params: { page, size, sort: 'id,desc' }
     });
     return response.data;
   }
 
   async getFaqItems(): Promise<FaqItem[]> {
-    const headers = { profileType: await this.getActiveProfileType() };
     const endpointCandidates = [
-      () => api.get('/faqs', { headers }),
-      () => api.get('/faq', { headers }),
-      () => api.get('/contents/faqs', { headers }),
+      () => api.get('/faqs'),
+      () => api.get('/faq'),
+      () => api.get('/contents/faqs'),
     ];
 
     for (const request of endpointCandidates) {
@@ -913,12 +924,11 @@ class ApiService {
   }
 
   async getReferralSummary() {
-    const headers = { profileType: await this.getActiveProfileType() };
     const candidates = [
-      () => api.get('/referrals/summary', { headers }),
-      () => api.get('/referrals', { headers }),
-      () => api.get('/referral/summary', { headers }),
-      () => api.get('/referral', { headers }),
+      () => api.get('/referrals/summary'),
+      () => api.get('/referrals'),
+      () => api.get('/referral/summary'),
+      () => api.get('/referral'),
     ];
 
     for (const request of candidates) {
@@ -934,11 +944,10 @@ class ApiService {
   }
 
   async getReferralHistory(page: number = 0, size: number = 20) {
-    const headers = { profileType: await this.getActiveProfileType() };
     const candidates = [
-      () => api.get('/referrals/histories', { params: { page, size, sort: 'id,desc' }, headers }),
-      () => api.get('/referrals/history', { params: { page, size, sort: 'id,desc' }, headers }),
-      () => api.get('/referrals', { params: { page, size, sort: 'id,desc' }, headers }),
+      () => api.get('/referrals/histories', { params: { page, size, sort: 'id,desc' } }),
+      () => api.get('/referrals/history', { params: { page, size, sort: 'id,desc' } }),
+      () => api.get('/referrals', { params: { page, size, sort: 'id,desc' } }),
     ];
 
     for (const request of candidates) {
@@ -954,11 +963,10 @@ class ApiService {
   }
 
   async redeemReferralReward(payload: { amount?: number; mode: 'WALLET' | 'CASH'; bankName?: string; accountNumber?: string }) {
-    const headers = { profileType: await this.getActiveProfileType() };
     const candidates = [
-      () => api.post('/referrals/redeem', payload, { headers }),
-      () => api.post('/referral/redeem', payload, { headers }),
-      () => api.post('/wallets/referrals/redeem', payload, { headers }),
+      () => api.post('/referrals/redeem', payload),
+      () => api.post('/referral/redeem', payload),
+      () => api.post('/wallets/referrals/redeem', payload),
     ];
 
     for (const request of candidates) {

@@ -15,7 +15,7 @@ export const appTheme = {
     overlay: 'rgba(0, 0, 0, 0.45)',
   },
   dark: {
-    background: '#4B3A99',
+    background: '#121212',
     surface: '#2E255E',
     surfaceMuted: '#251E4B',
     iconBg: '#2E255E',

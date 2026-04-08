@@ -24,6 +24,7 @@ import { addRecentDesign, getRecentDesignIds } from '@/lib/localStorage';
 import { upsertLocalConversation } from '@/lib/localConversations';
 import { getPrintPreferences, savePrintPreferences } from '@/lib/printPreferences';
 import ApiService from '@/services/apiClient';
+import { isCustomerRole, useAuthStore } from '@/store/authStore';
 import type { Design } from '@/types';
 
 type CartItemType = {
@@ -47,6 +48,7 @@ export default function CartScreen() {
   const { openPrintPrefs } = useLocalSearchParams<{ openPrintPrefs?: string }>();
   const isDark = useColorScheme() === 'dark';
   const { height: screenHeight } = useWindowDimensions();
+  const role = useAuthStore((state) => state.role);
 
   const [isLoading, setIsLoading] = useState(true);
   const [cartItems, setCartItems] = useState<CartItemType[]>([]);
@@ -62,6 +64,11 @@ export default function CartScreen() {
   const [showDatePicker, setShowDatePicker] = useState(false);
 
   useEffect(() => {
+    if (!isCustomerRole(role)) {
+      router.replace('/manage-order');
+      return;
+    }
+
     const fetchCartData = async () => {
       setIsLoading(true);
       try {
@@ -130,7 +137,7 @@ export default function CartScreen() {
     };
 
     fetchCartData();
-  }, []);
+  }, [role, router]);
 
   useEffect(() => {
     if (!isLoading && openPrintPrefs === '1' && cartItems.length > 0) {
