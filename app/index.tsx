@@ -1,45 +1,56 @@
-import { LinearGradient } from "expo-linear-gradient";
-import React, { useEffect } from "react";
-import { useRouter } from "expo-router";
-import {
-    Image,
-    StatusBar,
-    StyleSheet,
-    useColorScheme,
-    View,
-} from "react-native";
+import { useAuthStore } from '@/store/authStore';
+import { useRouter } from 'expo-router';
+import * as NativeSplashScreen from 'expo-splash-screen';
+import { LinearGradient } from 'expo-linear-gradient';
+import React, { useEffect } from 'react';
+import { Image, StatusBar, StyleSheet, useColorScheme, View } from 'react-native';
 
-const SplashScreen = () => {
-	const router = useRouter();
+NativeSplashScreen.preventAutoHideAsync();
+
+export default function SplashScreen() {
+  const router = useRouter();
   const colorScheme = useColorScheme();
-  const isDark = colorScheme === "dark";
+  const isDark = colorScheme === 'dark';
+  const { isHydrated, isLoggedIn, role, hasSelectedInterests } = useAuthStore();
 
-useEffect(() => {
+  useEffect(() => {
+    if (!isHydrated) return;
 
     const timer = setTimeout(async () => {
+      if (!isLoggedIn) {
+        router.replace('/(auth)/choose-account');
+      } else if (role === 'customer' && !hasSelectedInterests) {
+        router.replace('/(auth)/interests');
+      } else if (role === 'customer') {
+        router.replace('/(tabs)');
+      } else if (role === 'designer') {
+        router.replace('/(tabs)');
+      } else if (role === 'printer') {
+        router.replace('/(tabs)');
+      } else {
+        router.replace('/(auth)/choose-account');
+      }
 
-        router.replace("/(auth)/choose-account");
-      
-    }, 2500);
-return () => {
-      clearTimeout(timer);
-    };
-  },);
+      await NativeSplashScreen.hideAsync();
+    }, 1200);
+
+    return () => clearTimeout(timer);
+  }, [hasSelectedInterests, isHydrated, isLoggedIn, role, router]);
 
   return (
     <View style={styles.container}>
       <StatusBar
-        barStyle={isDark ? "light-content" : "dark-content"}
-        backgroundColor={isDark ? "#3E2F8A" : "#FfffFF"}
+        barStyle={isDark ? 'light-content' : 'dark-content'}
+        backgroundColor={isDark ? '#3E2F8A' : '#FFFFFF'}
       />
 
       <LinearGradient
         colors={
           isDark
-            ? ["#3E2F8A", "#3E2F8A", "rgba(0, 0, 0, 0.06)"]
-            : ["#FFFFFF", "#FFFFFF", "rgba(0, 0, 0, 0.06)"]
+            ? ['#3E2F8A', '#3E2F8A', 'rgba(0, 0, 0, 0.06)']
+            : ['#FFFFFF', '#FFFFFF', 'rgba(0, 0, 0, 0.06)']
         }
-        locations={[0, 0.5, 1]} // makes that sharp-ish transition
+        locations={[0, 0.5, 1]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={StyleSheet.absoluteFill}
@@ -48,26 +59,24 @@ return () => {
       <Image
         source={
           isDark
-            ? require("../assets/splash-dark.png")
-            : require("../assets/splash-light.png")
+            ? require('../assets/splash-dark.png')
+            : require('../assets/splash-light.png')
         }
         style={styles.image}
         resizeMode="contain"
       />
     </View>
   );
-};
-
-export default SplashScreen;
+}
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   image: {
-    width: "65%",
-    height: "65%",
+    width: '65%',
+    height: '65%',
   },
 });

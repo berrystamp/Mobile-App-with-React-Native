@@ -5,7 +5,6 @@ import {
   ActivityIndicator,
   Alert,
   Image,
-  Modal,
   ScrollView,
   Switch,
   Text,
@@ -13,9 +12,9 @@ import {
   View,
 } from 'react-native';
 
-import { useAuth } from '@/context/AuthContext';
 import { mergeUserAndProfile, normalizeProfileResponse } from '@/lib/profile';
 import ApiService from '@/services/apiClient';
+import { useAuthStore } from '@/store/authStore';
 import type { TProfileType, User } from '@/types';
 
 const defaultAvatar = 'https://images.unsplash.com/photo-1472099645785-5658abf4e?w=400';
@@ -34,12 +33,11 @@ const profileLabels: Record<TProfileType, string> = {
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { refreshUser } = useAuth();
+  const { setAccountType } = useAuthStore();
   const tabBarHeight = 40;
   const [switchAccount, setSwitchAccount] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showSwitchSheet, setShowSwitchSheet] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -61,15 +59,6 @@ export default function ProfileScreen() {
   }, []);
 
   const profile = useMemo(() => mergeUserAndProfile(user, {}), [user]);
-
-  const availableAccounts = useMemo<TProfileType[]>(() => {
-    if (!user) return ['CUSTOMER'] as TProfileType[];
-    const accounts: TProfileType[] = [];
-    if (user.customerProfile || user.roles?.includes('ROLE_CUSTOMER') || user.profileType === 'CUSTOMER') accounts.push('CUSTOMER');
-    if (user.printerProfile || user.roles?.includes('ROLE_PRINTER')) accounts.push('PRINTER');
-    if (user.designerProfile || user.roles?.includes('ROLE_DESIGNER')) accounts.push('DESIGNER');
-    return accounts.length ? accounts : ['CUSTOMER'];
-  }, [user]);
 
   const activeRole = (user?.profileType || 'CUSTOMER') as TProfileType;
   const accountItems = useMemo(() => {
@@ -107,20 +96,10 @@ export default function ProfileScreen() {
     ];
   }, [activeRole, router]);
 
-  const handleSelectRole = async (nextType: TProfileType) => {
-    try {
-      await ApiService.setActiveProfileType(nextType);
-      const refreshed = await ApiService.getMyProfile();
-      const normalized = normalizeProfileResponse(refreshed);
-      const latest = (await ApiService.getCurrentUser()) as User | null;
-      const merged = { ...(latest || {}), ...normalized, profileType: nextType } as User;
-      await refreshUser();
-      setSwitchAccount(nextType !== 'CUSTOMER');
-      setUser(merged);
-      setShowSwitchSheet(false);
-    } catch (error: any) {
-      Alert.alert('Unable to switch account', error?.response?.data?.responseMessage || error?.message || 'Please try again.');
-    }
+  const handleChangeAccountType = () => {
+    const current = (activeRole || 'CUSTOMER').toLowerCase() as 'customer' | 'designer' | 'printer';
+    setAccountType(current);
+    router.push('/(auth)/choose-account');
   };
 
   if (loading) {
@@ -180,10 +159,10 @@ export default function ProfileScreen() {
 
         <View className="px-4 pt-3">
           <View className="mb-5 flex-row items-center justify-between rounded-2xl bg-white px-4 py-3 shadow-sm dark:bg-[#1E1E1E]">
-            <Text className="text-sm font-medium text-[#2B2833] dark:text-white">Switch Account</Text>
+            <Text className="text-sm font-medium text-[#2B2833] dark:text-white">Change account type</Text>
             <Switch
               value={switchAccount}
-              onValueChange={() => setShowSwitchSheet(true)}
+              onValueChange={handleChangeAccountType}
               thumbColor="#FFFFFF"
               trackColor={{ false: '#D8D8D8', true: '#C7C1E8' }}
             />
@@ -201,24 +180,6 @@ export default function ProfileScreen() {
         </View>
       </ScrollView>
 
-      <Modal transparent visible={showSwitchSheet} animationType="fade" onRequestClose={() => setShowSwitchSheet(false)}>
-        <View className="flex-1 justify-end bg-black/25">
-          <TouchableOpacity className="flex-1" activeOpacity={1} onPress={() => setShowSwitchSheet(false)} />
-          <View className="rounded-t-[28px] bg-white px-6 pb-8 pt-4 dark:bg-[#1E1E1E]">
-            <View className="mb-5 h-1.5 w-16 self-center rounded-full bg-[#DDD7F0] dark:bg-[#404040]" />
-            {availableAccounts.map((account: TProfileType) => (
-              <TouchableOpacity
-                key={account}
-                onPress={() => handleSelectRole(account)}
-                className="border-b border-gray-100 py-4 dark:border-gray-800">
-                <Text className={`text-base ${activeRole === account ? 'font-semibold text-[#4732A1]' : 'text-[#2B2833] dark:text-white'}`}>
-                  {account === 'CUSTOMER' ? 'Customers' : account === 'PRINTER' ? 'Printer' : 'Designer'}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
