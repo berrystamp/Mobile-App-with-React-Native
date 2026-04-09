@@ -801,6 +801,120 @@ class ApiService {
     return { responseBody: { content: [] } };
   }
 
+  async getMyCollections(page: number = 0, size: number = 20) {
+    const headers = { profileType: getProfileType() };
+
+    const candidates = [
+      () => api.get('/collections/mine', { params: { page, size, sort: 'id,desc' }, headers }),
+      () => api.get('/collections', { params: { page, size, sort: 'id,desc', mine: true }, headers }),
+      () => api.get('/public/collections', { params: { page, size, sort: 'id,desc' } }),
+    ];
+
+    for (const request of candidates) {
+      try {
+        const response = await request();
+        return response.data;
+      } catch (error: any) {
+        if (error?.response?.status && ![400, 404].includes(error.response.status)) {
+          throw error;
+        }
+      }
+    }
+
+    return { responseBody: { content: [] } };
+  }
+
+  async getShopReviews(profileId?: string | number, page: number = 0, size: number = 20) {
+    const headers = { profileType: getProfileType() };
+
+    const candidates = [
+      () => (profileId ? api.get(`/public/reviews/profile/${profileId}`, { params: { page, size, sort: 'id,desc' } }) : Promise.reject({ response: { status: 404 } })),
+      () => (profileId ? api.get(`/reviews/profile/${profileId}`, { params: { page, size, sort: 'id,desc' }, headers }) : Promise.reject({ response: { status: 404 } })),
+      () => api.get('/reviews', { params: { page, size, sort: 'id,desc' }, headers }),
+    ];
+
+    for (const request of candidates) {
+      try {
+        const response = await request();
+        return response.data;
+      } catch (error: any) {
+        if (error?.response?.status && ![400, 404].includes(error.response.status)) {
+          throw error;
+        }
+      }
+    }
+
+    return { responseBody: { content: [] } };
+  }
+
+  async getFollowers(profileId?: string | number, page: number = 0, size: number = 50) {
+    const headers = { profileType: getProfileType() };
+
+    const candidates = [
+      () => (profileId ? api.get(`/public/follows/follower/${profileId}`, { params: { page, size, sort: 'id,desc' } }) : Promise.reject({ response: { status: 404 } })),
+      () => api.get('/berry/profiles/follower', { params: { page, size, sort: 'id,desc' }, headers }),
+      () => api.get('/profiles/follower', { params: { page, size, sort: 'id,desc' }, headers }),
+    ];
+
+    for (const request of candidates) {
+      try {
+        const response = await request();
+        return response.data;
+      } catch (error: any) {
+        if (error?.response?.status && ![400, 404].includes(error.response.status)) {
+          throw error;
+        }
+      }
+    }
+
+    return { responseBody: { content: [] } };
+  }
+
+  async getFollowing(profileId?: string | number, page: number = 0, size: number = 50) {
+    const headers = { profileType: getProfileType() };
+
+    const candidates = [
+      () => (profileId ? api.get(`/public/follows/following/${profileId}`, { params: { page, size, sort: 'id,desc' } }) : Promise.reject({ response: { status: 404 } })),
+      () => api.get('/berry/profiles/following', { params: { page, size, sort: 'id,desc' }, headers }),
+      () => api.get('/profiles/following', { params: { page, size, sort: 'id,desc' }, headers }),
+    ];
+
+    for (const request of candidates) {
+      try {
+        const response = await request();
+        return response.data;
+      } catch (error: any) {
+        if (error?.response?.status && ![400, 404].includes(error.response.status)) {
+          throw error;
+        }
+      }
+    }
+
+    return { responseBody: { content: [] } };
+  }
+
+  async unfollowProfile(profileId: string | number) {
+    const payload = { profileId: Number(profileId) };
+    const candidates = [
+      () => api.delete('/follow/remove', { data: payload }),
+      () => api.post('/follow/remove', payload),
+      () => api.delete(`/follow/${profileId}`),
+    ];
+
+    for (const request of candidates) {
+      try {
+        const response = await request();
+        return response.data;
+      } catch (error: any) {
+        if (error?.response?.status && ![400, 404].includes(error.response.status)) {
+          throw error;
+        }
+      }
+    }
+
+    return { requestSuccessful: false };
+  }
+
   async deleteCustomDesign(designId: string | number) {
     const headers = { profileType: 'CUSTOMER' };
 
