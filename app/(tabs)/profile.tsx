@@ -108,10 +108,10 @@ export default function ProfileScreen() {
 
   const otherItems = useMemo(() => {
     return [
-      { icon: 'settings-outline' as const, label: 'Settings and privacy', onPress: () => {} },
-      { icon: 'document-text-outline' as const, label: 'Terms and Condition', onPress: () => {} },
-      { icon: 'flag-outline' as const, label: activeRole === 'DESIGNER' ? 'Make suggestion/Report' : 'Report a problem', onPress: () => {} },
-      { icon: 'help-circle-outline' as const, label: 'FAQ', onPress: () => router.push('/faq') },
+      { icon: 'settings-outline' as const, label: 'Settings and privacy', onPress: () => router.push('https://berrystamp.com/privacy-policy') },
+      { icon: 'document-text-outline' as const, label: 'Terms and Condition', onPress: () => router.push('https://berrystamp.com/terms-of-service') },
+      { icon: 'flag-outline' as const, label: activeRole === 'DESIGNER' ? 'Make suggestion/Report' : 'Report a problem', onPress: () => router.push('mailto:support@berrystamp.com') },
+      { icon: 'help-circle-outline' as const, label: 'FAQ', onPress: () => router.push('https://berrystamp.com/faqs') },
     ];
   }, [activeRole, router]);
 
