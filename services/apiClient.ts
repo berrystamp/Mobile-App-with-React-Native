@@ -409,6 +409,26 @@ class ApiService {
     return Array.from(new Set(inferred));
   }
 
+  async getPaymentDetails() {
+    return await this.get('/user/payment-details');
+  }
+
+  async savePaymentDetails(payload: {
+    bankName: string;
+    bankCode: string;
+    accountNumber: string;
+    accountName: string;
+  }) {
+    return await this.put('/user/payment-details', payload);
+  }
+
+  async verifyBankAccount(payload: {
+    accountNumber: string;
+    bankCode: string;
+  }) {
+    return await this.post('/banks/verify', payload);
+  }
+
   async getMyInterests() {
     try {
       const response = await api.get('/user/design-interest');
