@@ -1,109 +1,111 @@
-import React from 'react';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useAppTheme } from '@/lib/theme/appTheme';
+import { useAuthStore, isCustomerRole } from '@/store/authStore';
+import { useRouter, usePathname } from 'expo-router';
+import React from 'react';
+import { Text, TouchableOpacity, View, useColorScheme } from 'react-native';
+import { Image } from 'expo-image';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-export interface HeaderProps {
-  type?: 'main' | 'search' | 'back';
-  title?: string;
+interface HeaderProps {
   onSearchPress?: () => void;
+  type?: string;
+  title?: string;
   onBackPress?: () => void;
   rightAction?: boolean;
   rightActionText?: string;
   onRightAction?: () => void;
 }
 
-export default function Header({
-  type = 'main',
-  title,
+const Header: React.FC<HeaderProps> = ({
   onSearchPress,
+  type,
+  title,
   onBackPress,
   rightAction,
   rightActionText,
   onRightAction,
-}: HeaderProps) {
+}) => {
+  const theme = useAppTheme();
   const router = useRouter();
-  const isDark = useColorScheme() === 'dark';
+  const pathname = usePathname();
+  const role = useAuthStore((state) => state.role);
+  const insets = useSafeAreaInsets();
+  
+  // Use React Native's built-in hook to detect the current system/app theme
+  const colorScheme = useColorScheme();
 
-  const theme = {
-    text: isDark ? '#FFFFFF' : '#111111',
-    border: isDark ? '#262626' : '#E5E7EB',
-    surface: isDark ? '#121212' : '#FFFFFF',
-    accent: '#4A3298',
-  };
+  const hiddenRoutes = ['/cart', '/printers', '/products', '/chat', '/select-printer', '/checkout'];
+  if (type !== 'back' && !isCustomerRole(role)) {
+    return null;
+  }
+  if (type !== 'back' && hiddenRoutes.includes(pathname)) {
+    return null;
+  }
+  // Dynamically set the logo based on the color scheme
+  const logoSource = colorScheme === 'dark' 
+    ? require('@/assets/splash-dark.png')
+    : require('@/assets/splash-light.png');
 
   if (type === 'back') {
     return (
-      <View style={[styles.backHeader, { borderBottomColor: theme.border, backgroundColor: theme.surface }]}>
-        <TouchableOpacity onPress={onBackPress ?? (() => router.back())} style={styles.iconButton}>
+      <View 
+        className="flex-row items-center justify-between pb-[14px] px-4 border-b bg-transparent"
+        style={{ borderBottomColor: theme.border, paddingTop: Math.max(insets.top, 16) + 10 }}
+      >
+        <TouchableOpacity 
+          className="w-10 h-10 rounded-full items-center justify-center" 
+          onPress={onBackPress || (() => router.back())}
+        >
           <Ionicons name="arrow-back" size={22} color={theme.text} />
         </TouchableOpacity>
-        <Text numberOfLines={1} style={[styles.backTitle, { color: theme.text }]}>
-          {title ?? ''}
+        
+        <Text 
+          className="flex-1 text-center text-lg font-bold mx-3" 
+          style={{ color: theme.text }} 
+          numberOfLines={1}
+        >
+          {title || ''}
         </Text>
-        {rightAction ? (
-          <TouchableOpacity onPress={onRightAction} style={styles.rightActionWrap}>
-            <Text style={[styles.rightActionText, { color: theme.accent }]}>{rightActionText ?? 'Action'}</Text>
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.rightActionWrap} />
-        )}
+        
+        <View className="min-w-[40px] items-end">
+          {rightAction ? (
+            <TouchableOpacity onPress={onRightAction}>
+              <Text 
+                className="text-[15px] font-semibold" 
+                style={{ color: theme.primary }}
+              >
+                {rightActionText || 'Action'}
+              </Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
       </View>
     );
   }
 
   return (
-    <View style={styles.mainHeader}>
-      <Text style={[styles.brandText, { color: theme.text }]}>{title ?? 'BerryStamp'}</Text>
-      <TouchableOpacity onPress={onSearchPress ?? (() => router.push('/(tabs)/Search'))} style={styles.iconButton}>
-        <Ionicons name="search-outline" size={22} color={theme.text} />
-      </TouchableOpacity>
+    <View className="flex-row justify-between items-center px-5 pb-6 bg-transparent" style={{ paddingTop: Math.max(insets.top, 16) + 12 }}> 
+      <View>
+        <Image 
+          source={logoSource} 
+    
+           style={{width: 140, height: 30}}
+          contentFit="contain" 
+        />
+      </View>
+
+      <View className="flex-row gap-3">
+        <TouchableOpacity
+          className="w-10 h-10 rounded-full justify-center items-center"
+
+          onPress={onSearchPress || (() => router.push('/(tabs)/Search'))}
+        >
+          <Ionicons name="search-outline" size={22} color={theme.text} />
+        </TouchableOpacity>
+      </View>
     </View>
   );
-}
+};
 
-const styles = StyleSheet.create({
-  mainHeader: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingBottom: 16,
-    paddingHorizontal: 20,
-    paddingTop: 16,
-  },
-  backHeader: {
-    alignItems: 'center',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingBottom: 14,
-    paddingHorizontal: 16,
-    paddingTop: 14,
-  },
-  brandText: {
-    fontSize: 22,
-    fontWeight: '700',
-  },
-  backTitle: {
-    flex: 1,
-    fontSize: 18,
-    fontWeight: '700',
-    marginHorizontal: 12,
-    textAlign: 'center',
-  },
-  iconButton: {
-    alignItems: 'center',
-    height: 40,
-    justifyContent: 'center',
-    width: 40,
-  },
-  rightActionWrap: {
-    alignItems: 'flex-end',
-    minWidth: 56,
-  },
-  rightActionText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-});
+export default Header;

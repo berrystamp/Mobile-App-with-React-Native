@@ -145,7 +145,7 @@ export default function ProductScreen() {
   }
 
   return (
-    <View className="flex-1 bg-[#F5F5F5] dark:bg-[#121212]">
+    <View className="flex-1  bg-[#F5F5F5] dark:bg-[#121212]">
       <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 180 }} showsVerticalScrollIndicator={false}>
         <View className="relative">
           <ImageBackground source={heroImage} className="h-[420px] w-full" resizeMode="cover">
@@ -176,7 +176,7 @@ export default function ProductScreen() {
           </ImageBackground>
         </View>
 
-        <View className="bg-[#F5F5F5] px-6 pt-6 dark:bg-[#121212]">
+        <View className="bg-[#F5F5F5] px-6 pt-6  dark:bg-[#121212]">
           <Text className="text-base text-[#363636] dark:text-white/90">
             From <Text className="text-[#2D71E3]">{design.categories?.[0] || 'Berrystamp Collections'}</Text>
           </Text>
@@ -204,7 +204,7 @@ export default function ProductScreen() {
           </TouchableOpacity>
         </View>
       
-      <View className="absolute bottom-[50] left-0 right-0 flex-row bg-[#F5F5F5] px-6 pb-8 pt-4 dark:bg-[#121212]">
+      <View style={{paddingBottom:100}} className="absolute bottom-[10] left-0 right-0 flex-row bg-[#F5F5F5] px-6 pt-4 dark:bg-[#121212]">
         <TouchableOpacity
           onPress={() => handleAddToCart(false)}
           className="mr-2 flex-1 items-center justify-center rounded-2xl border border-[#3B2D85] py-4">

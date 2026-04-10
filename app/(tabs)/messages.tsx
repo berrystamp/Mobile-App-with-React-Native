@@ -59,11 +59,12 @@ export default function MessagesScreen() {
 
   const openConversation = (conversation: ConversationSummaryDto) => {
     router.push({
-      pathname: '/(tabs)/chat',
+      pathname: '/chat',
       params: {
-        conversationId: conversation.id,
+        localConversationId: conversation.id,
         participantId: String(conversation.participantId || ''),
         participantName: conversation.name,
+        participantRole: 'Designer',
       },
     });
   };

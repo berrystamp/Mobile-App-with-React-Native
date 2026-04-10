@@ -3,27 +3,29 @@ import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
-  SafeAreaView,
   ScrollView,
-  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AvatarBadge } from '@/components/messages/AvatarBadge';
+import { useFileUpload } from '@/hooks/useFileUpload';
+import { ENV } from '@/lib/config/env';
+import { appendLocalConversationMessage, getLocalConversationById } from '@/lib/localConversations';
 import {
   normalizeConversationsResponse,
-  normalizeMessagesResponse,
   type ChatMessageDto,
   type ConversationSummaryDto,
 } from '@/lib/messages';
-import { appendLocalConversationMessage, getLocalConversationById } from '@/lib/localConversations';
 import ApiService from '@/services/apiClient';
 
 const OFFER_DETAILS = {
@@ -35,9 +37,69 @@ const OFFER_DETAILS = {
   logistics: 'Pickup logistics requested',
 };
 
+const IMAGE_FILE_PATTERN = /\.(png|jpe?g|gif|webp|bmp|heic|heif|svg)(\?.*)?$/i;
+
+const formatMessageTime = (value?: string | number | Date) => {
+  if (!value) return 'Now';
+
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Now';
+
+  return date.toLocaleTimeString([], {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+};
+
+const resolveImageUri = (value?: string) => {
+  const trimmed = String(value || '').trim();
+  if (!trimmed) return '';
+
+  if (
+    trimmed.startsWith('http://') ||
+    trimmed.startsWith('https://') ||
+    trimmed.startsWith('file://') ||
+    trimmed.startsWith('content://') ||
+    trimmed.startsWith('data:image/')
+  ) {
+    return trimmed;
+  }
+
+  const normalizedPath = trimmed.replace(/^\/+/, '');
+  return `${ENV.BASE_URL}/${normalizedPath}`;
+};
+
+const isImageContent = (text?: string) => {
+  const trimmed = String(text || '').trim();
+  if (!trimmed || /\s/.test(trimmed)) return false;
+
+  return (
+    trimmed.startsWith('http://') ||
+    trimmed.startsWith('https://') ||
+    trimmed.startsWith('file://') ||
+    trimmed.startsWith('content://') ||
+    trimmed.startsWith('data:image/') ||
+    IMAGE_FILE_PATTERN.test(trimmed)
+  );
+};
+
+const withImageMetadata = (message: ChatMessageDto & { imageUrl?: string }) => {
+  const imageCandidate = message.imageUrl || message.text;
+  const imageUrl = isImageContent(imageCandidate) ? resolveImageUri(imageCandidate) : undefined;
+
+  return {
+    ...message,
+    imageUrl,
+  };
+};
+
 export default function ChatScreen() {
   const router = useRouter();
   const scrollViewRef = useRef<ScrollView>(null);
+  const { uploadFile, uploading } = useFileUpload();
+  const insets = useSafeAreaInsets();
+  
   const { conversationId, participantId, participantName, printerId, localConversationId, participantRole } = useLocalSearchParams<{
     conversationId?: string;
     participantId?: string;
@@ -58,8 +120,9 @@ export default function ChatScreen() {
     updatedAtLabel: 'Now',
     participantId: participantId ? Number(participantId) : printerId ? Number(printerId) : undefined,
   });
+  
   const [isLoading, setIsLoading] = useState(true);
-  const [messages, setMessages] = useState<ChatMessageDto[]>([]);
+  const [messages, setMessages] = useState<(ChatMessageDto & { imageUrl?: string })[]>([]);
   const [draft, setDraft] = useState('');
   const [showConversationActions, setShowConversationActions] = useState(false);
   const [showOfferDetail, setShowOfferDetail] = useState(false);
@@ -86,7 +149,8 @@ export default function ChatScreen() {
                 type: 'text',
                 author: message.author,
                 text: message.text,
-                createdAtLabel: new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                imageUrl: isImageContent(message.text) ? resolveImageUri(message.text) : undefined,
+                createdAtLabel: formatMessageTime(message.createdAt),
                 status: message.status,
               })),
             );
@@ -103,7 +167,21 @@ export default function ChatScreen() {
             setConversation((current) => ({ ...current, ...selected }));
           }
 
-          setMessages(normalizeMessagesResponse(messagesRes, me?.id));
+          const content = messagesRes?.responseBody?.content || messagesRes?.content || messagesRes?.data || messagesRes || [];
+          const list = Array.isArray(content) ? content : [];
+
+          setMessages(
+            list.map((item: any, index: number) =>
+              withImageMetadata({
+                id: String(item.id || `${index}`),
+                type: 'text',
+                author: Number(item.senderId) === Number(me?.id) ? 'me' : 'other',
+                text: item.content || item.text || '',
+                createdAtLabel: formatMessageTime(item.createdAt),
+                status: item.read ? 'seen' : 'sent',
+              }),
+            ),
+          );
         }
       } catch (error) {
         console.error('Failed to load chat', error);
@@ -120,25 +198,19 @@ export default function ChatScreen() {
     const timer = setTimeout(() => {
       scrollViewRef.current?.scrollToEnd({ animated: false });
     }, 80);
-
     return () => clearTimeout(timer);
   }, [messages]);
 
   const handleSend = async () => {
     const trimmed = draft.trim();
-    if (!trimmed) {
-      return;
-    }
+    if (!trimmed) return;
 
-    const newMessage: ChatMessageDto = {
+    const newMessage = {
       id: `local-${Date.now()}`,
-      type: 'text',
+      type: 'text' as const,
       author: 'me',
       text: trimmed,
-      createdAtLabel: new Date().toLocaleTimeString([], {
-        hour: '2-digit',
-        minute: '2-digit',
-      }),
+      createdAtLabel: formatMessageTime(new Date()),
       status: 'sent',
     };
 
@@ -161,29 +233,74 @@ export default function ChatScreen() {
         });
       }
     } catch (error) {
-      console.warn('Message endpoint unavailable. Message queued locally.', error);
+      console.warn('Message endpoint unavailable', error);
     }
   };
 
-  const renderMessage = (message: ChatMessageDto) => {
+  const handlePickAndUploadImage = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.8,
+    });
+
+    if (!result.canceled) {
+      const uri = result.assets[0].uri;
+      try {
+        const uploaded = await uploadFile(uri);
+        
+        if (uploaded?.path) {
+          const newMessage = {
+            id: `img-${Date.now()}`,
+            type: 'text' as const,
+            author: 'me',
+            text: uploaded.path,
+            imageUrl: resolveImageUri(uploaded.path),
+            createdAtLabel: formatMessageTime(new Date()),
+            status: 'sent',
+          };
+
+          setMessages((current) => [...current, newMessage]);
+
+          if (localConversationId) {
+            await appendLocalConversationMessage(String(localConversationId), {
+              id: newMessage.id,
+              text: uploaded.path,
+              author: 'me',
+              createdAt: new Date().toISOString(),
+              status: 'sent',
+            });
+          } else {
+            await ApiService.sendMessage(String(conversation.id), {
+              content: uploaded.path,
+              receiverId: conversation.participantId,
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Image upload failed', error);
+      }
+    }
+  };
+
+  const renderMessage = (message: ChatMessageDto & { imageUrl?: string }) => {
     if (message.type === 'bundle' && message.bundle) {
       return (
-        <View key={message.id} style={[styles.messageRow, styles.myRow]}>
-          <View style={styles.bundleCard}>
-            <View style={styles.bundleGrid}>
+        <View key={message.id} className="w-full items-end my-1">
+          <View className="w-[78%] rounded-3xl border border-slate-200 dark:border-slate-700 overflow-hidden bg-white dark:bg-slate-800">
+            <View className="flex-row flex-wrap">
               {message.bundle.items.map((item) => (
-                <View key={item.id} style={styles.bundleTile}>
-                  <Image source={item.image} style={styles.bundleImage} contentFit="cover" />
-                  {item.overlayText ? (
-                    <View style={styles.bundleOverlay}>
-                      <Text style={styles.bundleOverlayText}>{item.overlayText}</Text>
+                <View key={item.id} className="w-1/2 aspect-square border-[0.5px] border-slate-100 dark:border-slate-700">
+                  <Image source={item.image} className="w-full h-full" contentFit="cover" />
+                  {item.overlayText && (
+                    <View className="absolute inset-0 bg-black/40 items-center justify-center">
+                      <Text className="text-white text-xl font-bold">{item.overlayText}</Text>
                     </View>
-                  ) : null}
+                  )}
                 </View>
               ))}
             </View>
-            <TouchableOpacity style={styles.bundleFooter} onPress={() => router.push('/(tabs)/products')}>
-              <Text style={styles.bundleFooterText}>{message.bundle.footerLabel}</Text>
+            <TouchableOpacity className="border-t border-slate-100 dark:border-slate-700 py-3 items-center" onPress={() => router.push('/(tabs)/products')}>
+              <Text className="text-indigo-600 dark:text-indigo-400 text-lg font-semibold">{message.bundle.footerLabel}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -192,17 +309,17 @@ export default function ChatScreen() {
 
     if (message.type === 'offer' && message.offer) {
       return (
-        <View key={message.id} style={[styles.messageRow, styles.otherRow]}>
-          <View style={styles.offerShell}>
-            <Text style={styles.offerCaption}>{message.offer.description}</Text>
-            <View style={styles.offerCard}>
-              <Image source={message.offer.image} style={styles.offerImage} contentFit="contain" />
-              <View style={styles.offerInfo}>
-                <Text style={styles.offerTitle}>{message.offer.title}</Text>
-                <Text style={styles.offerPrice}>{message.offer.priceLabel}</Text>
+        <View key={message.id} className="w-full items-start my-1">
+          <View className="w-[82%]">
+            <Text className="text-slate-500 dark:text-slate-400 text-sm mb-2">{message.offer.description}</Text>
+            <View className="w-[192px] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl overflow-hidden">
+              <Image source={message.offer.image} className="w-full h-[180px] bg-slate-50 dark:bg-slate-900" contentFit="contain" />
+              <View className="px-3 pt-3 pb-4 gap-1">
+                <Text className="text-[15px] text-slate-800 dark:text-slate-200 font-medium">{message.offer.title}</Text>
+                <Text className="text-[14px] text-blue-600 dark:text-blue-400 font-bold">{message.offer.priceLabel}</Text>
               </View>
-              <TouchableOpacity style={styles.offerButton} onPress={() => setShowOfferDetail(true)}>
-                <Text style={styles.offerButtonText}>{message.offer.ctaLabel}</Text>
+              <TouchableOpacity className="bg-indigo-600 dark:bg-indigo-700 py-3 items-center" onPress={() => setShowOfferDetail(true)}>
+                <Text className="text-white text-[15px] font-bold">{message.offer.ctaLabel}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -211,25 +328,25 @@ export default function ChatScreen() {
     }
 
     const isMe = message.author === 'me';
-
+    const displayUrl = message.imageUrl || (isImageContent(message.text) ? resolveImageUri(message.text) : '');
+    const isImage = Boolean(displayUrl);
+   
     return (
-      <View
-        key={message.id}
-        style={[styles.messageRow, isMe ? styles.myRow : styles.otherRow]}>
-        {!isMe ? (
-          <View style={styles.otherAvatarWrapper}>
-            <AvatarBadge
-              color={conversation.avatarColor}
-              emoji={conversation.avatarEmoji}
-              size={36}
-            />
+      <View key={message.id} className={`w-full my-1 flex-row ${isMe ? 'justify-end' : 'justify-start'}`}>
+        {!isMe && (
+          <View className="mr-2 self-end mb-1">
+            <AvatarBadge color={conversation.avatarColor} emoji={conversation.avatarEmoji} size={32} />
           </View>
-        ) : null}
-        <View style={[styles.textBubble, isMe ? styles.myBubble : styles.otherBubble]}>
-          <Text style={[styles.messageText, isMe ? styles.myMessageText : styles.otherMessageText]}>
-            {message.text}
-          </Text>
-          <Text style={[styles.messageMeta, isMe ? styles.myMeta : styles.otherMeta]}>
+        )}
+        <View className={`max-w-[78%] rounded-2xl px-4 py-3 ${isMe ? 'bg-indigo-600 dark:bg-indigo-700 rounded-br-sm' : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-bl-sm'}`}>
+          {isImage ? (
+             <Image source={{ uri: displayUrl.replace("https://berrystamp-backend-dev-4cn29.ondigitalocean.app","https://berry-stamp-prod.s3.amazonaws.com") }} className="w-[200px] h-[200px] rounded-lg" contentFit="cover" />
+          ) : (
+             <Text className={`text-[15px] leading-6 ${isMe ? 'text-white' : 'text-slate-800 dark:text-slate-100'}`}>
+               {message.text}
+             </Text>
+          )}
+          <Text className={`mt-2 text-[11px] ${isMe ? 'text-indigo-200 text-right' : 'text-slate-400 dark:text-slate-500'}`}>
             {isMe ? `${message.status === 'seen' ? 'Seen • ' : ''}${message.createdAtLabel}` : `${message.createdAtLabel}${message.status === 'seen' ? ' • Seen' : ''}`}
           </Text>
         </View>
@@ -238,500 +355,142 @@ export default function ChatScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <KeyboardAvoidingView
-        style={styles.safeArea}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={styles.container}>
-          <View style={styles.header}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.iconButton}>
-              <Ionicons name="arrow-back" size={24} color="#2C2733" />
+    <SafeAreaView edges={['left', 'right']} className="flex-1 bg-slate-50 dark:bg-slate-950">
+      <KeyboardAvoidingView 
+        className="flex-1" 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
+      >
+        <View className="flex-1">
+          {/* Header */}
+          <View
+            className="flex-row items-center justify-between px-4 pb-3 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
+            style={{ paddingTop: Math.max(insets.top, 12) + 4 }}
+          >
+            <TouchableOpacity onPress={() => router.back()} className="w-10 h-10 items-center justify-center">
+              <Ionicons name="arrow-back" size={24} className="text-slate-800 dark:text-slate-100" color="currentColor" />
             </TouchableOpacity>
-            <View style={styles.headerIdentity}>
-              <AvatarBadge
-                color={conversation.avatarColor}
-                emoji={conversation.avatarEmoji}
-                size={40}
-              />
+            <View className="flex-1 flex-row items-center gap-3 ml-2">
+              <AvatarBadge color={conversation.avatarColor} emoji={conversation.avatarEmoji} size={40} />
               <View>
-                <Text style={styles.headerName}>{conversation.name}</Text>
-                <Text style={styles.headerMeta}>2hrs ago</Text>
+                <Text className="text-[17px] font-bold text-slate-900 dark:text-slate-100">{conversation.name}</Text>
+                <Text className="text-[13px] text-slate-500 dark:text-slate-400 mt-0.5">Active</Text>
               </View>
             </View>
-            <TouchableOpacity
-              onPress={() => setShowConversationActions(true)}
-              style={styles.iconButton}>
-              <Ionicons name="ellipsis-vertical" size={20} color="#787381" />
+            <TouchableOpacity onPress={() => setShowConversationActions(true)} className="w-10 h-10 items-center justify-center">
+              <Ionicons name="ellipsis-vertical" size={20} className="text-slate-500 dark:text-slate-400" color="currentColor" />
             </TouchableOpacity>
           </View>
 
+          {/* Thread */}
           <ScrollView
             ref={scrollViewRef}
-            style={styles.thread}
-            contentContainerStyle={styles.threadContent}
+            className="flex-1"
+            contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 20, flexGrow: 1 }}
             showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled">
-            {isLoading ? <View style={styles.threadLoader}><Ionicons name="chatbox-ellipses-outline" size={28} color="#8A8298" /><Text style={styles.threadLoaderText}>Loading messages...</Text></View> : messages.map(renderMessage)}
+            keyboardShouldPersistTaps="handled"
+            onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: false })}>
+            {isLoading ? (
+              <View className="py-10 items-center justify-center gap-3">
+                <ActivityIndicator size="small" color="#4A3298" />
+                <Text className="text-slate-500 dark:text-slate-400 text-sm">Loading messages...</Text>
+              </View>
+            ) : (
+              messages.map( renderMessage)
+            )}
           </ScrollView>
 
-          <View style={styles.composerBar}>
-            <View style={styles.composerInputShell}>
-              <TouchableOpacity style={styles.composerIcon}>
-                <Feather name="smile" size={21} color="#8F8A9C" />
-              </TouchableOpacity>
+          {/* Composer */}
+          <View
+            className="flex-row items-end px-4 pt-3 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 gap-3"
+            style={{ paddingBottom: Math.max(insets.bottom, 12) }}
+          >
+            <View className="flex-1 flex-row items-end bg-slate-100 dark:bg-slate-800 rounded-3xl px-1 py-1 min-h-[50px] max-h-[120px]">
               <TextInput
                 value={draft}
                 onChangeText={setDraft}
-                placeholder="Send message"
-                placeholderTextColor="#9A94A7"
+                placeholder="Message..."
+                placeholderTextColor="#94a3b8"
                 multiline
-                style={styles.composerInput}
+                className="flex-1 px-4 pt-3 pb-3 text-[15px] text-slate-900 dark:text-slate-100 max-h-[100px]"
+                textAlignVertical="top"
               />
-              <TouchableOpacity style={styles.composerIcon}>
-                <Feather name="image" size={21} color="#8F8A9C" />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.composerIcon}>
-                <Feather name="paperclip" size={21} color="#8F8A9C" />
+              <TouchableOpacity onPress={handlePickAndUploadImage} disabled={uploading} className="w-10 h-[42px] items-center justify-center mr-1">
+                {uploading ? (
+                  <ActivityIndicator size="small" color="#64748b" />
+                ) : (
+                  <Feather name="image" size={20} className="text-slate-500 dark:text-slate-400" color="currentColor" />
+                )}
               </TouchableOpacity>
             </View>
+            
             <TouchableOpacity
-              style={[styles.sendButton, !draft.trim() && styles.sendButtonDisabled]}
               onPress={handleSend}
-              disabled={!draft.trim()}>
-              <Ionicons name="paper-plane-outline" size={20} color="#FFFFFF" />
+              disabled={!draft.trim()}
+              className={`w-[50px] h-[50px] rounded-full items-center justify-center ${draft.trim() ? 'bg-indigo-600 dark:bg-indigo-700' : 'bg-slate-300 dark:bg-slate-700'}`}>
+              <Ionicons name="paper-plane-outline" size={20} color="#FFFFFF" className="ml-1" />
             </TouchableOpacity>
           </View>
         </View>
 
-        <Modal
-          transparent
-          visible={showConversationActions}
-          animationType="slide"
-          onRequestClose={() => setShowConversationActions(false)}>
-          <Pressable
-            style={styles.overlay}
-            onPress={() => setShowConversationActions(false)}>
-            <Pressable style={styles.menuSheet} onPress={(event) => event.stopPropagation()}>
-              <View style={styles.sheetHandle} />
-              <TouchableOpacity style={styles.menuAction}>
-                <Ionicons name="trash-outline" size={22} color="#FF6B63" />
-                <Text style={styles.menuActionText}>Delete</Text>
+        {/* Action Modal */}
+        <Modal transparent visible={showConversationActions} animationType="slide" onRequestClose={() => setShowConversationActions(false)}>
+          <Pressable className="flex-1 bg-black/40 justify-end" onPress={() => setShowConversationActions(false)}>
+            <Pressable className="bg-white dark:bg-slate-900 rounded-t-3xl px-5 pt-3 pb-10" onPress={(e) => e.stopPropagation()}>
+              <View className="w-12 h-1.5 rounded-full bg-slate-300 dark:bg-slate-700 self-center mb-6" />
+              <TouchableOpacity className="flex-row items-center gap-4 py-4 px-2">
+                <Ionicons name="trash-outline" size={22} color="#ef4444" />
+                <Text className="text-lg text-slate-900 dark:text-slate-100">Delete Chat</Text>
               </TouchableOpacity>
-              <View style={styles.sheetDivider} />
-              <TouchableOpacity style={styles.menuAction}>
-                <Ionicons name="alert-circle-outline" size={22} color="#FF6B63" />
-                <Text style={styles.menuActionText}>Report</Text>
+              <View className="h-[1px] bg-slate-100 dark:bg-slate-800" />
+              <TouchableOpacity className="flex-row items-center gap-4 py-4 px-2">
+                <Ionicons name="alert-circle-outline" size={22} color="#ef4444" />
+                <Text className="text-lg text-slate-900 dark:text-slate-100">Report User</Text>
               </TouchableOpacity>
             </Pressable>
           </Pressable>
         </Modal>
 
-        <Modal
-          transparent
-          visible={showOfferDetail}
-          animationType="slide"
-          onRequestClose={() => setShowOfferDetail(false)}>
-          <Pressable style={styles.overlay} onPress={() => setShowOfferDetail(false)}>
-            <Pressable style={styles.detailSheet} onPress={(event) => event.stopPropagation()}>
-              <View style={styles.sheetHandle} />
-              <View style={styles.detailHeader}>
-                <Text style={styles.detailTitle}>Order Detail</Text>
-                <TouchableOpacity onPress={() => setShowOfferDetail(false)}>
-                  <Ionicons name="close" size={22} color="#2C2733" />
+        {/* Offer Detail Modal */}
+        <Modal transparent visible={showOfferDetail} animationType="slide" onRequestClose={() => setShowOfferDetail(false)}>
+          <Pressable className="flex-1 bg-black/40 justify-end" onPress={() => setShowOfferDetail(false)}>
+            <Pressable className="bg-white dark:bg-slate-900 rounded-t-3xl px-5 pt-3 pb-8" onPress={(e) => e.stopPropagation()}>
+              <View className="w-12 h-1.5 rounded-full bg-slate-300 dark:bg-slate-700 self-center mb-6" />
+              <View className="flex-row justify-between items-center mb-2">
+                <Text className="text-xl font-bold text-slate-900 dark:text-slate-100">Order Detail</Text>
+                <TouchableOpacity onPress={() => setShowOfferDetail(false)} className="p-1">
+                  <Ionicons name="close" size={24} className="text-slate-900 dark:text-slate-100" color="currentColor" />
                 </TouchableOpacity>
               </View>
-              <Text style={styles.detailLead}>
-                Review the custom offer and confirm the details before continuing.
-              </Text>
-              <View style={styles.detailBlock}>
-                <Text style={styles.detailLabel}>Order title</Text>
-                <Text style={styles.detailValue}>{OFFER_DETAILS.title}</Text>
+              <Text className="text-[15px] text-slate-500 dark:text-slate-400 mb-6 leading-6">Review the custom offer and confirm the details before continuing.</Text>
+              
+              <View className="mb-4">
+                <Text className="text-[14px] font-bold text-slate-900 dark:text-slate-100 mb-1">Order title</Text>
+                <Text className="text-[15px] text-slate-600 dark:text-slate-300">{OFFER_DETAILS.title}</Text>
               </View>
-              <View style={styles.detailBlock}>
-                <Text style={styles.detailLabel}>Agreed description</Text>
-                <Text style={styles.detailValue}>{OFFER_DETAILS.description}</Text>
+              <View className="mb-4">
+                <Text className="text-[14px] font-bold text-slate-900 dark:text-slate-100 mb-1">Agreed description</Text>
+                <Text className="text-[15px] text-slate-600 dark:text-slate-300 leading-6">{OFFER_DETAILS.description}</Text>
               </View>
-              <View style={styles.detailBlock}>
-                <Text style={styles.detailLabel}>Agreed amount</Text>
-                <Text style={styles.detailStrong}>{OFFER_DETAILS.amount}</Text>
+              <View className="mb-4">
+                <Text className="text-[14px] font-bold text-slate-900 dark:text-slate-100 mb-1">Agreed amount</Text>
+                <Text className="text-[16px] font-bold text-blue-600 dark:text-blue-400">{OFFER_DETAILS.amount}</Text>
               </View>
-              <View style={styles.detailBlock}>
-                <Text style={styles.detailLabel}>Selected item source</Text>
-                <Text style={styles.detailValue}>{OFFER_DETAILS.source}</Text>
-              </View>
-              <View style={styles.detailBlock}>
-                <Text style={styles.detailLabel}>Need pickup logistics</Text>
-                <Text style={styles.detailValue}>{OFFER_DETAILS.logistics}</Text>
-              </View>
-              <TouchableOpacity
-                style={styles.primaryButton}
-                onPress={() => {
+              
+              <TouchableOpacity className="bg-indigo-600 dark:bg-indigo-700 rounded-full py-4 items-center mt-6" onPress={() => {
                   setShowOfferDetail(false);
                   router.push('/(tabs)/checkout');
-                }}>
-                <Text style={styles.primaryButtonText}>Accept offer</Text>
+              }}>
+                <Text className="text-white text-lg font-bold">Accept offer</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.secondaryButton} onPress={() => setShowOfferDetail(false)}>
-                <Text style={styles.secondaryButtonText}>Not now</Text>
+              <TouchableOpacity className="rounded-full py-4 items-center border border-slate-200 dark:border-slate-700 mt-3" onPress={() => setShowOfferDetail(false)}>
+                <Text className="text-slate-600 dark:text-slate-300 text-lg font-semibold">Not now</Text>
               </TouchableOpacity>
             </Pressable>
           </Pressable>
         </Modal>
+
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  container: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F2EEF7',
-  },
-  headerIdentity: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginLeft: 8,
-  },
-  headerName: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#1E1A26',
-  },
-  headerMeta: {
-    fontSize: 13,
-    color: '#9792A8',
-    marginTop: 2,
-  },
-  iconButton: {
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  thread: {
-    flex: 1,
-  },
-  threadContent: {
-    paddingHorizontal: 16,
-    paddingTop: 18,
-    paddingBottom: 28,
-    gap: 12,
-  },
-  threadLoader: {
-    paddingVertical: 24,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-  },
-  threadLoaderText: {
-    color: "#8A8298",
-    fontSize: 14,
-  },
-  messageRow: {
-    width: '100%',
-  },
-  myRow: {
-    alignItems: 'flex-end',
-  },
-  otherRow: {
-    alignItems: 'flex-start',
-  },
-  bundleCard: {
-    width: '78%',
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: '#D9CEF3',
-    overflow: 'hidden',
-    backgroundColor: '#FFFFFF',
-  },
-  bundleGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  bundleTile: {
-    width: '50%',
-    aspectRatio: 1,
-    borderWidth: 0.5,
-    borderColor: '#ECE7F6',
-  },
-  bundleImage: {
-    width: '100%',
-    height: '100%',
-  },
-  bundleOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(58, 38, 114, 0.45)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  bundleOverlayText: {
-    color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: '700',
-  },
-  bundleFooter: {
-    borderTopWidth: 1,
-    borderTopColor: '#ECE7F6',
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  bundleFooterText: {
-    color: '#4A3298',
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  offerShell: {
-    width: '82%',
-  },
-  offerCaption: {
-    color: '#9B96A8',
-    fontSize: 16,
-    marginBottom: 10,
-  },
-  offerCard: {
-    width: 192,
-    borderWidth: 1,
-    borderColor: '#D9CEF3',
-    backgroundColor: '#FFFFFF',
-  },
-  offerImage: {
-    width: '100%',
-    height: 180,
-    backgroundColor: '#F7F5FB',
-  },
-  offerInfo: {
-    paddingHorizontal: 10,
-    paddingTop: 10,
-    paddingBottom: 12,
-    gap: 6,
-  },
-  offerTitle: {
-    fontSize: 15,
-    color: '#3A3744',
-  },
-  offerPrice: {
-    fontSize: 14,
-    color: '#1760D5',
-    fontWeight: '700',
-  },
-  offerButton: {
-    backgroundColor: '#4A3298',
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  offerButtonText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  otherAvatarWrapper: {
-    marginBottom: 8,
-    marginLeft: 4,
-  },
-  textBubble: {
-    maxWidth: '78%',
-    borderRadius: 24,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-  },
-  myBubble: {
-    backgroundColor: '#4A3298',
-    borderTopRightRadius: 8,
-  },
-  otherBubble: {
-    backgroundColor: '#F7F6FA',
-    borderTopLeftRadius: 8,
-    marginLeft: 44,
-  },
-  messageText: {
-    fontSize: 15,
-    lineHeight: 24,
-  },
-  myMessageText: {
-    color: '#FFFFFF',
-  },
-  otherMessageText: {
-    color: '#35313F',
-  },
-  messageMeta: {
-    marginTop: 8,
-    fontSize: 12,
-  },
-  myMeta: {
-    color: '#DAD1F6',
-    textAlign: 'right',
-  },
-  otherMeta: {
-    color: '#ACA6B9',
-  },
-  composerBar: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: Platform.select({ ios: 22, default: 16 }),
-    borderTopWidth: 1,
-    borderTopColor: '#F2EEF7',
-    backgroundColor: '#FFFFFF',
-  },
-  composerInputShell: {
-    flex: 1,
-    minHeight: 54,
-    maxHeight: 120,
-    borderWidth: 1,
-    borderColor: '#DED8E9',
-    borderRadius: 28,
-    backgroundColor: '#FAF9FC',
-    paddingHorizontal: 14,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 6,
-  },
-  composerIcon: {
-    width: 30,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  composerInput: {
-    flex: 1,
-    paddingTop: 14,
-    paddingBottom: 14,
-    fontSize: 15,
-    color: '#2B2833',
-    maxHeight: 96,
-  },
-  sendButton: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
-    backgroundColor: '#4A3298',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sendButtonDisabled: {
-    backgroundColor: '#C8C1DC',
-  },
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(17, 13, 28, 0.42)',
-    justifyContent: 'flex-end',
-  },
-  menuSheet: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingHorizontal: 18,
-    paddingTop: 12,
-    paddingBottom: 34,
-  },
-  sheetHandle: {
-    alignSelf: 'center',
-    width: 96,
-    height: 5,
-    borderRadius: 999,
-    backgroundColor: '#D8D4E1',
-    marginBottom: 24,
-  },
-  menuAction: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    paddingVertical: 14,
-    paddingHorizontal: 8,
-  },
-  menuActionText: {
-    fontSize: 16,
-    color: '#26222E',
-  },
-  sheetDivider: {
-    height: 1,
-    backgroundColor: '#F0ECF6',
-  },
-  detailSheet: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 30,
-  },
-  detailHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  detailTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#2B2833',
-  },
-  detailLead: {
-    fontSize: 14,
-    lineHeight: 22,
-    color: '#8D8798',
-    marginBottom: 20,
-  },
-  detailBlock: {
-    marginBottom: 16,
-  },
-  detailLabel: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#2B2833',
-    marginBottom: 6,
-  },
-  detailValue: {
-    fontSize: 14,
-    lineHeight: 22,
-    color: '#6E697B',
-  },
-  detailStrong: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#2A68DA',
-  },
-  primaryButton: {
-    backgroundColor: '#4A3298',
-    borderRadius: 999,
-    paddingVertical: 16,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  primaryButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  secondaryButton: {
-    borderRadius: 999,
-    paddingVertical: 16,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E1DCEE',
-    marginTop: 12,
-  },
-  secondaryButtonText: {
-    color: '#6E697B',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-});
