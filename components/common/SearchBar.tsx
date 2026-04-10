@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, TextInput, TouchableOpacity, StyleSheet, useColorScheme } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useAppTheme } from '@/lib/theme/appTheme';
 
 interface SearchBarProps {
   value: string;
@@ -8,6 +9,7 @@ interface SearchBarProps {
   placeholder?: string;
   onFilterPress?: () => void;
   autoFocus?: boolean;
+  onSubmitEditing?: () => void;
 }
 
 const SearchBar = ({
@@ -16,14 +18,16 @@ const SearchBar = ({
   placeholder = 'Search Design',
   onFilterPress,
   autoFocus = false,
+  onSubmitEditing,
 }: SearchBarProps) => {
   const isDark = useColorScheme() === 'dark';
+  const themeColors = useAppTheme();
 
   const theme = {
-    inputBg: isDark ? '#1E1E1E' : '#F5F5F5',
-    text: isDark ? '#FFFFFF' : '#000000',
-    placeholder: isDark ? '#8D8D8D' : '#999999',
-    icon: isDark ? '#D0D0D0' : '#555555',
+    inputBg: isDark ? themeColors.surfaceMuted : themeColors.surfaceMuted,
+    text: themeColors.text,
+    placeholder: themeColors.textMuted,
+    icon: themeColors.icon,
   };
 
   return (
@@ -37,6 +41,8 @@ const SearchBar = ({
           value={value}
           onChangeText={onChangeText}
           autoFocus={autoFocus}
+          onSubmitEditing={onSubmitEditing}
+          returnKeyType="search"
         />
       </View>
       {onFilterPress ? (

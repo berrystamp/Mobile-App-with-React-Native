@@ -6,6 +6,8 @@ import React, { useEffect, useState } from "react";
 import 'react-native-reanimated';
 import { LoadingSpinner } from "../components/LoadingSpinner";
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { getAppTheme } from '@/lib/theme/appTheme';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import "./global.css"
 
 export const unstable_settings = {
@@ -14,23 +16,53 @@ export const unstable_settings = {
 
 export function MainApp() {
   const colorScheme = useColorScheme();
+  const theme = getAppTheme(colorScheme);
+
+  const navigationTheme = colorScheme === 'dark'
+    ? {
+        ...DarkTheme,
+        colors: {
+          ...DarkTheme.colors,
+          background: theme.background,
+          card: theme.surface,
+          text: theme.text,
+          border: theme.border,
+          primary: theme.primary,
+          notification: theme.primary,
+        },
+      }
+    : {
+        ...DefaultTheme,
+        colors: {
+          ...DefaultTheme.colors,
+          background: theme.background,
+          card: theme.surface,
+          text: theme.text,
+          border: theme.border,
+          primary: theme.primary,
+          notification: theme.primary,
+        },
+      };
   
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <AuthProvider>
-        <Stack screenOptions={{ headerShown: false }}>
-          {/* Main Initial Screen */}
-          <Stack.Screen name="index" />
-          
-          {/* Route Groups */}
-          <Stack.Screen name="(auth)" />
-          <Stack.Screen name="(tabs)" />
-          
-          
-        </Stack>
-        <StatusBar style="auto" />
-      </AuthProvider>
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <ThemeProvider value={navigationTheme}>
+        <AuthProvider>
+          <Stack screenOptions={{ headerShown: false }}>
+            {/* Main Initial Screen */}
+            <Stack.Screen name="index" />
+            
+            {/* Route Groups */}
+            <Stack.Screen name="(auth)" />
+            <Stack.Screen name="(tabs)" />
+          </Stack>
+          <StatusBar
+            style={colorScheme === 'dark' ? 'light' : 'dark'}
+            backgroundColor={theme.background}
+          />
+        </AuthProvider>
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }
 

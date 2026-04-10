@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Image, Text, TouchableOpacity, View, useColorScheme } from 'react-native';
+import { Image, Text, TouchableOpacity, View } from 'react-native';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
@@ -10,7 +10,6 @@ const OPTIONS = ['Direct to screen', 'sublimation', 'Direct to garment', 'screen
 
 export default function SelectPrintTypeScreen() {
   const router = useRouter();
-  const isDark = useColorScheme() === 'dark';
   const [selectedType, setSelectedType] = useState('screen printing');
 
   return (

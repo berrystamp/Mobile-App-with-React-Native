@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router, useSegments } from 'expo-router';
 import { User } from '@/types'; 
 import ApiService from '@/services/apiClient'; // Import your API service
+import { toAccountType, useAuthStore } from '@/store/authStore';
 
 interface AuthContextType {
   user: User | null;
@@ -11,6 +12,7 @@ interface AuthContextType {
   login: (email: string, password: string, rememberMe?: boolean, profileType?: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -20,10 +22,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const segments = useSegments(); // Used to know what screen we are currently on
+  const loginStore = useAuthStore((state) => state.login);
+  const needsInterestOnboarding = useAuthStore((state) => state.needsInterestOnboarding);
+  const currentRole = useAuthStore((state) => state.role);
 
   useEffect(() => {
     checkAuth();
   }, []);
+
+  useEffect(() => {
+    refreshUser();
+  }, [segments.join('/')]);
+
+  const refreshUser = async () => {
+    try {
+      const userData = await AsyncStorage.getItem('userData');
+      if (userData) {
+        setUser(JSON.parse(userData));
+        setIsAuthenticated(true);
+      }
+    } catch (error) {
+      console.error('Failed to refresh user state', error);
+    }
+  };
 
   const checkAuth = async () => {
     setIsLoading(true);
@@ -37,21 +58,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Token exists, log them in
         setUser(JSON.parse(userData));
         setIsAuthenticated(true);
-        // Redirect to tabs if they are not already there
-        if (segments[0] !== '(tabs)') {
-           router.replace('/(tabs)');
+        if (String(currentRole).toLowerCase() === 'customer' && needsInterestOnboarding) {
+          if (!(segments[0] === '(auth)' && segments[1] === 'interests')) {
+            router.replace('/(auth)/interests');
+          }
+        } else if (segments[0] !== '(tabs)') {
+          router.replace('/(tabs)');
         }
       } else {
         // No token found. If they aren't already in the auth screens, send them to login
         setIsAuthenticated(false);
         setUser(null);
         if (!inAuthGroup) {
-          router.replace('/(auth)/login'); // Adjust this path if your login screen is named differently
+          router.replace('/(auth)/choose-account'); // Adjust this path if your choose-account screen is named differently
         }
       }
     } catch (error) {
       console.error('Failed to restore auth state', error);
-      router.replace('/(auth)/login');
+      router.replace('/(auth)/choose-account');
     } finally {
       setIsLoading(false);
     }
@@ -63,13 +87,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const result = await ApiService.login(email, password, profileType);
 
       if (result.requestSuccessful && result.responseBody?.token) {
-        const loggedInUser = result.responseBody.user;
+        const loggedInUser = (await ApiService.getCurrentUser()) || result.responseBody.user;
+        const normalizedAccountType = toAccountType(profileType);
 
         setUser(loggedInUser);
         setIsAuthenticated(true);
+        loginStore(normalizedAccountType);
         
-        // Redirect to tabs upon successful login
-        router.replace('/(tabs)');
+        if (normalizedAccountType === 'customer' && needsInterestOnboarding) {
+          router.replace('/(auth)/interests');
+        } else {
+          router.replace('/(tabs)');
+        }
 
         return { success: true };
       } else {
@@ -99,7 +128,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, isAuthenticated, login, logout, checkAuth }}>
+    <AuthContext.Provider value={{ user, isLoading, isAuthenticated, login, logout, checkAuth, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

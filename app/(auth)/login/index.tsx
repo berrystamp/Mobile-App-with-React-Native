@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import { useRouter } from "expo-router";
 import React, { useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import {
@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { z } from "zod";
 import { useAuth } from "../../../context/AuthContext";
+import { useAuthStore } from "@/store/authStore";
 const schema = z.object({
   email: z.string().email("Invalid email"),
   password: z.string().min(6, "Minimum 6 characters"),
@@ -53,8 +54,7 @@ const FloatingLabelInput = ({
 export default function LoginScreen() {
   const { login } = useAuth();
   
-  const { profileType } = useLocalSearchParams();
-  const selectedProfileType = profileType ? String(profileType) : 'CUSTOMER'; 
+    const { role: selectedProfileType } = useAuthStore();
 
   const [loading, setLoading] = useState(false);
   const [secure, setSecure] = useState(true);
@@ -68,17 +68,15 @@ export default function LoginScreen() {
   const { control, handleSubmit, formState: { errors, isValid } } = useForm<FormData>({
     resolver: zodResolver(schema), mode: "onChange", defaultValues: { email: "", password: "" },
   });
-
+  console.log("Selected Profile Type:", selectedProfileType);
   const onSubmit = async (data: FormData) => {
     setServerError(null); // Clear previous errors
     setLoading(true);
     
-    const result = await login(data.email, data.password, rememberMe, selectedProfileType);
+    const result = await login(data.email, data.password, rememberMe, selectedProfileType??"customer");
     
     setLoading(false);
 
-    // If result.success is true, the AuthContext already redirects.
-    // If it is false, we set the error message to display in the UI.
     if (!result.success) {
       setServerError(result.error || "An unexpected error occurred.");
     }
@@ -92,10 +90,11 @@ export default function LoginScreen() {
       <Text className="text-center text-[15px] text-[#666666] dark:text-[#888888]">
         We are so happy to see you
       </Text>
-      
+        <TouchableOpacity onPress={() => router.push("/(auth)/choose-account")} activeOpacity={0.7}>
       <Text className="text-center text-xs font-bold text-[#4B3A99] dark:text-[#7A6AE6] uppercase tracking-widest mt-2 mb-6">
         Logging in as {selectedProfileType}
       </Text>
+        </TouchableOpacity>
 
       {/* Render Server Errors in the UI gracefully */}
       {serverError && (
@@ -136,7 +135,7 @@ export default function LoginScreen() {
 
         <View className="flex-row justify-center items-center mt-3">
           <Text className="text-[14px] text-[#666666] dark:text-[#888888]">Don&apos;t have an account? </Text>
-          <TouchableOpacity onPress={() => router.push("/choose-account")}>
+          <TouchableOpacity onPress={() => router.push("/signup")} activeOpacity={0.7}>
             <Text className="text-[14px] font-semibold text-[#4B3A99] dark:text-[#7A6AE6]">Sign up</Text>
           </TouchableOpacity>
         </View>

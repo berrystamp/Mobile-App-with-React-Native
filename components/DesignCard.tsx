@@ -1,6 +1,7 @@
+import { formatNaira } from '@/lib/currency';
 import { Design } from '@/types';
 import { Ionicons } from '@expo/vector-icons';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
     Dimensions,
     Image,
@@ -14,7 +15,7 @@ import {
 interface DesignCardProps {
   design: Design;
   onPress?: () => void;
-  onFavoriteToggle?: (designId: number) => void;
+  onFavoriteToggle?: (designId: number) => void | Promise<void>;
   width?: number;
   showPrice?: boolean;
 }
@@ -39,8 +40,12 @@ export const DesignCard: React.FC<DesignCardProps> = ({
     border: isDark ? '#2A2A2A' : '#F0F0F0',
   };
 
+  useEffect(() => {
+    setIsFavorite(design.liked);
+  }, [design.liked]);
+
   const handleFavorite = () => {
-    setIsFavorite(!isFavorite);
+    setIsFavorite((prev) => !prev);
     onFavoriteToggle?.(design.id);
   };
 
@@ -109,9 +114,7 @@ export const DesignCard: React.FC<DesignCardProps> = ({
           By {artistName}
         </Text>
         {showPrice && lowestPrice > 0 && (
-          <Text style={[styles.price, { color: theme.text }]}>
-            ₦{lowestPrice.toLocaleString()}
-          </Text>
+          <Text style={[styles.price, { color: theme.text }]}>{formatNaira(lowestPrice)}</Text>
         )}
       </View>
     </TouchableOpacity>

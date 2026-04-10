@@ -11,10 +11,11 @@ import {
   TextInput,
   Animated
 } from 'react-native';
-import { useRouter, useLocalSearchParams } from "expo-router";
+import { useRouter } from "expo-router";
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { toAccountType, useAuthStore } from '@/store/authStore';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -106,19 +107,16 @@ const FloatingLabelInput = ({
 export default function SignUpScreen() {
   const router = useRouter();
   const isDark = useColorScheme() === 'dark';
-  
-  // Capture profile type (CUSTOMER, DESIGNER, PRINTER)
-  const { profileType } = useLocalSearchParams();
-  const selectedProfileType = profileType ? String(profileType) : 'CUSTOMER'; 
-  const isPrinter = selectedProfileType === 'PRINTER';
+  const { role: selectedProfileType, signUp, setHasSelectedInterests, setNeedsInterestOnboarding } = useAuthStore();
+  const isBusiness = selectedProfileType !== 'CUSTOMER';
 
   // Form States
   const [isLoading, setIsLoading] = useState(false);
   const [fullName, setFullName] = useState('');
   const [username, setUsername] = useState('');       // Customer/Designer only
   const [businessName, setBusinessName] = useState(''); // Printer only
-  const [address, setAddress] = useState('');
-  const [phoneNumber, setPhoneNumber] = useState('');   // Printer only
+  // const [address,setAddess] = useState('');
+  // const [phoneNumber, setPhoneNumber] = useState('');   // Printer only
   const [email, setEmail] = useState('');
   const [referralCode, setReferralCode] = useState('');
   const [password, setPassword] = useState('');
@@ -128,10 +126,10 @@ export default function SignUpScreen() {
   // Validation Logic
   const isFormValid =
     fullName.trim() !== '' &&
-    address.trim() !== '' &&
+    // address.trim() !== '' &&
     EMAIL_REGEX.test(email.trim()) &&
     password.length >= 6 &&
-    (isPrinter ? (businessName.trim() !== '' && phoneNumber.trim() !== '') : (username.trim() !== ''));
+    (isBusiness ? (businessName.trim() !== '' ) : (username.trim() !== ''));
 
   // Submit Handler
   async function handleSignUp() {
@@ -143,21 +141,21 @@ export default function SignUpScreen() {
     const payload = {
         name: fullName.trim(),
         email: email.trim(),
-        username: isPrinter ? "" : username.trim(),
-        businessName: isPrinter ? businessName.trim() : "",
-        phoneNumber: isPrinter ? phoneNumber.trim() : "",
-        areaCode: isPrinter ? "+234" : "", 
+        username: isBusiness ? "" : username.trim(),
+        businessName: isBusiness ? businessName.trim() : "",
+        // phoneNumber: isBusiness ? phoneNumber.trim() : "",
+        areaCode: isBusiness ? "+234" : "", 
         password: password,
         sendPromotionEmail: sendUpdates,
-        address: {
-            address: address.trim(),
-            city: "Lagos",       // Add a default to prevent DB null constraint errors
-            state: "Lagos",      // Add a default to prevent DB null constraint errors
-            country: "NG",  // ✅ FIX: Send a valid country string instead of ""
-            postalCode: "100001",// Add a default
-            longitude: 0,
-            latitude: 0
-        },
+        // address: {
+        //     address: address.trim(),
+        //     city: "Lagos",       // Add a default to prevent DB null constraint errors
+        //     state: "Lagos",      // Add a default to prevent DB null constraint errors
+        //     country: "NG",  // ✅ FIX: Send a valid country string instead of ""
+        //     postalCode: "100001",// Add a default
+        //     longitude: 0,
+        //     latitude: 0
+        // },
         referralCode: referralCode.trim()
     };
 
@@ -166,12 +164,16 @@ export default function SignUpScreen() {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'profileType': selectedProfileType 
+                'profileType': selectedProfileType??"customer" // Ensure profileType is sent in headers as expected by backend
             },
             body: JSON.stringify(payload)
         });
 
         if (response.ok) {
+            const accountType = toAccountType(selectedProfileType ?? 'customer');
+            signUp(accountType);
+            setHasSelectedInterests(accountType !== 'customer');
+            setNeedsInterestOnboarding(accountType === 'customer');
             Alert.alert("Success", "Account created! Please verify your email.");
             router.push('/verify-otp'); 
         } else {
@@ -201,6 +203,9 @@ export default function SignUpScreen() {
             <Text className={`text-[24px] font-bold text-center ${isDark ? "text-white" : "text-[#1a1a1a]"}`}>
               Welcome to Berrystamp!
             </Text>
+            <Text className={`text-center text-[15px] mt-2 ${isDark ? "text-[#A0A0A0]" : "text-[#666666]"}`}>
+              You are signing up as a {isBusiness ? "Designer/Printer" : "Customer"}. {isBusiness ? "Please provide your shop details to get started." : "Please fill in your details to create an account."}
+            </Text>
           </View>
 
           {/* Form Fields */}
@@ -216,7 +221,7 @@ export default function SignUpScreen() {
               />
 
               {/* Dynamic Field: Shop Name OR Username */}
-              {isPrinter ? (
+              {isBusiness ? (
                   <FloatingLabelInput 
                       label="Enter Shop Name" 
                       value={businessName} 
@@ -233,19 +238,28 @@ export default function SignUpScreen() {
                       isDark={isDark} 
                   />
               )}
+              {/* Email (All) */}
+              <FloatingLabelInput 
+                  label="Enter Email" 
+                  value={email} 
+                  onChangeText={setEmail} 
+                  keyboardType="email-address" 
+                  autoCapitalize="none" 
+                  isDark={isDark} 
+              />
 
               {/* Address (All) */}
-              <FloatingLabelInput 
+              {/* <FloatingLabelInput 
                   label="Address" 
                   value={address} 
                   onChangeText={setAddress} 
                   autoCapitalize="words" 
                   isDark={isDark} 
                   leftIcon={<Ionicons name="location-outline" size={20} color={isDark ? "#A0A0A0" : "#666"} />}
-              />
+              /> */}
 
               {/* Phone Number (Printer Only) */}
-              {isPrinter && (
+              {/* {isBusiness && (
                   <FloatingLabelInput 
                       label="Enter Phone Number" 
                       value={phoneNumber} 
@@ -259,26 +273,10 @@ export default function SignUpScreen() {
                         </>
                       }
                   />
-              )}
+              )} */}
 
-              {/* Email (All) */}
-              <FloatingLabelInput 
-                  label="Enter Email" 
-                  value={email} 
-                  onChangeText={setEmail} 
-                  keyboardType="email-address" 
-                  autoCapitalize="none" 
-                  isDark={isDark} 
-              />
 
-              {/* Referral Code (All) */}
-              <FloatingLabelInput 
-                  label="Enter Referral Code (optional)" 
-                  value={referralCode} 
-                  onChangeText={setReferralCode} 
-                  autoCapitalize="none" 
-                  isDark={isDark} 
-              />
+      
 
               {/* Password (All) */}
               <FloatingLabelInput
@@ -295,6 +293,14 @@ export default function SignUpScreen() {
                   }
               />
               
+                      {/* Referral Code (All) */}
+              <FloatingLabelInput 
+                  label="Enter Referral Code (optional)" 
+                  value={referralCode} 
+                  onChangeText={setReferralCode} 
+                  autoCapitalize="none" 
+                  isDark={isDark} 
+              />
               {/* Updates Checkbox */}
               <TouchableOpacity className="flex-row items-center mt-1 mb-6" onPress={() => setSendUpdates(v => !v)} activeOpacity={0.7}>
                 <View className={`w-5 h-5 border-[1.5px] rounded mr-2.5 items-center justify-center ${sendUpdates ? 'border-[#4B3A99] bg-[#4B3A99]' : 'border-[#A0A0A0] bg-transparent'}`}>

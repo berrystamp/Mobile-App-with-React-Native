@@ -1,212 +1,188 @@
-import { useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const NAVY = '#2F2D8C';
+import { useAppTheme } from '@/lib/theme/appTheme';
+import ApiService from '@/services/apiClient';
+import { useAuthStore } from '@/store/authStore';
 
-const lightTheme = {
-  bg: '#FFFFFF',
-  textPrimary: '#1a1a2e',
-  textMuted: '#888',
-  iconColor: '#1a1a2e',
-  chipBg: '#F2F2F5',
-  chipBorder: '#E4E4EC',
-  chipText: '#333',
-};
-
-const darkTheme = {
-  bg: '#12122A',
-  textPrimary: '#EEEEF8',
-  textMuted: '#888899',
-  iconColor: '#EEEEF8',
-  chipBg: '#1E1E3A',
-  chipBorder: '#2E2E50',
-  chipText: '#CCCCDD',
-};
-
-const ALL_INTERESTS = [
-  'Nature',
-  'Abstra',
-  'Minimalist',
-  'Conceptual',
-  'Sticker',
-  'Masculine',
-  'Kiddies',
-  'Playful',
-  'Party',
-  'Mugs',
-  'Typographic',
-  'Fun',
-  'Health',
-  'Accessory',
-  'Anime',
-  'Face Mask',
-  'living',
-  'Phone Case',
-  'Crypto',
-  'Wall art',
-  'Feminine',
-  'Drawing',
-  'Tote',
-  'Clothing',
-  'Nature',
+const FALLBACK_INTERESTS = [
+  'Nature', 'Abstract', 'Minimalist', 'Conceptual', 'Sticker', 'Masculine',
+  'Kiddies', 'Playful', 'Party', 'Mugs', 'Typographic', 'Fun',
+  'Health', 'Accessory', 'Anime', 'Face Mask', 'Living', 'Phone Case',
+  'Crypto', 'Wall art', 'Feminine', 'Drawing', 'Tote', 'Clothing',
 ];
 
-export default function InterestsScreen() {
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const isDark = useColorScheme() === 'dark';
-  const t = isDark ? darkTheme : lightTheme;
+export default function OnboardingInterestScreen() {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const theme = useAppTheme();
+  const setHasSelectedInterests = useAuthStore((state) => state.setHasSelectedInterests);
+  const setNeedsInterestOnboarding = useAuthStore((state) => state.setNeedsInterestOnboarding);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [interestOptions, setInterestOptions] = useState<string[]>(FALLBACK_INTERESTS);
+  const [saving, setSaving] = useState(false);
 
-  function toggle(item: string) {
-    setSelected(prev => {
-      const next = new Set(prev);
-      if (next.has(item)) {
-        next.delete(item);
-      } else {
-        next.add(item);
+  useEffect(() => {
+    const loadInterestOptions = async () => {
+      try {
+        const options = await ApiService.getInterestOptions();
+        if (options.length) setInterestOptions(options);
+      } catch {
+        setInterestOptions(FALLBACK_INTERESTS);
       }
-      return next;
-    });
-  }
+    };
+
+    loadInterestOptions();
+  }, []);
+
+  const toggleInterest = (interest: string) => {
+    setSelected((current) => (
+      current.includes(interest)
+        ? current.filter((item) => item !== interest)
+        : [...current, interest]
+    ));
+  };
+
+  const handleContinue = async () => {
+    if (!selected.length || saving) return;
+
+    try {
+      setSaving(true);
+      await ApiService.updateMyInterests(selected);
+      setHasSelectedInterests(true);
+      setNeedsInterestOnboarding(false);
+      router.replace('/(tabs)');
+    } catch (error: any) {
+      Alert.alert('Unable to save interests', error?.response?.data?.responseMessage || error?.message || 'Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: t.bg }]}>
-      {/* Back button */}
-      <TouchableOpacity style={styles.backButton} onPress={() => router.back()} hitSlop={10}>
-        <Ionicons name="arrow-back" size={22} color={t.iconColor} />
-      </TouchableOpacity>
+    <View style={[styles.screen, { backgroundColor: theme.background, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} style={[styles.backButton, { backgroundColor: theme.surfaceMuted }]}>
+          <Ionicons name="arrow-back" size={22} color={theme.text} />
+        </TouchableOpacity>
+      </View>
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={[styles.title, { color: t.textPrimary }]}>What are your{'\n'}interests</Text>
-          <Text style={[styles.subtitle, { color: t.textMuted }]}>
-            Choose your interests have a seamless experience on Berrystamp with personalize results
-          </Text>
-        </View>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <Text style={[styles.title, { color: theme.text }]}>What are your{'\n'}interests</Text>
+        <Text style={[styles.subtitle, { color: theme.textMuted }]}>
+          Choose your interests for a seamless experience on Berrystamp with personalized results.
+        </Text>
 
-        {/* Interest chips */}
-        <View style={styles.chipsWrap}>
-          {ALL_INTERESTS.map((item, index) => {
-            const isSelected = selected.has(item);
-            // Use item+index as key since 'Nature' appears twice
+        <View style={styles.tagWrap}>
+          {interestOptions.map((interest) => {
+            const isSelected = selected.includes(interest);
             return (
               <TouchableOpacity
-                key={`${item}-${index}`}
+                key={interest}
+                activeOpacity={0.8}
+                onPress={() => toggleInterest(interest)}
                 style={[
-                  styles.chip,
-                  { backgroundColor: t.chipBg, borderColor: t.chipBorder },
-                  isSelected && styles.chipSelected,
-                ]}
-                onPress={() => toggle(item)}
-                activeOpacity={0.75}
-              >
-                <Text style={[styles.chipText, { color: t.chipText }, isSelected && styles.chipTextSelected]}>
-                  {item}
-                </Text>
+                  styles.tag,
+                  {
+                    backgroundColor: isSelected ? theme.primary : theme.surface,
+                    borderColor: isSelected ? theme.primary : theme.border,
+                  },
+                ]}>
+                <Text style={[styles.tagText, { color: isSelected ? theme.onPrimary : theme.text }]}>{interest}</Text>
               </TouchableOpacity>
             );
           })}
         </View>
       </ScrollView>
 
-      {/* Submit button */}
-      <View style={[styles.footer, { backgroundColor: t.bg }]}>
+      <View style={[styles.footer, { backgroundColor: theme.background }]}>
         <TouchableOpacity
-          style={[styles.submitButton, selected.size === 0 && styles.submitButtonDisabled]}
           activeOpacity={0.85}
-          disabled={selected.size === 0}
-          onPress={() => {
-            router.push('/(tabs)');
-          }}
-        >
-          <Text style={styles.submitButtonText}>Submit and proceed</Text>
+          disabled={!selected.length || saving}
+          onPress={handleContinue}
+          style={[
+            styles.cta,
+            { backgroundColor: selected.length ? theme.primary : theme.border },
+          ]}>
+          {saving ? <ActivityIndicator color={theme.onPrimary} /> : <Text style={[styles.ctaText, { color: theme.onPrimary }]}>Continue</Text>}
         </TouchableOpacity>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
+  screen: { flex: 1 },
+  header: {
+    paddingHorizontal: 20,
+    paddingTop: 8,
   },
   backButton: {
-    marginTop: 4,
-    marginLeft: 20,
-    alignSelf: 'flex-start',
-    padding: 4,
+    alignItems: 'center',
+    borderRadius: 20,
+    height: 40,
+    justifyContent: 'center',
+    width: 40,
   },
-  scrollContent: {
-    paddingHorizontal: 22,
-    paddingBottom: 24,
-  },
-  header: {
-    marginTop: 20,
-    marginBottom: 28,
+  content: {
+    paddingHorizontal: 24,
+    paddingTop: 12,
+    paddingBottom: 140,
   },
   title: {
-    fontSize: 28,
-    fontWeight: '700',
-    lineHeight: 36,
+    fontSize: 30,
+    fontWeight: '800',
+    lineHeight: 38,
     marginBottom: 12,
   },
   subtitle: {
-    fontSize: 14,
-    lineHeight: 22,
+    fontSize: 15,
+    lineHeight: 23,
+    marginBottom: 28,
+    paddingRight: 8,
   },
-  chipsWrap: {
+  tagWrap: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
+    gap: 12,
   },
-  chip: {
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 20,
+  tag: {
+    borderRadius: 14,
     borderWidth: 1,
+    paddingHorizontal: 18,
+    paddingVertical: 11,
   },
-  chipSelected: {
-    backgroundColor: NAVY,
-    borderColor: NAVY,
-  },
-  chipText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  chipTextSelected: {
-    color: '#FFFFFF',
+  tagText: {
+    fontSize: 15,
+    fontWeight: '600',
   },
   footer: {
-    paddingHorizontal: 22,
-    paddingBottom: 28,
-    paddingTop: 12,
+    bottom: 0,
+    left: 0,
+    paddingHorizontal: 24,
+    paddingTop: 14,
+    position: 'absolute',
+    right: 0,
   },
-  submitButton: {
-    backgroundColor: NAVY,
-    borderRadius: 32,
-    paddingVertical: 18,
+  cta: {
     alignItems: 'center',
+    borderRadius: 28,
+    justifyContent: 'center',
+    minHeight: 56,
   },
-  submitButtonDisabled: {
-    opacity: 0.5,
-  },
-  submitButtonText: {
-    color: '#FFFFFF',
+  ctaText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
   },
 });

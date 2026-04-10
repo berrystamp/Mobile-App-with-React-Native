@@ -1,17 +1,22 @@
 import { extractArtistsFromDesigns, normalizeDesignListResponse } from '@/lib/designs';
-import ApiService from '@/services/api';
+import ApiService from '@/services/apiClient';
 import { Artist, Design } from '@/types';
 import { useCallback, useEffect, useState } from 'react';
 
-export function useHomeData() {
+export function useHomeData(enabled: boolean = true) {
   const [topArtists, setTopArtists] = useState<Artist[]>([]);
-  const [trendingDesigns, setTrendingDesigns] = useState<Design[]>([]);
-  const [recommendedDesigns, setRecommendedDesigns] = useState<Design[]>([]);
+  const [recentDesigns, setRecentDesigns] = useState<Design[]>([]);
+  const [featuredDesigns, setFeaturedDesigns] = useState<Design[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   const fetchHomeData = useCallback(async (isRefresh = false) => {
+    if (!enabled) {
+      setIsLoading(false);
+      setRefreshing(false);
+      return;
+    }
     try {
       if (isRefresh) {
         setRefreshing(true);
@@ -20,91 +25,71 @@ export function useHomeData() {
       }
       setError(null);
 
-      // Fetching data from the unified ApiService
-      const [artistsRes, trendingRes, recommendedRes] = await Promise.all([
+      const [artistsRes, recentRes, featuredRes] = await Promise.all([
         ApiService.getTopArtists(10),
-        ApiService.getTrendingDesigns(10),
-        ApiService.getRecommendedDesigns(10),
+        ApiService.getRecentDesigns(10),
+        ApiService.getFeaturedDesigns(10),
       ]);
-
-      const artistSourceDesigns = normalizeDesignListResponse(artistsData);
-      const trending = normalizeDesignListResponse(trendingData);
-      const recommended = normalizeDesignListResponse(recommendedData);
+      console.log('Fetched home data:', { artistsRes, recentRes, featuredRes });
+      const artistSourceDesigns = normalizeDesignListResponse(artistsRes);
+      const recent = normalizeDesignListResponse(recentRes);
+      const featured = normalizeDesignListResponse(featuredRes);
 
       setTopArtists(extractArtistsFromDesigns(artistSourceDesigns));
-      setTrendingDesigns(trending);
-      setRecommendedDesigns(recommended);
+      setRecentDesigns(recent);
+      setFeaturedDesigns(featured);
     } catch (err: any) {
       console.error('Error fetching home data:', err);
-      // Handling Axios error objects or generic error messages
       setError(err.responseMessage || err.message || 'Failed to load data. Please try again.');
     } finally {
       setIsLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [enabled]);
 
   const toggleFavorite = useCallback(async (designId: number) => {
-    const originalTrending = [...trendingDesigns];
-    const originalRecommended = [...recommendedDesigns];
+    const originalRecent = [...recentDesigns];
+    const originalFeatured = [...featuredDesigns];
 
-    // Optimistic UI Update
-    const updateList = (list: Design[]) => 
-      list.map(design => 
-        design.id === designId 
-          ? { ...design, liked: !design.liked, likes: design.liked ? Math.max(0, design.likes - 1) : design.likes + 1 }
-          : design
+    const updateList = (list: Design[]) =>
+      list.map((design) =>
+        design.id === designId
+          ? {
+              ...design,
+              liked: !design.liked,
+              likes: design.liked ? Math.max(0, design.likes - 1) : design.likes + 1,
+            }
+          : design,
       );
 
-    setTrendingDesigns(prev => updateList(prev));
-    setRecommendedDesigns(prev => updateList(prev));
+    setRecentDesigns((prev) => updateList(prev));
+    setFeaturedDesigns((prev) => updateList(prev));
 
     try {
       await ApiService.toggleFavorite(String(designId));
-
-      setTrendingDesigns((prev) =>
-        prev.map((design) =>
-          design.id === designId
-            ? {
-                ...design,
-                liked: !design.liked,
-                likes: design.liked ? Math.max(0, design.likes - 1) : design.likes + 1,
-              }
-            : design,
-        ),
-      );
-
-      setRecommendedDesigns((prev) =>
-        prev.map((design) =>
-          design.id === designId
-            ? {
-                ...design,
-                liked: !design.liked,
-                likes: design.liked ? Math.max(0, design.likes - 1) : design.likes + 1,
-              }
-            : design,
-        ),
-      );
     } catch (err) {
       console.error('Error toggling favorite:', err);
-      // Rollback UI state on error
-      setTrendingDesigns(originalTrending);
-      setRecommendedDesigns(originalRecommended);
+      setRecentDesigns(originalRecent);
+      setFeaturedDesigns(originalFeatured);
     }
-  }, [trendingDesigns, recommendedDesigns]);
+  }, [recentDesigns, featuredDesigns]);
 
   const refresh = useCallback(() => {
     fetchHomeData(true);
   }, [fetchHomeData]);
 
   useEffect(() => {
+    if (!enabled) {
+      setIsLoading(false);
+      return;
+    }
     fetchHomeData();
-  }, [fetchHomeData]);
+  }, [enabled, fetchHomeData]);
 
   return {
     topArtists,
-    trendingDesigns,
-    recommendedDesigns,
+    recentDesigns,
+    featuredDesigns,
     isLoading,
     error,
     refreshing,

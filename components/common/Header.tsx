@@ -1,29 +1,29 @@
 // src/components/common/Header.tsx
-import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View, useColorScheme } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 export interface HeaderProps {
   type?: 'main' | 'search' | 'back';
   title?: string;
   onSearchPress?: () => void;
-  onNotificationPress?: () => void;
+  type?: string;
+  title?: string;
   onBackPress?: () => void;
   rightAction?: boolean;
   rightActionText?: string;
   onRightAction?: () => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ 
-  type = 'main',
-  title,
+const Header: React.FC<HeaderProps> = ({
   onSearchPress,
-  onNotificationPress,
+  type,
+  title,
   onBackPress,
   rightAction,
   rightActionText,
   onRightAction,
-}: HeaderProps) => {
+}: HeaderProps) {
   const isDark = useColorScheme() === 'dark';
   const theme = {
     mainBg: isDark ? '#121212' : '#FFFFFF',
@@ -34,24 +34,50 @@ const Header: React.FC<HeaderProps> = ({
     accent: '#4A3298',
   };
 
-  if (type === 'main') {
+  if (type === 'back') {
     return (
-      <View style={[styles.headerMain, { backgroundColor: theme.mainBg }]}> 
-        <TouchableOpacity style={[styles.iconBtn, { backgroundColor: theme.card }]}> 
-          <Ionicons name="menu-outline" size={24} color={theme.icon} />
+      <View 
+        className="flex-row items-center justify-between pb-[14px] px-4 border-b bg-transparent"
+        style={{ borderBottomColor: theme.border, paddingTop: Math.max(insets.top, 16) + 10 }}
+      >
+        <TouchableOpacity 
+          className="w-10 h-10 rounded-full items-center justify-center" 
+          onPress={onBackPress || (() => router.back())}
+        >
+          <Ionicons name="arrow-back" size={22} color={theme.text} />
         </TouchableOpacity>
-        <Text style={[styles.logoText, { color: theme.text }]}>BerryStamp</Text>
+        
+        <Text 
+          className="flex-1 text-center text-lg font-bold mx-3" 
+          style={{ color: theme.text }} 
+          numberOfLines={1}
+        >
+          {title || ''}
+        </Text>
+        
+        <View className="min-w-[40px] items-end">
+          {rightAction ? (
+            <TouchableOpacity onPress={onRightAction}>
+              <Text 
+                className="text-[15px] font-semibold" 
+                style={{ color: theme.primary }}
+              >
+                {rightActionText || 'Action'}
+              </Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
         <View style={styles.headerIcons}>
-          {onSearchPress ? (
-            <TouchableOpacity style={[styles.iconBtn, { backgroundColor: theme.card }]} onPress={onSearchPress}>
-              <Ionicons name="search-outline" size={22} color={theme.icon} />
+          {onSearchPress && (
+            <TouchableOpacity style={styles.iconBtn} onPress={onSearchPress}>
+              <Ionicons name="search-outline" size={24} color={theme.text} />
             </TouchableOpacity>
-          ) : null}
-          {onNotificationPress ? (
-            <TouchableOpacity style={[styles.iconBtn, { backgroundColor: theme.card }]} onPress={onNotificationPress}>
-              <Ionicons name="notifications-outline" size={22} color={theme.icon} />
+          )}
+          {onNotificationPress && (
+            <TouchableOpacity style={styles.iconBtn} onPress={onNotificationPress}>
+              <Ionicons name="notifications-outline" size={24} color={theme.text} />
             </TouchableOpacity>
-          ) : null}
+          )}
         </View>
       </View>
     );
@@ -61,7 +87,7 @@ const Header: React.FC<HeaderProps> = ({
     return (
       <View style={[
         styles.headerBack, 
-        { backgroundColor: theme.mainBg, borderBottomColor: theme.subtleBorder }
+        { backgroundColor: theme.background, borderBottomColor: theme.border }
       ]}>
         <TouchableOpacity onPress={onBackPress} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color={theme.text} />
@@ -69,7 +95,7 @@ const Header: React.FC<HeaderProps> = ({
         <Text style={[styles.headerTitle, { color: theme.text }]}>{title}</Text>
         {rightAction ? (
           <TouchableOpacity onPress={onRightAction}>
-            <Text style={[styles.rightActionText, { color: theme.accent }]}>{rightActionText}</Text>
+            <Text style={styles.rightActionText}>{rightActionText}</Text>
           </TouchableOpacity>
         ) : (
           <View style={{ width: 60 }} />
@@ -79,64 +105,27 @@ const Header: React.FC<HeaderProps> = ({
   }
 
   return (
-    <View style={[styles.headerBack, { backgroundColor: theme.mainBg, borderBottomColor: theme.subtleBorder }]}> 
-      <TouchableOpacity onPress={onBackPress} style={styles.backBtn}>
-        <Ionicons name="arrow-back" size={24} color={theme.icon} />
-      </TouchableOpacity>
-      <Text style={[styles.headerTitle, { color: theme.text }]}>{title}</Text>
-      {rightAction ? (
-        <TouchableOpacity onPress={onRightAction}>
-          <Text style={[styles.rightActionText, { color: theme.accent }]}>{rightActionText}</Text>
+    <View className="flex-row justify-between items-center px-5 pb-6 bg-transparent" style={{ paddingTop: Math.max(insets.top, 16) + 12 }}> 
+      <View>
+        <Image 
+          source={logoSource} 
+    
+           style={{width: 140, height: 30}}
+          contentFit="contain" 
+        />
+      </View>
+
+      <View className="flex-row gap-3">
+        <TouchableOpacity
+          className="w-10 h-10 rounded-full justify-center items-center"
+
+          onPress={onSearchPress || (() => router.push('/(tabs)/Search'))}
+        >
+          <Ionicons name="search-outline" size={22} color={theme.text} />
         </TouchableOpacity>
-      ) : (
-        <View style={{ width: 60 }} />
-      )}
+      </View>
     </View>
   );
-}
+};
 
 export default Header;
-const styles = StyleSheet.create({
-  headerMain: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 50,
-    paddingBottom: 16,
-  },
-  logoText: {
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  headerIcons: {
-    minWidth: 96,
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 8,
-  },
-  iconBtn: {
-    padding: 10,
-    borderRadius: 20,
-  },
-  headerBack: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 50,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-  },
-  backBtn: {
-    padding: 4,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  rightActionText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-});

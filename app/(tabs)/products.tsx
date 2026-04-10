@@ -1,6 +1,6 @@
 import { DesignCard } from '@/components/DesignCard';
 import { normalizeDesign, normalizeDesignListResponse } from '@/lib/designs';
-import ApiService from '@/services/api';
+import ApiService from '@/services/apiClient';
 import { Design, Mock } from '@/types';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -48,7 +48,7 @@ export default function ProductsScreen() {
   );
 
   const selectedMock: Mock | undefined = useMemo(
-    () => selectedDesign?.mocks.find((mock) => mock.id === selectedMockId) || selectedDesign?.mocks[0],
+    () => selectedDesign?.mocks?.find((mock) => mock.id === selectedMockId) || selectedDesign?.mocks?.[0],
     [selectedDesign, selectedMockId],
   );
 
@@ -62,8 +62,8 @@ export default function ProductsScreen() {
         const normalizedDesign = normalizeDesign(designResponse?.responseBody || designResponse);
         setProducts([normalizedDesign]);
         setSelectedDesign(normalizedDesign);
-        setSelectedMockId(normalizedDesign.mocks[0]?.id || null);
-        setSelectedColour(normalizedDesign.mocks[0]?.colours?.[0] || '');
+        setSelectedMockId(normalizedDesign.mocks?.[0]?.id || null);
+        setSelectedColour(normalizedDesign.mocks?.[0]?.colours?.[0] || '');
         return;
       }
 
@@ -90,8 +90,8 @@ export default function ProductsScreen() {
 
   const openDetails = (design: Design) => {
     setSelectedDesign(design);
-    setSelectedMockId(design.mocks[0]?.id || null);
-    setSelectedColour(design.mocks[0]?.colours?.[0] || '');
+    setSelectedMockId(design.mocks?.[0]?.id || null);
+    setSelectedColour(design.mocks?.[0]?.colours?.[0] || '');
   };
 
   const closeDetails = () => {
@@ -147,7 +147,7 @@ export default function ProductsScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}> 
       <View style={[styles.header, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}> 
-        <TouchableOpacity onPress={() => (selectedDesign ? closeDetails() : router.back())} style={styles.headerIcon}>
+        <TouchableOpacity onPress={() => ( router.push('/'))} style={styles.headerIcon}>
           <Ionicons name="arrow-back" size={24} color={theme.text} />
         </TouchableOpacity>
         <View style={styles.headerTextWrap}>
@@ -201,13 +201,14 @@ export default function ProductsScreen() {
                   <Image source={{ uri: selectedDesign.imagePath }} style={styles.heroImage} resizeMode="cover" />
                   <Text style={[styles.designTitle, { color: theme.text }]}>{selectedDesign.title}</Text>
                   <Text style={[styles.designMeta, { color: theme.subtext }]}>
-                    By {selectedDesign.designerName || `${selectedDesign.profile.firstName} ${selectedDesign.profile.lastName}`}
+                    {/* Added optional chaining here to prevent crashes if profile is undefined */}
+                    By {selectedDesign.designerName || `${selectedDesign.profile?.firstName || ''} ${selectedDesign.profile?.lastName || ''}`.trim() || 'Unknown'}
                   </Text>
                   <Text style={[styles.designDescription, { color: theme.subtext }]}>{selectedDesign.description}</Text>
 
                   <Text style={[styles.sectionTitle, { color: theme.text }]}>Available mocks</Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.mockRow}>
-                    {selectedDesign.mocks.map((mock) => {
+                    {selectedDesign.mocks?.map((mock) => {
                       const isActive = selectedMock?.id === mock.id;
                       return (
                         <TouchableOpacity
