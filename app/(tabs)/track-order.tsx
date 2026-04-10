@@ -96,7 +96,7 @@ export default function TrackOrderScreen() {
   const canSubmit = trackingNumber.trim().length > 0;
   const completedStages = order?.stages.filter((stage) => stage.done).length || 0;
   const totalStages = order?.stages.length || 1;
-  const progressWidth = `${Math.max(completedStages / totalStages, 0.08) * 100}%`;
+  const progressWidth = `${Math.max(completedStages / totalStages, 0.08) * 100}%` as `${number}%`;
 
   const mapCoordinates = useMemo(() => {
     if (!order?.latitude || !order?.longitude) return 'Location not available yet';

@@ -36,8 +36,14 @@ export default function UpdateInterestScreen() {
           ApiService.getMyInterests().catch(() => []),
           ApiService.getInterestOptions().catch(() => FALLBACK_INTERESTS),
         ]);
-        setSelected(currentInterests);
-        const mergedOptions = Array.from(new Set([...(options.length ? options : FALLBACK_INTERESTS), ...currentInterests]));
+        const normalizedCurrent = Array.isArray(currentInterests)
+          ? currentInterests.map((item) => String(item).trim()).filter(Boolean)
+          : [];
+        const normalizedOptions = Array.isArray(options)
+          ? options.map((item) => String(item).trim()).filter(Boolean)
+          : [];
+        setSelected(normalizedCurrent);
+        const mergedOptions = Array.from(new Set([...(normalizedOptions.length ? normalizedOptions : FALLBACK_INTERESTS), ...normalizedCurrent]));
         setInterestOptions(mergedOptions);
       } finally {
         setLoading(false);

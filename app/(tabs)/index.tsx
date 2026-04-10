@@ -392,7 +392,7 @@ export default function HomeScreen() {
           <MetricBox icon="wallet-outline" color="#27AE60" value={formatNaira(Number(totalEarnings || 0))} label="Overall Earning" theme={theme} />
           <MetricBox icon="star-outline" color="#9B51E0" value={rating.toFixed(1)} label="Overall Rating" theme={theme} />
           <MetricBox icon="checkbox-outline" color="#56CCF2" value={`${jobSuccess}%`} label="Job Success" theme={theme} />
-          <MetricBox icon="close-square-outline" color="#EB5757" value={cancelledOrders} label="Canceled order" theme={theme} />
+          <MetricBox icon="close-circle-outline" color="#EB5757" value={cancelledOrders} label="Canceled order" theme={theme} />
           <MetricBox icon="cube-outline" color="#2F80ED" value={totalOrders} label="Total Order" theme={theme} />
         </View>
 

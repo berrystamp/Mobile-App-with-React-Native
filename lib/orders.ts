@@ -110,5 +110,5 @@ export const normalizeManageOrderListResponse = (input: any): ManageOrderItem[] 
           ? body.items
           : [];
 
-  return list.map((item, index) => normalizeManageOrder(item, index));
+  return list.map((item: unknown, index: number) => normalizeManageOrder(item, index));
 };

@@ -37,7 +37,10 @@ export default function OnboardingInterestScreen() {
     const loadInterestOptions = async () => {
       try {
         const options = await ApiService.getInterestOptions();
-        if (options.length) setInterestOptions(options);
+        const normalizedOptions = Array.isArray(options)
+          ? options.map((item) => String(item).trim()).filter(Boolean)
+          : [];
+        if (normalizedOptions.length) setInterestOptions(normalizedOptions);
       } catch {
         setInterestOptions(FALLBACK_INTERESTS);
       }

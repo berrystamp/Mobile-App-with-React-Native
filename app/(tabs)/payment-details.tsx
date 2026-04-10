@@ -11,7 +11,6 @@ import {
   View,
   ScrollView,
   Modal,
-  Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -129,7 +128,7 @@ export default function PaymentDetailsScreen() {
     };
 
     verifyAccount();
-  }, [accountNumber, bankCode, activeCurrency]);
+  }, [accountNumber, bankCode, accountName, activeCurrency]);
 
   const isValidAccountNumber = useMemo(
     () => /^\d{10}$/.test(accountNumber),

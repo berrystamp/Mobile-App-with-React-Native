@@ -1,4 +1,4 @@
-import axios, { AxiosInstance } from "axios";
+import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router"; // Added for automatic redirection
 
@@ -22,6 +22,8 @@ api.interceptors.request.use(async (config) => {
   if (profileType && !config.headers.profileType) {
     config.headers.profileType = profileType;
   }
+  return config;
+});
 
 // Response interceptor: Listen for expired tokens (401 Unauthorized)
 api.interceptors.response.use(
@@ -38,6 +40,7 @@ api.interceptors.response.use(
       router.replace('/(auth)/login'); 
     }
     return Promise.reject(error);
-  }
+  },
+);
 
 export default api;

@@ -197,6 +197,11 @@ class ApiService {
     }
   }
 
+  async setActiveProfileType(profileType: ProfileTypeInterface) {
+    await AsyncStorage.setItem('profileType', profileType);
+    return { requestSuccessful: true };
+  }
+
   async getManageOrders(options?: {
     profileType?: ProfileTypeInterface;
     page?: number;
@@ -409,24 +414,12 @@ class ApiService {
     return Array.from(new Set(inferred));
   }
 
-  async getPaymentDetails() {
-    return await this.get('/user/payment-details');
-  }
-
-  async savePaymentDetails(payload: {
-    bankName: string;
-    bankCode: string;
-    accountNumber: string;
-    accountName: string;
-  }) {
-    return await this.put('/user/payment-details', payload);
-  }
-
   async verifyBankAccount(payload: {
     accountNumber: string;
     bankCode: string;
   }) {
-    return await this.post('/banks/verify', payload);
+    const response = await api.post('/banks/verify', payload);
+    return response.data;
   }
 
   async getMyInterests() {

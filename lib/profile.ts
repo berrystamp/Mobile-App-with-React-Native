@@ -31,6 +31,7 @@ export type ProfilePayload = {
 
 export type PaymentDetails = {
   bankName: string;
+  bankCode: string;
   accountNumber: string;
   accountName: string;
 };
@@ -119,6 +120,7 @@ export const normalizePaymentDetails = (input: any): PaymentDetails => {
   const body = input?.responseBody || input || {};
   return {
     bankName: body.bankName || body.bank || '',
+    bankCode: body.bankCode || body.bank_code || body.bankId || '',
     accountNumber: body.accountNumber || body.accountNo || '',
     accountName: body.accountName || body.name || '',
   };

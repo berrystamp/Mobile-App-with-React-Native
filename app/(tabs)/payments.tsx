@@ -44,6 +44,16 @@ export default function PaymentsScreen() {
           <View style={{ width: 24 }} />
         </View>
 
+        <TouchableOpacity
+          onPress={() => router.push('/sp-1')}
+          className="mb-6 flex-row items-center justify-between rounded-2xl bg-[#EEE9FF] px-4 py-4 dark:bg-[#28233D]">
+          <View>
+            <Text className="text-sm font-semibold text-[#4A34A7] dark:text-[#CDC4FF]">Sponsored payment flow</Text>
+            <Text className="mt-1 text-xs text-[#817A95] dark:text-[#A79FC8]">Open the full 11-screen sponsored payment journey</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={isDark ? '#CDC4FF' : '#4A34A7'} />
+        </TouchableOpacity>
+
         {loading ? (
           <View className="flex-1 items-center justify-center">
             <ActivityIndicator size="large" color="#4732A1" />

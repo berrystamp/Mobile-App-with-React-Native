@@ -41,7 +41,7 @@ export function useFileUpload() {
     try {
       const response = await ApiService.uploadMultipleFiles(fileUris);
       const items = Array.isArray(response) ? response : Array.isArray(response?.content) ? response.content : [];
-      return items.map((item) => ({
+      return items.map((item: unknown) => ({
         raw: item,
         path: toFilePath(item),
       }));
