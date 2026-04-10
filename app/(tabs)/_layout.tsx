@@ -15,13 +15,13 @@ export default function TabsLayout() {
   const hideHeader = useMemo(
     () =>
       !isCustomer ||
-      ['/chat', '/checkout', '/Search', '/Filter', '/filter-product-category', '/filter-design-category', '/select-printer', '/products', '/custom-designs', '/custom-design', '/SelectDesignForScreen', '/SelectDesignThemeScreen', '/SelectItemsScreen', '/favorites', '/messages', '/profile', '/notification', '/payments', '/edit-profile', '/track-order', '/faq', '/referral', '/referral-how-it-works', '/manage-order', '/update-interest'].includes(pathname) ||
+      ['/chat', '/checkout', '/Search', '/Filter', '/filter-product-category', '/filter-design-category', '/select-printer', '/products', '/my-shop', '/custom-design', '/SelectDesignForScreen', '/SelectDesignThemeScreen', '/SelectItemsScreen', '/favorites', '/messages', '/profile', '/notification', '/payments', '/edit-profile', '/track-order', '/faq', '/referral', '/referral-how-it-works', '/manage-order', '/update-interest'].includes(pathname) ||
       pathname.startsWith('/order/'),
     [isCustomer, pathname],
   );
 
   const hideBottomNavigation = useMemo(
-    () => ['/chat', '/checkout', '/Filter', '/filter-product-category', '/filter-design-category', '/select-printer', '/products', '/custom-designs', '/custom-design', '/SelectDesignForScreen', '/SelectDesignThemeScreen', '/SelectItemsScreen', '/notification', '/payments', '/edit-profile', '/track-order', '/faq', '/referral', '/referral-how-it-works', '/manage-order', '/update-interest'].includes(pathname) || pathname.startsWith('/order/'),
+    () => ['/chat', '/checkout', '/Filter', '/filter-product-category', '/filter-design-category', '/select-printer', '/products', '/my-shop', '/custom-design', '/SelectDesignForScreen', '/SelectDesignThemeScreen', '/SelectItemsScreen', '/notification', '/payments', '/edit-profile', '/track-order', '/faq', '/referral', '/referral-how-it-works', '/manage-order', '/update-interest'].includes(pathname) || pathname.startsWith('/order/'),
     [pathname],
   );
 
@@ -70,7 +70,9 @@ export default function TabsLayout() {
           <Stack.Screen name="referral-how-it-works" />
           <Stack.Screen name="Search" />
           <Stack.Screen name="select-printer" />
-          <Stack.Screen name="custom-designs" />
+          <Stack.Screen name="my-shop" />
+          <Stack.Screen name="shop-reviews" />
+          <Stack.Screen name="shop-follows" />
           <Stack.Screen name="custom-design" />
           <Stack.Screen name="SelectDesignForScreen" />
           <Stack.Screen name="SelectDesignThemeScreen" />
