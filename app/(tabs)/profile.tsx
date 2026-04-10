@@ -84,7 +84,7 @@ export default function ProfileScreen() {
     if (activeRole === 'DESIGNER') {
       return [
         { icon: 'document-text-outline' as const, label: 'Manage Order', onPress: () => router.push('/manage-order') },
-        { icon: 'storefront-outline' as const, label: 'My Shop', onPress: () => router.push('/custom-designs') },
+        { icon: 'storefront-outline' as const, label: 'My Shop', onPress: () => router.push('/my-shop') },
         { icon: 'wallet-outline' as const, label: 'Wallet', onPress: () => router.push('/payment-details') },
       ];
     }
