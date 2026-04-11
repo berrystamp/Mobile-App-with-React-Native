@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, RefreshControl, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View, useColorScheme } from 'react-native';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 
 import ApiService from '@/services/apiClient';
 import { toProfileType, useAuthStore } from '@/store/authStore';
@@ -11,8 +11,10 @@ import { fetchShopData, toAbsoluteImage, toCountLabel } from '@/components/shop/
 
 export default function MyShopScreen() {
   const router = useRouter();
+  const { profileId } = useLocalSearchParams<{ profileId?: string }>();
   const role = useAuthStore((state) => state.role);
   const activeRole = toProfileType(role);
+  const readOnly = Boolean(profileId);
   const isDark = useColorScheme() === 'dark';
 
   const [loading, setLoading] = useState(true);
@@ -35,7 +37,7 @@ export default function MyShopScreen() {
   const loadShop = useCallback(async () => {
     try {
       if (!refreshing) setLoading(true);
-      const data = await fetchShopData(activeRole);
+      const data = await fetchShopData(activeRole, profileId ? Number(profileId) : undefined);
       setShop(data);
       if (data.shouldPromptPayment && (activeRole === 'DESIGNER' || activeRole === 'PRINTER')) {
         setShowPaymentPrompt(true);
@@ -46,7 +48,7 @@ export default function MyShopScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [activeRole, refreshing]);
+  }, [activeRole, profileId, refreshing]);
 
   useFocusEffect(
     useCallback(() => {
@@ -88,13 +90,22 @@ export default function MyShopScreen() {
 
     if (action === 'update') {
       setMenuTarget(null);
-      router.push('/edit-profile');
+      if (menuTarget.type === 'collection') {
+        router.push({ pathname: '/create-collection', params: { collectionId: String(menuTarget.id), name: menuTarget.title } });
+      } else {
+        router.push({ pathname: '/upload-design', params: { designId: String(menuTarget.id) } });
+      }
       return;
     }
 
     if (action === 'insights') {
       setMenuTarget(null);
-      router.push('/(tabs)');
+      const insight = await ApiService.getDesignInsights(menuTarget.id);
+      const body = insight?.responseBody || insight || {};
+      Alert.alert(
+        'Post Insight',
+        `Account reached: ${body?.accountReached || body?.reach || 0}\nPost clicks: ${body?.postClicks || body?.clicks || 0}\nSales: ${body?.sales || body?.noOfSales || 0}`,
+      );
       return;
     }
 
@@ -108,6 +119,17 @@ export default function MyShopScreen() {
       try {
         await ApiService.deleteCustomDesign(menuTarget.id);
         setShop((prev: any) => ({ ...prev, designs: (prev?.designs || []).filter((d: any) => String(d.id) !== String(menuTarget.id)) }));
+      } catch (error: any) {
+        Alert.alert('Delete failed', error?.response?.data?.responseMessage || error?.message || 'Please try again.');
+      } finally {
+        setMenuTarget(null);
+      }
+    }
+
+    if (action === 'delete' && menuTarget.type === 'collection') {
+      try {
+        await ApiService.deleteCollection(menuTarget.id);
+        setShop((prev: any) => ({ ...prev, collections: (prev?.collections || []).filter((d: any) => String(d.id) !== String(menuTarget.id)) }));
       } catch (error: any) {
         Alert.alert('Delete failed', error?.response?.data?.responseMessage || error?.message || 'Please try again.');
       } finally {
@@ -135,7 +157,7 @@ export default function MyShopScreen() {
             primaryColor={theme.primary}
             borderColor={theme.border}
             onBack={() => router.back()}
-            onEdit={() => router.push('/edit-profile')}
+            onEdit={() => (readOnly ? router.back() : router.push('/edit-profile'))}
             onOpenReviews={() => router.push({ pathname: '/shop-reviews', params: { profileId: String(shop.profile.profileId) } })}
             onOpenFollowers={() => router.push({ pathname: '/shop-follows', params: { profileId: String(shop.profile.profileId), tab: 'followers' } })}
             onOpenFollowing={() => router.push({ pathname: '/shop-follows', params: { profileId: String(shop.profile.profileId), tab: 'following' } })}
@@ -159,19 +181,37 @@ export default function MyShopScreen() {
               text={theme.text}
               muted={theme.muted}
               onMenu={(item) => setMenuTarget(item)}
+              onItemPress={(item) => {
+                if (item.type === 'design') {
+                  router.push({ pathname: '/product-details', params: { designId: String(item.id) } });
+                  return;
+                }
+                router.push({ pathname: '/products', params: { searchField: item.title } });
+              }}
               emptyMessage={activeTab === 'designs' ? 'No designs uploaded yet.' : 'No collections yet.'}
             />
           </View>
         </View>
       </ScrollView>
 
+      {!readOnly ? (
+        <View style={[styles.actionRow, { backgroundColor: theme.surface, borderTopColor: theme.border }]}>
+          <TouchableOpacity style={[styles.secondaryBtn, { borderColor: theme.primary }]} onPress={() => router.push('/create-collection')}>
+            <Text style={{ color: theme.primary, fontWeight: '700' }}>Create Collection</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: theme.primary }]} onPress={() => router.push('/upload-design')}>
+            <Text style={{ color: '#fff', fontWeight: '700' }}>Upload Design</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
       <Modal visible={Boolean(menuTarget)} transparent animationType="slide" onRequestClose={() => setMenuTarget(null)}>
         <TouchableOpacity style={styles.modalBackdrop} onPress={() => setMenuTarget(null)}>
           <View style={[styles.sheet, { backgroundColor: theme.surface }]}> 
             <View style={styles.sheetHandle} />
-            <SheetAction label="Update Design" onPress={() => handleMenuAction('update')} />
-            <SheetAction label="Delete Design" onPress={() => handleMenuAction('delete')} />
-            <SheetAction label="View insights" onPress={() => handleMenuAction('insights')} />
+            <SheetAction label={menuTarget?.type === 'collection' ? 'Update Collection' : 'Update Design'} onPress={() => handleMenuAction('update')} />
+            <SheetAction label={menuTarget?.type === 'collection' ? 'Delete Collection' : 'Delete Design'} onPress={() => handleMenuAction('delete')} />
+            {menuTarget?.type === 'design' ? <SheetAction label="View insights" onPress={() => handleMenuAction('insights')} /> : null}
             <SheetAction label="Share collection" onPress={() => handleMenuAction('share')} />
           </View>
         </TouchableOpacity>
@@ -238,4 +278,7 @@ const styles = StyleSheet.create({
   modalText: { fontSize: 15, lineHeight: 22, textAlign: 'center', paddingHorizontal: 20, paddingBottom: 18 },
   promptButtons: { flexDirection: 'row', borderTopWidth: 1 },
   promptBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 14 },
+  actionRow: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: 1 },
+  secondaryBtn: { flex: 1, marginRight: 8, borderWidth: 1, borderRadius: 10, alignItems: 'center', justifyContent: 'center', paddingVertical: 14 },
+  primaryBtn: { flex: 1, marginLeft: 8, borderRadius: 10, alignItems: 'center', justifyContent: 'center', paddingVertical: 14 },
 });

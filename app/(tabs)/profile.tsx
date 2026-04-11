@@ -100,7 +100,7 @@ export default function ProfileScreen() {
     return [
       { icon: 'color-palette-outline' as const, label: 'Custom Designs', onPress: () => router.push('/custom-design') },
       { icon: 'document-text-outline' as const, label: 'Manage Orders', onPress: () => router.push('/manage-order') },
-      // { icon: 'people-outline' as const, label: 'Referrals', onPress: () => router.push('/referral') },
+      { icon: 'people-outline' as const, label: 'Refer a friend', onPress: () => router.push('/referral') },
       { icon: 'heart-outline' as const, label: 'Track Order', onPress: () => router.push('/track-order') },
       { icon: 'copy-outline' as const, label: 'Update Interests', onPress: () => router.push('/update-interest') },
     ];
@@ -184,21 +184,23 @@ export default function ProfileScreen() {
             title="My Account"
             items={accountItems}
             footer={
-              switchTargets.length ? (
-                <View className="pt-2">
-                  {switchTargets.map((target) => (
+              <View className="pt-2">
+                <TouchableOpacity
+                  onPress={() => router.push('/switch-account')}
+                  className="mb-3 rounded-2xl border border-[#E5E0F5] px-4 py-3 dark:border-[#403A58]">
+                  <Text className="text-sm font-semibold text-[#4B3A99] dark:text-[#B8ADFF]">Switch account</Text>
+                </TouchableOpacity>
+                {switchTargets.length ? (
+                  switchTargets.map((target) => (
                     <TouchableOpacity
                       key={target}
                       onPress={() => handleSwitchAccount(target)}
                       className="mb-3 rounded-2xl bg-[#F5F4F9] px-4 py-3 dark:bg-[#2A2A2A]">
-                      <Text className="text-sm font-semibold text-[#4B3A99] dark:text-[#B8ADFF]">
-                       Switch to {target.toLowerCase()} account
-                       
-                      </Text>
+                      <Text className="text-sm font-semibold text-[#4B3A99] dark:text-[#B8ADFF]">Switch to {target.toLowerCase()} account</Text>
                     </TouchableOpacity>
-                  ))}
-                </View>
-              ) : null
+                  ))
+                ) : null}
+              </View>
             }
           />
 
