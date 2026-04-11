@@ -10,6 +10,7 @@ export function ShopGrid({
   text,
   muted,
   onMenu,
+  onItemPress,
   emptyMessage,
 }: {
   items: GridItem[];
@@ -18,6 +19,7 @@ export function ShopGrid({
   muted: string;
   emptyMessage: string;
   onMenu: (item: GridItem) => void;
+  onItemPress?: (item: GridItem) => void;
 }) {
   if (!items.length) {
     return <Text style={{ textAlign: 'center', marginVertical: 24, color: muted }}>{emptyMessage}</Text>;
@@ -26,7 +28,7 @@ export function ShopGrid({
   return (
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginTop: 16 }}>
       {items.map((item) => (
-        <View key={String(item.id)} style={{ width: '48.5%', borderRadius: 12, padding: 10, marginBottom: 12, minHeight: 180, backgroundColor: bg }}>
+        <TouchableOpacity key={String(item.id)} onPress={() => onItemPress?.(item)} activeOpacity={0.9} style={{ width: '48.5%', borderRadius: 12, padding: 10, marginBottom: 12, minHeight: 180, backgroundColor: bg }}>
           <TouchableOpacity
             style={{ position: 'absolute', zIndex: 1, top: 8, right: 8, width: 28, height: 28, borderRadius: 14, backgroundColor: '#DBDBDB', alignItems: 'center', justifyContent: 'center' }}
             onPress={() => onMenu(item)}>
@@ -43,7 +45,7 @@ export function ShopGrid({
             {item.title}
           </Text>
           <Text style={{ marginTop: 3, fontSize: 14, color: muted }}>{item.subtitle}</Text>
-        </View>
+        </TouchableOpacity>
       ))}
     </View>
   );
