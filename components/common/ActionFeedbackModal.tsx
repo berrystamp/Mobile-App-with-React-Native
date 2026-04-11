@@ -1,5 +1,5 @@
 import React from 'react';
-import { Modal, Text, TouchableOpacity, View } from 'react-native';
+import { Modal, Text, TouchableOpacity, View, useColorScheme } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppTheme } from '@/lib/theme/appTheme';
 
@@ -12,19 +12,58 @@ interface ActionFeedbackModalProps {
 
 export default function ActionFeedbackModal({ visible, title, message, onClose }: ActionFeedbackModalProps) {
   const theme = useAppTheme();
+  
+  // Detect system/app theme to enforce pure black in dark mode
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+  const modalBackground = isDark ? '#000000' : theme.surface;
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View className="flex-1 items-center justify-center px-7" style={{ backgroundColor: theme.overlay }}>
-        <View className="w-full max-w-[380px] rounded-2xl px-5 py-6" style={{ backgroundColor: theme.surface }}>
+      <View 
+        className="flex-1 items-center justify-center px-6" 
+        style={{ backgroundColor: theme.overlay }}
+      >
+        <View 
+          className="w-full max-w-[340px] rounded-3xl p-6 shadow-lg" 
+          style={{ backgroundColor: modalBackground }}
+        >
           <View className="items-center">
-            <Ionicons name="checkmark-circle" size={52} color={theme.primary} />
-            <Text className="mt-3 text-center text-[28px] font-semibold" style={{ color: theme.text }}>{title}</Text>
-            <Text className="mt-2 text-center text-[22px] leading-8" style={{ color: theme.textMuted }}>{message}</Text>
+            {/* Soft background circle for the icon */}
+            <View 
+              className="mb-4 h-16 w-16 items-center justify-center rounded-full" 
+              style={{ backgroundColor: `${theme.primary}15` }} // 15% opacity of primary color
+            >
+              <Ionicons name="checkmark-circle" size={40} color={theme.primary} />
+            </View>
+
+            <Text 
+              className="mb-2 text-center text-xl font-bold" 
+              style={{ color: theme.text }}
+            >
+              {title}
+            </Text>
+            
+            <Text 
+              className="mb-6 text-center text-base leading-6" 
+              style={{ color: theme.textMuted }}
+            >
+              {message}
+            </Text>
           </View>
 
-          <TouchableOpacity onPress={onClose} className="mt-6 items-center rounded-full py-3" style={{ backgroundColor: theme.primary }}>
-            <Text className="text-[24px] font-semibold" style={{ color: theme.onPrimary }}>Continue</Text>
+          <TouchableOpacity 
+            onPress={onClose} 
+            activeOpacity={0.8}
+            className="w-full items-center rounded-xl py-3.5" 
+            style={{ backgroundColor: theme.primary }}
+          >
+            <Text 
+              className="text-base font-semibold" 
+              style={{ color: theme.onPrimary }}
+            >
+              Continue
+            </Text>
           </TouchableOpacity>
         </View>
       </View>

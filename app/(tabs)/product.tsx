@@ -3,10 +3,13 @@ import {
   ActivityIndicator,
   Image,
   ImageBackground,
+  Modal,
   ScrollView,
+  Share,
   Text,
   TouchableOpacity,
   View,
+  useColorScheme,
 } from 'react-native';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -23,11 +26,21 @@ const FALLBACK_AVATAR = require('@/assets/images/item1.png');
 
 export default function ProductScreen() {
   const router = useRouter();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
   const { designId } = useLocalSearchParams<{ designId?: string }>();
+  
   const [feedback, setFeedback] = useState<{ title: string; message: string } | null>(null);
   const [isFavorite, setIsFavorite] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [design, setDesign] = useState<Design | null>(null);
+
+  // Modal & Selection State
+  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [selectedMock, setSelectedMock] = useState<any>(null);
+  const [selectedColour, setSelectedColour] = useState<string | null>(null);
+  const [isAddingToCart, setIsAddingToCart] = useState(false);
+  const [cartIntent, setCartIntent] = useState<'cart' | 'print'>('cart');
 
   useEffect(() => {
     const loadDesign = async () => {
@@ -42,6 +55,14 @@ export default function ProductScreen() {
         const normalized = normalizeDesign(response?.responseBody || response);
         setDesign(normalized);
         setIsFavorite(normalized.liked);
+
+        // Initialize default mock if available
+        if (normalized.mocks && normalized.mocks.length > 0) {
+          setSelectedMock(normalized.mocks[0]);
+          if (normalized.mocks[0].colours?.length > 0) {
+            setSelectedColour(normalized.mocks[0].colours[0]);
+          }
+        }
       } catch {
         setDesign(null);
       } finally {
@@ -66,6 +87,17 @@ export default function ProductScreen() {
   const heroImage = design?.imagePath ? { uri: design.imagePath } : FALLBACK_IMAGE;
   const avatarImage = design?.profile.profilePicturePath ? { uri: design.profile.profilePicturePath } : FALLBACK_AVATAR;
 
+  const handleShare = async () => {
+    if (!design) return;
+    try {
+      await Share.share({
+        message: `Check out "${design.title}" by ${artistName} on Berrystamp!\nPrice: ${formatNaira(price)}`,
+      });
+    } catch (error: any) {
+      setFeedback({ title: 'Share failed', message: error.message });
+    }
+  };
+
   const handleAddToFavorite = async () => {
     if (!designId) return;
 
@@ -84,23 +116,46 @@ export default function ProductScreen() {
     }
   };
 
-  const handleAddToCart = async (openPrintPrefs = false) => {
-    if (!design) return;
-    const fallbackMock = design.mocks[0];
-    if (!fallbackMock) {
-      setFeedback({ title: 'Unavailable', message: 'This design has no printable mock available right now.' });
+  const openOptionsModal = (intent: 'cart' | 'print') => {
+    setCartIntent(intent);
+    setIsModalVisible(true);
+  };
+
+  const confirmAddToCart = async () => {
+    if (!design || !selectedMock) {
+      setFeedback({ title: 'Unavailable', message: 'Please select a printable mock first.' });
       return;
     }
 
     try {
-      await ApiService.addOrUpdateCartItem(design.id, fallbackMock.id, { quantity: 1 });
-      if (openPrintPrefs) {
+      setIsAddingToCart(true);
+      await ApiService.addOrUpdateCartItem(design.id, selectedMock.id, { 
+        quantity: 1, 
+        colour: selectedColour 
+      });
+      
+      setIsModalVisible(false);
+      
+      if (cartIntent === 'print') {
         router.push({ pathname: '/cart', params: { openPrintPrefs: '1' } });
         return;
       }
       setFeedback({ title: 'Added to cart', message: 'Item was added to your cart successfully.' });
     } catch (error: any) {
       setFeedback({ title: 'Action failed', message: error?.response?.data?.message || 'Unable to update your cart right now.' });
+    } finally {
+      setIsAddingToCart(false);
+    }
+  };
+
+  const handleMockSelect = (mock: any) => {
+    setSelectedMock(mock);
+    if (mock.colours && mock.colours.length > 0) {
+      if (!mock.colours.includes(selectedColour)) {
+        setSelectedColour(mock.colours[0]);
+      }
+    } else {
+      setSelectedColour(null);
     }
   };
 
@@ -111,7 +166,16 @@ export default function ProductScreen() {
       participantId: design.profile.id,
       name: artistName,
       role: 'Designer',
-      initialMessage: `Hi, I want to customize "${design.title}" for a new order. Can we discuss size, color, quantity and printing options?`,
+      initialMessages: [
+        {
+          id: `msg-${Date.now()}`,
+          type: 'text',
+          text: `Hi, I want to customize "${design.title}" for a new order. Can we discuss size, color, quantity and printing options?`,
+          author: 'me',
+          createdAt: new Date().toISOString(),
+          status: 'sent',
+        },
+      ],
     });
 
     router.push({
@@ -145,7 +209,7 @@ export default function ProductScreen() {
   }
 
   return (
-    <View className="flex-1  bg-[#F5F5F5] dark:bg-[#121212]">
+    <View className="flex-1 bg-[#F5F5F5] dark:bg-[#121212]">
       <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 180 }} showsVerticalScrollIndicator={false}>
         <View className="relative">
           <ImageBackground source={heroImage} className="h-[420px] w-full" resizeMode="cover">
@@ -167,7 +231,7 @@ export default function ProductScreen() {
                   <TouchableOpacity onPress={handleAddToFavorite} className="mx-1 h-9 w-9 items-center justify-center">
                     <Ionicons name={isFavorite ? 'heart' : 'heart-outline'} size={22} color="#FFFFFF" />
                   </TouchableOpacity>
-                  <TouchableOpacity className="h-9 w-9 items-center justify-center">
+                  <TouchableOpacity onPress={handleShare} className="h-9 w-9 items-center justify-center">
                     <Feather name="share-2" size={21} color="#FFFFFF" />
                   </TouchableOpacity>
                 </View>
@@ -176,15 +240,15 @@ export default function ProductScreen() {
           </ImageBackground>
         </View>
 
-        <View className="bg-[#F5F5F5] px-6 pt-6  dark:bg-[#121212]">
+        <View className="bg-[#F5F5F5] px-6 pt-6 dark:bg-[#121212]">
           <Text className="text-base text-[#363636] dark:text-white/90">
             From <Text className="text-[#2D71E3]">{design.categories?.[0] || 'Berrystamp Collections'}</Text>
           </Text>
-          <Text className="mt-2 text-[32px] font-semibold text-[#333333] dark:text-white">{formatNaira(price)}</Text>
+          <Text className="mt-2 text-md font-semibold text-[#333333] dark:text-white">{formatNaira(price)}</Text>
 
-          <View className="mt-5 rounded-3xl bg-white p-5 dark:bg-[#1E1E1E]">
-            <Text className="text-xl font-semibold text-[#333333] dark:text-white">Description</Text>
-            <Text className="mt-3 text-base leading-7 text-[#4F4F4F] dark:text-[#D7D7D7]">
+          <View className="mt-5 rounded-3xl bg-white p-4 dark:bg-[#1E1E1E]">
+            <Text className="text-md font-semibold text-[#333333] dark:text-white">Description</Text>
+            <Text className="mt-3 text-sm leading-7 text-[#4F4F4F] dark:text-[#D7D7D7]">
               {design.description || 'No description is available for this product yet.'}
             </Text>
 
@@ -200,29 +264,123 @@ export default function ProductScreen() {
           </View>
 
           <TouchableOpacity onPress={handleRequestCustomization} className="mt-6 items-center rounded-full bg-[#3B2D85] py-4">
-            <Text className="text-base font-semibold text-white">Request Customization</Text>
+            <Text className="text-md font-semibold text-white">Request Customization</Text>
           </TouchableOpacity>
         </View>
-      
-      <View style={{paddingBottom:100}} className="absolute bottom-[10] left-0 right-0 flex-row bg-[#F5F5F5] px-6 pt-4 dark:bg-[#121212]">
-        <TouchableOpacity
-          onPress={() => handleAddToCart(false)}
-          className="mr-2 flex-1 items-center justify-center rounded-2xl border border-[#3B2D85] py-4">
-          <Text className="text-base font-semibold text-[#3B2D85]">Add to Cart</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => handleAddToCart(true)} className="ml-2 flex-1 items-center justify-center rounded-2xl bg-[#3B2D85] py-4">
-          <Text className="text-base font-semibold text-white">Print Now</Text>
-        </TouchableOpacity>
-      </View>
 
-      <ActionFeedbackModal
-        visible={Boolean(feedback)}
-        title={feedback?.title ?? ''}
-        message={feedback?.message ?? ''}
-        onClose={() => setFeedback(null)}
-      />
+        {/* Buttons restored to their original location inside the ScrollView */}
+        <View style={{paddingBottom:100}} className="absolute bottom-[10] left-0 right-0 flex-row bg-[#F5F5F5] px-6 pt-4 dark:bg-[#121212]">
+          <TouchableOpacity
+            onPress={() => openOptionsModal('cart')}
+            className="mr-2 flex-1 items-center justify-center rounded-2xl border border-[#3B2D85] py-4">
+            <Text className="text-base font-semibold text-[#3B2D85] dark:text-[#C5BBF5]">Add to Cart</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => openOptionsModal('print')} className="ml-2 flex-1 items-center justify-center rounded-2xl bg-[#3B2D85] py-4">
+            <Text className="text-base font-semibold text-white">Print Now</Text>
+          </TouchableOpacity>
+        </View>
+
+        <ActionFeedbackModal
+          visible={Boolean(feedback)}
+          title={feedback?.title ?? ''}
+          message={feedback?.message ?? ''}
+          onClose={() => setFeedback(null)}
+        />
       </ScrollView>
-    </View>
 
+      {/* Variant Selection Modal */}
+      <Modal animationType="slide" transparent visible={isModalVisible} onRequestClose={() => setIsModalVisible(false)}>
+        <View className="flex-1 justify-end bg-black/60">
+          <View className="max-h-[90%] rounded-t-[32px] bg-white px-6 pb-10 pt-6 dark:bg-[#1A1A1A]">
+            
+            <View className="mb-4 flex-row items-center justify-between">
+              <Text className="text-xl font-bold text-[#333333] dark:text-white">Product details</Text>
+              <TouchableOpacity onPress={() => setIsModalVisible(false)} className="rounded-full bg-gray-100 p-2 dark:bg-[#2A2A2A]">
+                <Ionicons name="close" size={24} color={isDark ? '#FFFFFF' : '#333333'} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} className="mb-6">
+              <Image 
+                source={{ uri: selectedMock?.imagePath || design.imagePath }} 
+                style={{ width: '100%', height: 280, borderRadius: 16 }}
+                className="bg-gray-100 dark:bg-[#2A2A2A]" 
+                resizeMode="contain" 
+              />
+              
+              {design.mocks && design.mocks.length > 0 && (
+                <View className="mt-4 flex-row">
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    {design.mocks.map((mock) => {
+                      const isActive = selectedMock?.id === mock.id;
+                      return (
+                        <TouchableOpacity
+                          key={mock.id}
+                          onPress={() => handleMockSelect(mock)}
+                          className={`mr-3 overflow-hidden rounded-xl border-2 ${isActive ? 'border-[#3B2D85]' : 'border-transparent'}`}
+                        >
+                          <Image 
+                            source={{ uri: mock.imagePath }} 
+                            style={{ width: 64, height: 64 }}
+                            className="bg-gray-100 dark:bg-[#2A2A2A]" 
+                            resizeMode="cover" 
+                          />
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                </View>
+              )}
+
+              <Text className="mt-5 text-lg font-semibold text-[#333333] dark:text-white">{design.title}</Text>
+              <Text className="text-base text-gray-500 dark:text-gray-400">By {artistName}</Text>
+            
+              {selectedMock?.colours?.length > 0 && (
+                <>
+                  <Text className="mt-6 text-base font-semibold text-[#333333] dark:text-white">Colours</Text>
+                  <View className="mt-3 flex-row flex-wrap">
+                    {selectedMock.colours.map((colour: string) => {
+                      const isActive = selectedColour === colour;
+                      return (
+                        <TouchableOpacity
+                          key={colour}
+                          className={`mb-3 mr-3 flex-row items-center rounded-full border px-4 py-2 ${
+                            isActive ? 'border-[#3B2D85] bg-black/5 dark:bg-black/40' : 'border-gray-200 dark:border-[#333333]'
+                          }`}
+                          onPress={() => setSelectedColour(colour)}>
+                          <View style={{ backgroundColor: colour }} className="mr-3 h-5 w-5 rounded-full border border-gray-300 dark:border-gray-600" />
+                          <Text className="text-sm text-gray-700 dark:text-gray-300">{colour}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </>
+              )}
+
+              <View className="mt-6 rounded-2xl bg-gray-50 p-5 dark:bg-[#2A2A2A]">
+                <Text className="mb-3 text-base font-bold text-[#333333] dark:text-white">Order summary</Text>
+                <Text className="text-sm text-gray-600 dark:text-gray-300 mb-1">
+                  Base price: ₦{(selectedMock?.price || design.amount || 0).toLocaleString()}
+                </Text>
+                <Text className="text-sm text-gray-600 dark:text-gray-300">
+                  Availability: {selectedMock?.availableQty ?? 'N/A'} in stock
+                </Text>
+              </View>
+            </ScrollView>
+
+            <TouchableOpacity
+              className={`items-center rounded-2xl bg-[#3B2D85] py-4 ${isAddingToCart ? 'opacity-70' : 'opacity-100'}`}
+              disabled={isAddingToCart}
+              onPress={confirmAddToCart}>
+              <Text className="text-base font-bold text-white">
+                {isAddingToCart ? 'Processing...' : cartIntent === 'print' ? 'Confirm Print Now' : 'Add to cart'}
+              </Text>
+            </TouchableOpacity>
+
+          </View>
+        </View>
+      </Modal>
+
+    </View>
   );
 }

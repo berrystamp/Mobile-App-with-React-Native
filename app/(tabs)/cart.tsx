@@ -35,12 +35,21 @@ type CartItemType = {
   price: number;
   quantity: number;
   imageSource: any;
+  imageUrl?: string;
   colour: string;
   size: string;
   variantText: string;
   checked: boolean;
   designerId?: number;
   designerName?: string;
+};
+
+type PreferenceErrors = {
+  estimatedAmount?: string;
+  deliveryDate?: string;
+  deliveryAddress?: string;
+  hasOwnItem?: string;
+  pickupAddress?: string;
 };
 
 export default function CartScreen() {
@@ -59,9 +68,10 @@ export default function CartScreen() {
   const [deliveryDate, setDeliveryDate] = useState('');
   const [deliveryAddress, setDeliveryAddress] = useState('');
   const [pickupAddress, setPickupAddress] = useState('');
-  const [hasOwnItem, setHasOwnItem] = useState(false);
+  const [hasOwnItem, setHasOwnItem] = useState<boolean | null>(null);
   const [date, setDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [prefErrors, setPrefErrors] = useState<PreferenceErrors>({});
 
   useEffect(() => {
     if (!isCustomerRole(role)) {
@@ -82,39 +92,55 @@ export default function CartScreen() {
         setDeliveryDate(storedPreferences.deliveryDate);
         setDeliveryAddress(storedPreferences.deliveryAddress);
         setPickupAddress(storedPreferences.pickupAddress);
-        setHasOwnItem(storedPreferences.hasOwnItem);
+        setHasOwnItem(typeof storedPreferences.hasOwnItem === 'boolean' ? storedPreferences.hasOwnItem : null);
 
         const data = response?.responseBody || response?.data || response || [];
+      
         const list = Array.isArray(data) ? data : [];
-        const formattedItems = list.map((item: any) => {
-          const variants = [];
-          if (item.size) variants.push(item.size);
-          if (item.colour) variants.push(item.colour);
-
-          return {
-            id: String(item.id),
-            designId: String(item.designId || item.design?.id),
-            mockId: String(item.mock?.id || ''),
-            name: item.design?.title || item.design?.name || item.mock?.name || 'Custom Design',
-            price: Number(item.amount || item.mock?.price || item.design?.amount || 0),
-            quantity: Number(item.quantity || 1),
-            colour: item.colour || '',
-            size: item.size || '',
-            variantText: variants.join(', ') || 'No specification',
-            imageSource: item.mock?.image?.url
-              ? { uri: item.mock.image.url }
-              : item.design?.imageUrlFront
-                ? { uri: item.design.imageUrlFront }
-                : require('@/assets/images/item1.png'),
-            checked: true,
-            designerId: item.design?.profile?.id || item.design?.designer?.id,
-            designerName:
-              `${item.design?.profile?.firstName || ''} ${item.design?.profile?.lastName || ''}`.trim() ||
-              item.design?.designerName ||
-              item.design?.profile?.username ||
-              'Designer',
-          } satisfies CartItemType;
-        });
+        
+        // ✅ FIX: Wrapped map inside Promise.all so we wait for all API calls to resolve
+        const formattedItems = await Promise.all(
+          list.map(async (item: any) => {
+            const variants = [];
+            if (item.size) variants.push(item.size);
+            if (item.colour) variants.push(item.colour);
+            
+            // ✅ FIX: Safely fetch the designer and handle potential undefined errors
+            let designerName = 'Unknown artist';
+            try {
+              const designIdToFetch = item.designId || item.design?.id;
+              if (designIdToFetch) {
+                const designer = await ApiService.getDesigner(designIdToFetch);
+                designerName = designer?.responseBody?.designer.userName || designerName;
+              }
+            } catch (err) {
+              console.warn('Failed to fetch designer for item', item.id, err);
+            }
+        
+            return {
+              id: String(item.id),
+              designId: String(item.designId || item.design?.id),
+              mockId: String(item.mock?.id || ''),
+              name: item.design?.title || item.design?.name || item.mock?.name || 'Custom Design',
+              price: Number(item.amount || item.mock?.price || item.design?.amount || 0),
+              quantity: Number(item.quantity || 1),
+              colour: item.colour || '',
+              size: item.size || '',
+              variantText: variants.join(', ') || 'No specification',
+              imageSource: item.mock?.image?.url
+                ? { uri: item.mock.image.url }
+                : item.design?.imageUrlFront
+                  ? { uri: item.design.imageUrlFront }
+                  : require('@/assets/images/item1.png'),
+              imageUrl: item.mock?.image?.url || item.design?.imageUrlFront || item.design?.imagePath || '',
+              checked: true,
+              designerId: item.design?.profile?.id || item.design?.designer?.id,
+              designerName: designerName,
+            } satisfies CartItemType;
+          })
+        );
+        
+        // Now safely set state with resolved data
         setCartItems(formattedItems);
 
         if (recentIds.length > 0) {
@@ -204,7 +230,21 @@ export default function CartScreen() {
     if (selectedDate) {
       setDate(selectedDate);
       setDeliveryDate(selectedDate.toISOString().slice(0, 10));
+      setPrefErrors((current) => ({ ...current, deliveryDate: undefined }));
     }
+  };
+
+  const validatePreferences = () => {
+    const nextErrors: PreferenceErrors = {};
+
+    if (!estimatedAmount.trim()) nextErrors.estimatedAmount = 'Estimated amount is required.';
+    if (!deliveryDate.trim()) nextErrors.deliveryDate = 'Preferred delivery date is required.';
+    if (!deliveryAddress.trim()) nextErrors.deliveryAddress = 'Delivery address is required.';
+    if (hasOwnItem === null) nextErrors.hasOwnItem = 'Choose how the products will be sourced.';
+    if (hasOwnItem && !pickupAddress.trim()) nextErrors.pickupAddress = 'Pickup address is required.';
+
+    setPrefErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
   };
 
   const handleContinue = async () => {
@@ -213,12 +253,16 @@ export default function CartScreen() {
       return;
     }
 
+    if (!validatePreferences()) {
+      return;
+    }
+
     await savePrintPreferences({
       estimatedAmount,
       deliveryDate,
       deliveryAddress,
-      pickupAddress,
-      hasOwnItem,
+      pickupAddress: hasOwnItem ? pickupAddress : '',
+      hasOwnItem: Boolean(hasOwnItem),
     });
 
     setPrefModalVisible(false);
@@ -239,16 +283,32 @@ export default function CartScreen() {
 
     for (const group of Object.values(groupedByDesigner)) {
       const designer = group[0];
-      const itemSummary = group.map((item) => `${item.name} x${item.quantity}`).join(', ');
 
       await upsertLocalConversation({
         participantId: designer.designerId,
-        name: designer.designerName || 'Designer',
+        name: designer.designerName || 'Unknown artist',
         role: 'Designer',
-        initialMessage:
-          `New order request: ${itemSummary}. Budget ${estimatedAmount ? formatNaira(Number(estimatedAmount)) : 'not set'}, ` +
-          `delivery date ${deliveryDate || 'not set'}, delivery address ${deliveryAddress || 'not set'}, ` +
-          `${hasOwnItem ? `pickup address ${pickupAddress || 'not set'}` : 'printer inventory requested'}.`,
+        initialMessages: [
+          {
+            id: `bundle-${designer.designerId || designer.designerName || 'artist'}-${Date.now()}`,
+            type: 'bundle',
+            text: '[Product gallery]',
+            previewText: '[Product gallery]',
+            author: 'me',
+            createdAt: new Date().toISOString(),
+            status: 'sent',
+            bundle: {
+              title: 'Selected products',
+              productCount: group.length,
+              footerLabel: `View the ${group.length} Product${group.length > 1 ? 's' : ''}`,
+              items: group.slice(0, 4).map((item, index) => ({
+                id: item.id,
+                imageUrl: item.imageUrl,
+                overlayText: index === 3 && group.length > 4 ? `+${group.length - 3} Items` : undefined,
+              })),
+            },
+          },
+        ],
       });
     }
 
@@ -324,8 +384,23 @@ export default function CartScreen() {
                     </View>
 
                     <View className="mt-2 flex-row items-center justify-between">
-                      <View className="mr-2 h-8 items-center justify-center rounded-full border border-gray-200 bg-[#F5F5F5] px-3 dark:border-gray-600 dark:bg-gray-700">
-                        <Text className="text-xs text-[#333333] dark:text-white">{item.variantText}</Text>
+                      <View className="mr-2 flex-1 flex-row flex-wrap items-center gap-2">
+                        {item.size ? (
+                          <View className="h-8 items-center justify-center rounded-full border border-gray-200 bg-[#F5F5F5] px-3 dark:border-gray-600 dark:bg-gray-700">
+                            <Text className="text-xs text-[#333333] dark:text-white">Size: {item.size}</Text>
+                          </View>
+                        ) : null}
+                        {item.colour ? (
+                          <View style={{backgroundColor: item.colour}} className={`h-8 flex-row items-center rounded-full border border-gray-200 bg-[${item.colour}] px-3 dark:border-gray-600 `}>
+                         
+                            <Text className="text-xs text-[#333333] dark:text-white">{item.colour}</Text>
+                          </View>
+                        ) : null}
+                        {!item.size && !item.colour ? (
+                          <View className="h-8 items-center justify-center rounded-full border border-gray-200 bg-[#F5F5F5] px-3 dark:border-gray-600 dark:bg-gray-700">
+                            <Text className="text-xs text-[#333333] dark:text-white">{item.variantText}</Text>
+                          </View>
+                        ) : null}
                       </View>
 
                       <View className="flex-row items-center gap-3">
@@ -418,8 +493,9 @@ export default function CartScreen() {
         )}
       </ScrollView>
 
+      {/* ✅ FIX: Changed behavior from 'height' to undefined for Android */}
       <Modal animationType="slide" transparent visible={isPrefModalVisible} onRequestClose={() => setPrefModalVisible(false)}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' }}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' }}>
           <View style={{ maxHeight: screenHeight * 0.9, paddingBottom: 40 }} className="w-full rounded-t-[32px] bg-white shadow-lg dark:bg-[#1E1E1E]">
             <View className="relative flex-row items-center justify-center border-b border-gray-100 px-6 pb-4 pt-6 dark:border-gray-800">
               <TouchableOpacity onPress={() => setPrefModalVisible(false)} className="absolute left-6 top-6">
@@ -433,54 +509,88 @@ export default function CartScreen() {
                 Enter the specifications you want the designer to review before production starts.
               </Text>
 
-              <Field label="Estimated Amount (₦)">
-                <TextInput value={estimatedAmount} onChangeText={setEstimatedAmount} keyboardType="numeric" className="rounded-xl border border-[#3B2D85] px-4 py-3.5 text-[#333] dark:border-[#5E4CBA] dark:text-white" />
+              <Field label="Estimated Amount">
+                <TextInput
+                  value={estimatedAmount}
+                  onChangeText={(value) => {
+                    setEstimatedAmount(value);
+                    setPrefErrors((current) => ({ ...current, estimatedAmount: undefined }));
+                  }}
+                  keyboardType="numeric"
+                  className={`rounded-xl border px-4 py-3.5 text-[#333] dark:text-white ${prefErrors.estimatedAmount ? 'border-[#EB5757]' : 'border-[#3B2D85] dark:border-[#5E4CBA]'}`}
+                />
+                {prefErrors.estimatedAmount ? <ErrorText message={prefErrors.estimatedAmount} /> : null}
               </Field>
 
               <Field label="Preferred Delivery Date">
-                <TouchableOpacity onPress={() => setShowDatePicker(true)} className="flex-row items-center justify-between rounded-xl border border-[#3B2D85] px-4 py-3.5 dark:border-[#5E4CBA]">
+                <TouchableOpacity
+                  onPress={() => setShowDatePicker(true)}
+                  className={`flex-row items-center justify-between rounded-xl border px-4 py-3.5 ${prefErrors.deliveryDate ? 'border-[#EB5757]' : 'border-[#3B2D85] dark:border-[#5E4CBA]'}`}>
                   <Text className={deliveryDate ? 'flex-1 text-[#333] dark:text-white' : 'flex-1 text-[#BDBDBD]'}>
                     {deliveryDate || 'yyyy-mm-dd'}
                   </Text>
                   <Feather name="calendar" size={20} color={isDark ? '#A0A0A0' : '#828282'} />
                 </TouchableOpacity>
+                {prefErrors.deliveryDate ? <ErrorText message={prefErrors.deliveryDate} /> : null}
                 {showDatePicker ? (
                   <DateTimePicker value={date} mode="date" display={Platform.OS === 'ios' ? 'inline' : 'default'} onChange={onChangeDate} minimumDate={new Date()} />
                 ) : null}
               </Field>
 
               <Field label="Delivery Address">
-                <View className="flex-row items-center rounded-xl border border-[#3B2D85] px-4 py-3.5 dark:border-[#5E4CBA]">
+                <View className={`flex-row items-center rounded-xl border px-4 py-3.5 ${prefErrors.deliveryAddress ? 'border-[#EB5757]' : 'border-[#3B2D85] dark:border-[#5E4CBA]'}`}>
                   <Ionicons name="location-outline" size={20} color={isDark ? '#A0A0A0' : '#828282'} />
                   <TextInput
                     value={deliveryAddress}
-                    onChangeText={setDeliveryAddress}
+                    onChangeText={(value) => {
+                      setDeliveryAddress(value);
+                      setPrefErrors((current) => ({ ...current, deliveryAddress: undefined }));
+                    }}
                     placeholder="Enter address"
                     placeholderTextColor="#BDBDBD"
                     className="ml-3 flex-1 text-[#333] dark:text-white"
                   />
                 </View>
+                {prefErrors.deliveryAddress ? <ErrorText message={prefErrors.deliveryAddress} /> : null}
               </Field>
 
               <Text className="mb-4 text-base font-bold text-[#333333] dark:text-white">Do you have your own item?</Text>
-              <ChoiceRow label="Yes, I have my items and I would like a pickup and delivery service" selected={hasOwnItem} onPress={() => setHasOwnItem(true)} />
-              <ChoiceRow label="No, get item from the printer&apos;s inventory with delivery service" selected={!hasOwnItem} onPress={() => setHasOwnItem(false)} />
+              <ChoiceRow
+                label="Yes, I have my items and I would like a pickup and delivery service"
+                selected={hasOwnItem === true}
+                onPress={() => {
+                  setHasOwnItem(true);
+                  setPrefErrors((current) => ({ ...current, hasOwnItem: undefined }));
+                }}
+              />
+              <ChoiceRow
+                label="No, get item from the printer's inventory with delivery service"
+                selected={hasOwnItem === false}
+                onPress={() => {
+                  setHasOwnItem(false);
+                  setPrefErrors((current) => ({ ...current, hasOwnItem: undefined, pickupAddress: undefined }));
+                }}
+              />
+              {prefErrors.hasOwnItem ? <ErrorText message={prefErrors.hasOwnItem} /> : null}
 
               {hasOwnItem ? (
                 <Field label="Pickup Address">
-                  <View className="flex-row items-center rounded-xl border border-[#3B2D85] px-4 py-3.5 dark:border-[#5E4CBA]">
+                  <View className={`flex-row items-center rounded-xl border px-4 py-3.5 ${prefErrors.pickupAddress ? 'border-[#EB5757]' : 'border-[#3B2D85] dark:border-[#5E4CBA]'}`}>
                     <Ionicons name="location-outline" size={20} color={isDark ? '#A0A0A0' : '#828282'} />
                     <TextInput
                       value={pickupAddress}
-                      onChangeText={setPickupAddress}
+                      onChangeText={(value) => {
+                        setPickupAddress(value);
+                        setPrefErrors((current) => ({ ...current, pickupAddress: undefined }));
+                      }}
                       placeholder="Enter address"
                       placeholderTextColor="#BDBDBD"
                       className="ml-3 flex-1 text-[#333] dark:text-white"
                     />
                   </View>
+                  {prefErrors.pickupAddress ? <ErrorText message={prefErrors.pickupAddress} /> : null}
                 </Field>
               ) : null}
-
               <TouchableOpacity onPress={handleContinue} className="mb-8 mt-2 items-center justify-center rounded-full bg-[#3B2D85] py-4">
                 <Text className="text-base font-bold text-white">Continue</Text>
               </TouchableOpacity>
@@ -492,7 +602,7 @@ export default function CartScreen() {
       <Modal animationType="slide" transparent visible={isConfirmVisible} onRequestClose={() => setConfirmVisible(false)}>
         <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' }}>
           <View style={{ paddingBottom: Platform.OS === 'ios' ? 40 : 24 }} className="w-full items-center rounded-t-[32px] bg-white px-6 pt-6 dark:bg-[#1E1E1E]">
-            <View className="relative mb-8 flex-row items-center">
+            <View className="relative mb-8 w-full flex-row items-center justify-center">
               <Text className="mx-auto text-lg font-semibold text-[#333333] dark:text-white">Send to Designer</Text>
               <TouchableOpacity onPress={() => setConfirmVisible(false)} className="absolute right-0">
                 <Ionicons name="close" size={24} color={isDark ? '#FFF' : '#333'} />
@@ -535,4 +645,8 @@ function ChoiceRow({ label, selected, onPress }: { label: string; selected: bool
       <Text className="flex-1 text-sm leading-5 text-[#828282] dark:text-gray-300">{label}</Text>
     </TouchableOpacity>
   );
+}
+
+function ErrorText({ message }: { message: string }) {
+  return <Text className="mt-2 text-xs font-medium text-[#EB5757]">{message}</Text>;
 }

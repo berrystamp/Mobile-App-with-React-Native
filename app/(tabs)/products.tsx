@@ -64,9 +64,10 @@ export default function ProductsScreen() {
         setSelectedDesign(normalizedDesign);
         setSelectedMockId(normalizedDesign.mocks?.[0]?.id || null);
         setSelectedColour(normalizedDesign.mocks?.[0]?.colours?.[0] || '');
+
         return;
       }
-
+     
       const response = await ApiService.getDesigns({
         page: 0,
         size: 20,
@@ -143,7 +144,7 @@ export default function ProductsScreen() {
     : searchField
       ? `Search: ${searchField}`
       : 'Products';
-
+ console.log(JSON.stringify(selectedDesign));
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}> 
       <View style={[styles.header, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}> 
@@ -185,92 +186,134 @@ export default function ProductsScreen() {
         </ScrollView>
       )}
 
-      <Modal animationType="slide" transparent visible={!!selectedDesign} onRequestClose={closeDetails}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: theme.surface }]}> 
-            {selectedDesign ? (
-              <>
-                <View style={styles.modalHeader}>
-                  <Text style={[styles.modalTitle, { color: theme.text }]}>Product details</Text>
-                  <TouchableOpacity onPress={closeDetails}>
-                    <Ionicons name="close" size={24} color={theme.text} />
-                  </TouchableOpacity>
-                </View>
-
-                <ScrollView showsVerticalScrollIndicator={false}>
-                  <Image source={{ uri: selectedDesign.imagePath }} style={styles.heroImage} resizeMode="cover" />
-                  <Text style={[styles.designTitle, { color: theme.text }]}>{selectedDesign.title}</Text>
-                  <Text style={[styles.designMeta, { color: theme.subtext }]}>
-                    {/* Added optional chaining here to prevent crashes if profile is undefined */}
-                    By {selectedDesign.designerName || `${selectedDesign.profile?.firstName || ''} ${selectedDesign.profile?.lastName || ''}`.trim() || 'Unknown'}
-                  </Text>
-                  <Text style={[styles.designDescription, { color: theme.subtext }]}>{selectedDesign.description}</Text>
-
-                  <Text style={[styles.sectionTitle, { color: theme.text }]}>Available mocks</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.mockRow}>
-                    {selectedDesign.mocks?.map((mock) => {
-                      const isActive = selectedMock?.id === mock.id;
-                      return (
-                        <TouchableOpacity
-                          key={mock.id}
-                          style={[
-                            styles.mockChip,
-                            {
-                              borderColor: isActive ? theme.accent : theme.border,
-                              backgroundColor: isActive ? `${theme.accent}20` : 'transparent',
-                            },
-                          ]}
-                          onPress={() => handleMockSelect(mock)}>
-                          <Text style={{ color: theme.text, fontWeight: isActive ? '700' : '500' }}>{mock.name}</Text>
-                          <Text style={{ color: theme.subtext, marginTop: 4 }}>
-                            ₦{(mock.price || selectedDesign.amount || 0).toLocaleString()}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </ScrollView>
-
-                  {selectedMock?.colours?.length ? (
-                    <>
-                      <Text style={[styles.sectionTitle, { color: theme.text }]}>Colours</Text>
-                      <View style={styles.colourRow}>
-                        {selectedMock.colours.map((colour) => {
-                          const isActive = selectedColour === colour;
-                          return (
-                            <TouchableOpacity
-                              key={colour}
-                              style={[styles.colourChip, { borderColor: isActive ? theme.accent : theme.border }]}
-                              onPress={() => setSelectedColour(colour)}>
-                              <View style={[styles.colourSwatch, { backgroundColor: colour }]} />
-                              <Text style={{ color: theme.text, fontSize: 12 }}>{colour}</Text>
-                            </TouchableOpacity>
-                          );
-                        })}
-                      </View>
-                    </>
-                  ) : null}
-
-                  <View style={[styles.summaryCard, { backgroundColor: isDark ? '#171717' : '#F6F4FF' }]}> 
-                    <Text style={[styles.summaryTitle, { color: theme.text }]}>Order summary</Text>
-                    <Text style={[styles.summaryText, { color: theme.subtext }]}>Base price: ₦{(selectedMock?.price || selectedDesign.amount || 0).toLocaleString()}</Text>
-                    <Text style={[styles.summaryText, { color: theme.subtext }]}>Mock availability: {selectedMock?.availableQty ?? 'N/A'}</Text>
-                    {selectedDesign.tags?.length ? (
-                      <Text style={[styles.summaryText, { color: theme.subtext }]}>Tags: {selectedDesign.tags.join(', ')}</Text>
-                    ) : null}
-                  </View>
-                </ScrollView>
-
-                <TouchableOpacity
-                  style={[styles.addButton, { backgroundColor: theme.accent, opacity: isAddingToCart ? 0.7 : 1 }]}
-                  disabled={isAddingToCart}
-                  onPress={handleAddToCart}>
-                  <Text style={styles.addButtonText}>{isAddingToCart ? 'Adding...' : 'Add to cart'}</Text>
+    <Modal animationType="slide" transparent visible={!!selectedDesign} onRequestClose={closeDetails}>
+      <View className="flex-1 justify-end bg-black/60">
+        <View className="max-h-[90%] rounded-t-[32px] bg-white px-6 pb-10 pt-6 dark:bg-[#1A1A1A]">
+          {selectedDesign ? (
+            <>
+              {/* Header */}
+              <View className="mb-4 flex-row items-center justify-between">
+                <Text className="text-xl font-bold text-[#333333] dark:text-white">
+                  Product details
+                </Text>
+                <TouchableOpacity onPress={closeDetails} className="rounded-full bg-gray-100 p-2 dark:bg-[#2A2A2A]">
+                  <Ionicons name="close" size={24} color={isDark ? '#FFFFFF' : '#333333'} />
                 </TouchableOpacity>
-              </>
-            ) : null}
-          </View>
+              </View>
+
+              <ScrollView showsVerticalScrollIndicator={false} className="mb-6">
+                {/* Hero Image */}
+                <Image 
+                  source={{ uri: selectedMock?.imagePath || selectedDesign.imagePath }} 
+                  style={{ width: '100%', height: 280, borderRadius: 16 }}
+                  className="bg-gray-100 dark:bg-[#2A2A2A]" 
+                  resizeMode="contain" 
+                />
+                
+                {/* Available Mocks */}
+                {selectedDesign.mocks && selectedDesign.mocks.length > 0 && (
+                  <View className="mt-5">
+                    <Text className="mb-3 text-base font-semibold text-[#333333] dark:text-white">Available mocks</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                      {selectedDesign.mocks.map((mock) => {
+                        const isActive = selectedMock?.id === mock.id;
+                        return (
+                          <TouchableOpacity
+                            key={mock.id}
+                            onPress={() => handleMockSelect(mock)}
+                            className={`mr-3 items-center overflow-hidden rounded-xl border-2 p-1 ${
+                              isActive ? 'border-[#3B2D85] bg-[#3B2D85]/5' : 'border-transparent'
+                            }`}
+                          >
+                            <Image 
+                              source={{ uri: mock.imagePath || selectedDesign.imagePath }} 
+                              style={{ width: 64, height: 64, borderRadius: 8 }}
+                              className="bg-gray-100 dark:bg-[#2A2A2A]" 
+                              resizeMode="cover" 
+                            />
+                            <Text className="mt-2 text-xs font-medium text-[#333333] dark:text-white">
+                              {mock.name}
+                            </Text>
+                            <Text className="text-xs font-bold text-[#3B2D85] dark:text-[#9D8DF1]">
+                              ₦{(mock.price || selectedDesign.amount || 0).toLocaleString()}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </ScrollView>
+                  </View>
+                )}
+
+                {/* Title & Meta */}
+                <Text className="mt-5 text-lg font-bold text-[#333333] dark:text-white">
+                  {selectedDesign.title}
+                </Text>
+                <Text className="text-base text-gray-500 dark:text-gray-400">
+                  By {selectedDesign.designerName || `${selectedDesign.profile?.firstName || ''} ${selectedDesign.profile?.lastName || ''}`.trim() || 'Unknown'}
+                </Text>
+                {selectedDesign.description ? (
+                  <Text className="mt-2 text-sm leading-5 text-gray-600 dark:text-gray-300">
+                    {selectedDesign.description}
+                  </Text>
+                ) : null}
+
+                {/* Colours */}
+                {selectedMock?.colours?.length > 0 && (
+                  <>
+                    <Text className="mt-6 text-base font-semibold text-[#333333] dark:text-white">Colours</Text>
+                    <View className="mt-3 flex-row flex-wrap">
+                      {selectedMock.colours.map((colour) => {
+                        const isActive = selectedColour === colour;
+                        return (
+                          <TouchableOpacity
+                            key={colour}
+                            className={`mb-3 mr-3 flex-row items-center rounded-full border px-4 py-2 ${
+                              isActive ? 'border-[#3B2D85] bg-black/5 dark:bg-black/40' : 'border-gray-200 dark:border-[#333333]'
+                            }`}
+                            onPress={() => setSelectedColour(colour)}>
+                            <View 
+                              style={{ backgroundColor: colour }} 
+                              className="mr-3 h-5 w-5 rounded-full border border-gray-300 dark:border-gray-600" 
+                            />
+                            <Text className="text-sm text-gray-700 dark:text-gray-300">{colour}</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </>
+                )}
+
+                {/* Order Summary */}
+                <View className="mt-6 rounded-2xl bg-gray-50 p-5 dark:bg-[#2A2A2A]">
+                  <Text className="mb-3 text-base font-bold text-[#333333] dark:text-white">Order summary</Text>
+                  <Text className="mb-1 text-sm text-gray-600 dark:text-gray-300">
+                    Base price: ₦{(selectedMock?.price || selectedDesign.amount || 0).toLocaleString()}
+                  </Text>
+                  <Text className="mb-1 text-sm text-gray-600 dark:text-gray-300">
+                    Availability: {selectedMock?.availableQty ?? 'N/A'} in stock
+                  </Text>
+                  {selectedDesign.tags?.length ? (
+                    <Text className="mt-2 border-t border-gray-200 pt-2 text-sm text-gray-600 dark:border-[#444] dark:text-gray-300">
+                      Tags: {selectedDesign.tags.join(', ')}
+                    </Text>
+                  ) : null}
+                </View>
+              </ScrollView>
+
+              {/* Add to Cart Button */}
+              <TouchableOpacity
+                className={`items-center rounded-2xl bg-[#3B2D85] py-4 ${isAddingToCart ? 'opacity-70' : 'opacity-100'}`}
+                disabled={isAddingToCart}
+                onPress={handleAddToCart}>
+                <Text className="text-base font-bold text-white">
+                  {isAddingToCart ? 'Adding...' : 'Add to cart'}
+                </Text>
+              </TouchableOpacity>
+            </>
+          ) : null}
         </View>
-      </Modal>
+      </View>
+    </Modal>
     </View>
   );
 }

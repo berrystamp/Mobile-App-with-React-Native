@@ -545,7 +545,16 @@ class ApiService {
 
     return { requestSuccessful: true, responseBody: payload };
   }
-
+  async getDesigner(id: string | number) {
+     const profileType = getProfileType();
+    const response = await api.get(`/designs/${id}`,{
+      headers: {
+        designId: id,
+        profileType: profileType,
+      },
+    });
+    return response.data;
+  }
   async getDesigns(filters:any = {}) {
     const response = await api.get('/designs', {
       params: {

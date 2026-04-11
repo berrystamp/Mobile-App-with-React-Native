@@ -35,7 +35,7 @@ const Header: React.FC<HeaderProps> = ({
   // Use React Native's built-in hook to detect the current system/app theme
   const colorScheme = useColorScheme();
 
-  const hiddenRoutes = ['/cart', '/printers', '/products', '/chat', '/select-printer', '/checkout'];
+  const hiddenRoutes = ['/cart', '/printers', '/product', '/chat', '/select-printer', '/checkout'];
   if (type !== 'back' && !isCustomerRole(role)) {
     return null;
   }

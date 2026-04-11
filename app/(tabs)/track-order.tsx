@@ -119,122 +119,134 @@ export default function TrackOrderScreen() {
       setLoading(false);
     }
   };
-
-  return (
+  return(
     <View style={[styles.screen, { backgroundColor: theme.background, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-      <View style={[styles.header, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={[styles.iconButton, { backgroundColor: theme.surfaceMuted }]}>
-          <Ionicons name="arrow-back" size={22} color={theme.text} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: theme.text }]}>Track Order</Text>
-        <Text style={[styles.headerCount, { color: theme.primary }]}>{order ? '1 order' : '0 order'}</Text>
-      </View>
-
-      {!searched || (!order && !loading) ? (
-        <View style={styles.searchWrap}>
-          <Text style={[styles.heroTitle, { color: theme.text }]}>Input order tracking number to track your order</Text>
-          <Text style={[styles.heroText, { color: theme.textMuted }]}>
-            Your tracking number is a unique key sent to your email immediately after an order is placed.
-          </Text>
-
-          <TextInput
-            autoCapitalize="characters"
-            autoCorrect={false}
-            onChangeText={setTrackingNumber}
-            placeholder="e.g. TRK-12345678"
-            placeholderTextColor={theme.textMuted}
-            style={[styles.input, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text }]}
-            value={trackingNumber}
-          />
-
-          {!order && searched ? (
-            <View style={styles.emptyState}>
-              <View style={[styles.emptyIconWrap, { backgroundColor: theme.surfaceMuted }]}>
-                <Ionicons name="alert-circle" size={52} color="#EF4444" />
-              </View>
-              <Text style={[styles.emptyTitle, { color: theme.text }]}>Order not found</Text>
-              <Text style={[styles.emptyText, { color: theme.textMuted }]}>
-                We couldn&apos;t find an order with this number. Please check the number and try again.
-              </Text>
-            </View>
-          ) : null}
-
-          <View style={styles.footerButtonWrap}>
-            <TouchableOpacity
-              activeOpacity={0.85}
-              disabled={!canSubmit || loading}
-              onPress={handleTrack}
-              style={[
-                styles.primaryButton,
-                { backgroundColor: !canSubmit || loading ? theme.border : theme.primary },
-              ]}>
-              {loading ? <ActivityIndicator color={theme.onPrimary} /> : <Text style={[styles.primaryButtonText, { color: theme.onPrimary }]}>Track Order</Text>}
-            </TouchableOpacity>
-          </View>
-        </View>
-      ) : (
-        <View style={styles.resultsWrap}>
-          <View style={[styles.orderCard, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
-            <Text style={[styles.orderTitle, { color: theme.text }]}>{order?.title}</Text>
-            <Text style={[styles.orderRef, { color: theme.textMuted }]}>#{order?.orderRef}</Text>
-          </View>
-
-          <View style={[styles.progressCard, { backgroundColor: theme.surface }]}>
-            <View style={styles.progressLabelRow}>
-              <Text style={[styles.progressStart, { color: theme.primary }]}>{formatDate(order?.timelineStart)}</Text>
-              <Text style={[styles.progressEnd, { color: theme.textMuted }]}>{formatDate(order?.timelineEnd)}</Text>
-            </View>
-            <View style={[styles.progressTrack, { backgroundColor: theme.border }]}>
-              <View style={[styles.progressFill, { backgroundColor: theme.primary, width: progressWidth }]} />
-            </View>
-          </View>
-
-          {mapVisible ? (
-            <View style={[styles.mapCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              <View style={[styles.mapIconWrap, { backgroundColor: theme.surfaceMuted }]}>
-                <Ionicons name="location" size={34} color={theme.primary} />
-              </View>
-              <Text style={[styles.mapTitle, { color: theme.text }]}>Live courier location</Text>
-              <Text style={[styles.mapCoords, { color: theme.textMuted }]}>{mapCoordinates}</Text>
-            </View>
-          ) : (
-            <ScrollView contentContainerStyle={styles.timelineContent} style={styles.timelineScroll} showsVerticalScrollIndicator={false}>
-              {order?.stages.map((stage, index) => {
-                const isLast = index === order.stages.length - 1;
-                return (
-                  <View key={`${stage.title}-${index}`} style={styles.timelineRow}>
-                    <View style={styles.timelineRail}>
-                      <View
-                        style={[
-                          styles.timelineDot,
-                          {
-                            backgroundColor: stage.done ? theme.primary : theme.surface,
-                            borderColor: stage.done ? theme.primary : theme.border,
-                          },
-                        ]}>
-                        {stage.done ? <Ionicons name="checkmark" size={11} color={theme.onPrimary} /> : null}
-                      </View>
-                      {!isLast ? <View style={[styles.timelineLine, { backgroundColor: stage.done ? theme.primary : theme.border }]} /> : null}
-                    </View>
-                    <View style={styles.timelineTextWrap}>
-                      <Text style={[styles.timelineDate, { color: theme.textMuted }]}>{formatDateTime(stage.at)}</Text>
-                      <Text style={[styles.timelineTitle, { color: stage.done ? theme.text : theme.textMuted }]}>{stage.title}</Text>
-                    </View>
-                  </View>
-                );
-              })}
-            </ScrollView>
-          )}
-
-          <View style={[styles.bottomAction, { backgroundColor: theme.background }]}>
-            <TouchableOpacity activeOpacity={0.85} onPress={() => setMapVisible((prev) => !prev)} style={[styles.primaryButton, { backgroundColor: theme.primary }]}>
-              <Text style={[styles.primaryButtonText, { color: theme.onPrimary }]}>{mapVisible ? 'Back to timeline' : 'View on Map'}</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
+    <View style={[styles.header, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
+    <TouchableOpacity onPress={() => router.back()} style={[styles.iconButton, { backgroundColor: theme.surfaceMuted }]}>
+    <Ionicons name="arrow-back" size={22} color={theme.text} />
+    </TouchableOpacity>
+    <Text style={[styles.headerTitle, { color: theme.text }]}>Track Order</Text>
+   </View>
+  <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+  <Text className="text-black dark:text-white" >Coming Soon</Text>
+  </View>
     </View>
-  );
+  )
+  // return (
+  //   <View style={[styles.screen, { backgroundColor: theme.background, paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+  //     <View style={[styles.header, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
+  //       <TouchableOpacity onPress={() => router.back()} style={[styles.iconButton, { backgroundColor: theme.surfaceMuted }]}>
+  //         <Ionicons name="arrow-back" size={22} color={theme.text} />
+  //       </TouchableOpacity>
+  //       <Text style={[styles.headerTitle, { color: theme.text }]}>Track Order</Text>
+  //       <Text style={[styles.headerCount, { color: theme.primary }]}>{order ? '1 order' : '0 order'}</Text>
+  //     </View>
+
+  //     {!searched || (!order && !loading) ? (
+  //       <View style={styles.searchWrap}>
+  //         <Text style={[styles.heroTitle, { color: theme.text }]}>Input order tracking number to track your order</Text>
+  //         <Text style={[styles.heroText, { color: theme.textMuted }]}>
+  //           Your tracking number is a unique key sent to your email immediately after an order is placed.
+  //         </Text>
+
+  //         <TextInput
+  //           autoCapitalize="characters"
+  //           autoCorrect={false}
+  //           onChangeText={setTrackingNumber}
+  //           placeholder="e.g. TRK-12345678"
+  //           placeholderTextColor={theme.textMuted}
+  //           style={[styles.input, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text }]}
+  //           value={trackingNumber}
+  //         />
+
+  //         {!order && searched ? (
+  //           <View style={styles.emptyState}>
+  //             <View style={[styles.emptyIconWrap, { backgroundColor: theme.surfaceMuted }]}>
+  //               <Ionicons name="alert-circle" size={52} color="#EF4444" />
+  //             </View>
+  //             <Text style={[styles.emptyTitle, { color: theme.text }]}>Order not found</Text>
+  //             <Text style={[styles.emptyText, { color: theme.textMuted }]}>
+  //               We couldn&apos;t find an order with this number. Please check the number and try again.
+  //             </Text>
+  //           </View>
+  //         ) : null}
+
+  //         <View style={styles.footerButtonWrap}>
+  //           <TouchableOpacity
+  //             activeOpacity={0.85}
+  //             disabled={!canSubmit || loading}
+  //             onPress={handleTrack}
+  //             style={[
+  //               styles.primaryButton,
+  //               { backgroundColor: !canSubmit || loading ? theme.border : theme.primary },
+  //             ]}>
+  //             {loading ? <ActivityIndicator color={theme.onPrimary} /> : <Text style={[styles.primaryButtonText, { color: theme.onPrimary }]}>Track Order</Text>}
+  //           </TouchableOpacity>
+  //         </View>
+  //       </View>
+  //     ) : (
+  //       <View style={styles.resultsWrap}>
+  //         <View style={[styles.orderCard, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
+  //           <Text style={[styles.orderTitle, { color: theme.text }]}>{order?.title}</Text>
+  //           <Text style={[styles.orderRef, { color: theme.textMuted }]}>#{order?.orderRef}</Text>
+  //         </View>
+
+  //         <View style={[styles.progressCard, { backgroundColor: theme.surface }]}>
+  //           <View style={styles.progressLabelRow}>
+  //             <Text style={[styles.progressStart, { color: theme.primary }]}>{formatDate(order?.timelineStart)}</Text>
+  //             <Text style={[styles.progressEnd, { color: theme.textMuted }]}>{formatDate(order?.timelineEnd)}</Text>
+  //           </View>
+  //           <View style={[styles.progressTrack, { backgroundColor: theme.border }]}>
+  //             <View style={[styles.progressFill, { backgroundColor: theme.primary, width: progressWidth }]} />
+  //           </View>
+  //         </View>
+
+  //         {mapVisible ? (
+  //           <View style={[styles.mapCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+  //             <View style={[styles.mapIconWrap, { backgroundColor: theme.surfaceMuted }]}>
+  //               <Ionicons name="location" size={34} color={theme.primary} />
+  //             </View>
+  //             <Text style={[styles.mapTitle, { color: theme.text }]}>Live courier location</Text>
+  //             <Text style={[styles.mapCoords, { color: theme.textMuted }]}>{mapCoordinates}</Text>
+  //           </View>
+  //         ) : (
+  //           <ScrollView contentContainerStyle={styles.timelineContent} style={styles.timelineScroll} showsVerticalScrollIndicator={false}>
+  //             {order?.stages.map((stage, index) => {
+  //               const isLast = index === order.stages.length - 1;
+  //               return (
+  //                 <View key={`${stage.title}-${index}`} style={styles.timelineRow}>
+  //                   <View style={styles.timelineRail}>
+  //                     <View
+  //                       style={[
+  //                         styles.timelineDot,
+  //                         {
+  //                           backgroundColor: stage.done ? theme.primary : theme.surface,
+  //                           borderColor: stage.done ? theme.primary : theme.border,
+  //                         },
+  //                       ]}>
+  //                       {stage.done ? <Ionicons name="checkmark" size={11} color={theme.onPrimary} /> : null}
+  //                     </View>
+  //                     {!isLast ? <View style={[styles.timelineLine, { backgroundColor: stage.done ? theme.primary : theme.border }]} /> : null}
+  //                   </View>
+  //                   <View style={styles.timelineTextWrap}>
+  //                     <Text style={[styles.timelineDate, { color: theme.textMuted }]}>{formatDateTime(stage.at)}</Text>
+  //                     <Text style={[styles.timelineTitle, { color: stage.done ? theme.text : theme.textMuted }]}>{stage.title}</Text>
+  //                   </View>
+  //                 </View>
+  //               );
+  //             })}
+  //           </ScrollView>
+  //         )}
+
+  //         <View style={[styles.bottomAction, { backgroundColor: theme.background }]}>
+  //           <TouchableOpacity activeOpacity={0.85} onPress={() => setMapVisible((prev) => !prev)} style={[styles.primaryButton, { backgroundColor: theme.primary }]}>
+  //             <Text style={[styles.primaryButtonText, { color: theme.onPrimary }]}>{mapVisible ? 'Back to timeline' : 'View on Map'}</Text>
+  //           </TouchableOpacity>
+  //         </View>
+  //       </View>
+  //     )}
+  //   </View>
+  // );
 }
 
 const styles = StyleSheet.create({

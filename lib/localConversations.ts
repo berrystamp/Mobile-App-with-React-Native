@@ -4,10 +4,22 @@ const LOCAL_CONVERSATIONS_KEY = 'localConversations';
 
 export type LocalConversationMessage = {
   id: string;
+  type?: 'text' | 'bundle';
   text: string;
+  previewText?: string;
   author: 'me' | 'other';
   createdAt: string;
   status?: 'sent' | 'seen';
+  bundle?: {
+    title?: string;
+    productCount?: number;
+    footerLabel: string;
+    items: {
+      id: string;
+      imageUrl?: string;
+      overlayText?: string;
+    }[];
+  };
 };
 
 export type LocalConversation = {
@@ -49,11 +61,12 @@ export const appendLocalConversationMessage = async (
   message: LocalConversationMessage,
 ) => {
   const conversations = await readAll();
+  const previewText = message.previewText || message.text;
   const next = conversations.map((conversation) =>
     conversation.id === conversationId
       ? {
           ...conversation,
-          lastMessage: message.text,
+          lastMessage: previewText,
           updatedAt: message.createdAt,
           messages: [...conversation.messages, message],
         }
@@ -67,22 +80,24 @@ export const upsertLocalConversation = async ({
   participantId,
   name,
   role,
-  initialMessage,
+  initialMessages,
 }: {
   participantId?: number;
   name: string;
   role: 'Designer' | 'Printers';
-  initialMessage: string;
+  initialMessages: LocalConversationMessage[];
 }) => {
   const conversations = await readAll();
   const now = new Date().toISOString();
-  const message: LocalConversationMessage = {
-    id: `msg-${Date.now()}`,
-    text: initialMessage,
-    author: 'me',
-    createdAt: now,
-    status: 'sent',
-  };
+  const messages = initialMessages.map((message, index) => ({
+    ...message,
+    id: message.id || `msg-${Date.now()}-${index}`,
+    type: message.type || 'text',
+    createdAt: message.createdAt || now,
+    status: message.status || 'sent',
+  }));
+  const lastMessage = messages[messages.length - 1];
+  const previewText = lastMessage?.previewText || lastMessage?.text || 'New message';
 
   const existing = conversations.find(
     (conversation) =>
@@ -97,9 +112,9 @@ export const upsertLocalConversation = async ({
             ...conversation,
             name,
             participantId: participantId || conversation.participantId,
-            lastMessage: initialMessage,
+            lastMessage: previewText,
             updatedAt: now,
-            messages: [...conversation.messages, message],
+            messages: [...conversation.messages, ...messages],
           }
         : conversation,
     );
@@ -113,10 +128,10 @@ export const upsertLocalConversation = async ({
     participantId,
     name,
     role,
-    lastMessage: initialMessage,
+    lastMessage: previewText,
     unreadCount: 0,
     updatedAt: now,
-    messages: [message],
+    messages,
   };
 
   await writeAll([created, ...conversations]);

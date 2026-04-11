@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -12,6 +13,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  useColorScheme,
   View,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
@@ -100,6 +102,12 @@ export default function ChatScreen() {
   const { uploadFile, uploading } = useFileUpload();
   const insets = useSafeAreaInsets();
   
+  // Theme colors for icons that can't rely on currentColor
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+  const themeIconColor = isDark ? '#FFFFFF' : '#000000';
+  const themeSecondaryIconColor = isDark ? '#94a3b8' : '#64748b';
+
   const { conversationId, participantId, participantName, printerId, localConversationId, participantRole } = useLocalSearchParams<{
     conversationId?: string;
     participantId?: string;
@@ -126,6 +134,24 @@ export default function ChatScreen() {
   const [draft, setDraft] = useState('');
   const [showConversationActions, setShowConversationActions] = useState(false);
   const [showOfferDetail, setShowOfferDetail] = useState(false);
+  const [isKeyboardVisible, setKeyboardVisible] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', 
+      () => setKeyboardVisible(true)
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', 
+      () => setKeyboardVisible(false)
+    );
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   useEffect(() => {
     const load = async () => {
@@ -144,15 +170,36 @@ export default function ChatScreen() {
               participantId: localConversation.participantId,
             }));
             setMessages(
-              localConversation.messages.map((message) => ({
-                id: message.id,
-                type: 'text',
-                author: message.author,
-                text: message.text,
-                imageUrl: isImageContent(message.text) ? resolveImageUri(message.text) : undefined,
-                createdAtLabel: formatMessageTime(message.createdAt),
-                status: message.status,
-              })),
+              localConversation.messages.map((message) =>
+                message.type === 'bundle' && message.bundle
+                  ? {
+                      id: message.id,
+                      type: 'bundle',
+                      author: message.author,
+                      text: message.text,
+                      createdAtLabel: formatMessageTime(message.createdAt),
+                      status: message.status,
+                      bundle: {
+                        title: message.bundle.title || 'Selected products',
+                        productCount: message.bundle.productCount,
+                        footerLabel: message.bundle.footerLabel,
+                        items: message.bundle.items.map((item) => ({
+                          id: item.id,
+                          imageUrl: item.imageUrl ? resolveImageUri(item.imageUrl) : undefined,
+                          overlayText: item.overlayText,
+                        })),
+                      },
+                    }
+                  : {
+                      id: message.id,
+                      type: 'text',
+                      author: message.author,
+                      text: message.text,
+                      imageUrl: isImageContent(message.text) ? resolveImageUri(message.text) : undefined,
+                      createdAtLabel: formatMessageTime(message.createdAt),
+                      status: message.status,
+                    },
+              ),
             );
           }
         } else if (conversationId) {
@@ -290,7 +337,13 @@ export default function ChatScreen() {
             <View className="flex-row flex-wrap">
               {message.bundle.items.map((item) => (
                 <View key={item.id} className="w-1/2 aspect-square border-[0.5px] border-slate-100 dark:border-slate-700">
-                  <Image source={item.image} className="w-full h-full" contentFit="cover" />
+                  {item.imageUrl || item.image ? (
+                    <Image source={item.imageUrl ? { uri: item.imageUrl } : item.image} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+                  ) : (
+                    <View className="flex-1 items-center justify-center bg-slate-100 dark:bg-slate-900">
+                      <Ionicons name="image-outline" size={28} color={isDark ? '#94a3b8' : '#64748b'} />
+                    </View>
+                  )}
                   {item.overlayText && (
                     <View className="absolute inset-0 bg-black/40 items-center justify-center">
                       <Text className="text-white text-xl font-bold">{item.overlayText}</Text>
@@ -299,10 +352,13 @@ export default function ChatScreen() {
                 </View>
               ))}
             </View>
-            <TouchableOpacity className="border-t border-slate-100 dark:border-slate-700 py-3 items-center" onPress={() => router.push('/(tabs)/products')}>
+            <TouchableOpacity className="border-t border-slate-100 dark:border-slate-700 py-3 items-center" onPress={() => router.push('/cart')}>
               <Text className="text-indigo-600 dark:text-indigo-400 text-lg font-semibold">{message.bundle.footerLabel}</Text>
             </TouchableOpacity>
           </View>
+          <Text className="mt-2 text-[11px] text-indigo-200 text-right">
+            {message.status === 'seen' ? `Seen . ${message.createdAtLabel}` : message.createdAtLabel}
+          </Text>
         </View>
       );
     }
@@ -313,7 +369,9 @@ export default function ChatScreen() {
           <View className="w-[82%]">
             <Text className="text-slate-500 dark:text-slate-400 text-sm mb-2">{message.offer.description}</Text>
             <View className="w-[192px] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl overflow-hidden">
-              <Image source={message.offer.image} className="w-full h-[180px] bg-slate-50 dark:bg-slate-900" contentFit="contain" />
+              <View className="w-full bg-slate-50 dark:bg-slate-900">
+                <Image source={message.offer.image} style={{ width: '100%', height: 180 }} contentFit="contain" />
+              </View>
               <View className="px-3 pt-3 pb-4 gap-1">
                 <Text className="text-[15px] text-slate-800 dark:text-slate-200 font-medium">{message.offer.title}</Text>
                 <Text className="text-[14px] text-blue-600 dark:text-blue-400 font-bold">{message.offer.priceLabel}</Text>
@@ -330,7 +388,8 @@ export default function ChatScreen() {
     const isMe = message.author === 'me';
     const displayUrl = message.imageUrl || (isImageContent(message.text) ? resolveImageUri(message.text) : '');
     const isImage = Boolean(displayUrl);
-   
+    const finalImageUrl = displayUrl.replace("https://berrystamp-backend-dev-4cn29.ondigitalocean.app","https://berry-stamp-prod.s3.amazonaws.com");
+    
     return (
       <View key={message.id} className={`w-full my-1 flex-row ${isMe ? 'justify-end' : 'justify-start'}`}>
         {!isMe && (
@@ -340,11 +399,17 @@ export default function ChatScreen() {
         )}
         <View className={`max-w-[78%] rounded-2xl px-4 py-3 ${isMe ? 'bg-indigo-600 dark:bg-indigo-700 rounded-br-sm' : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-bl-sm'}`}>
           {isImage ? (
-             <Image source={{ uri: displayUrl.replace("https://berrystamp-backend-dev-4cn29.ondigitalocean.app","https://berry-stamp-prod.s3.amazonaws.com") }} className="w-[200px] h-[200px] rounded-lg" contentFit="cover" />
+            <TouchableOpacity onPress={() => setSelectedImage(finalImageUrl)} activeOpacity={0.8}>
+              <Image 
+                source={{ uri: finalImageUrl }} 
+                style={{ width: 200, height: 200, borderRadius: 8 }} 
+                contentFit="cover" 
+              />
+            </TouchableOpacity>
           ) : (
-             <Text className={`text-[15px] leading-6 ${isMe ? 'text-white' : 'text-slate-800 dark:text-slate-100'}`}>
-               {message.text}
-             </Text>
+            <Text className={`text-[15px] leading-6 ${isMe ? 'text-white' : 'text-slate-800 dark:text-slate-100'}`}>
+              {message.text}
+            </Text>
           )}
           <Text className={`mt-2 text-[11px] ${isMe ? 'text-indigo-200 text-right' : 'text-slate-400 dark:text-slate-500'}`}>
             {isMe ? `${message.status === 'seen' ? 'Seen • ' : ''}${message.createdAtLabel}` : `${message.createdAtLabel}${message.status === 'seen' ? ' • Seen' : ''}`}
@@ -355,20 +420,25 @@ export default function ChatScreen() {
   };
 
   return (
-    <SafeAreaView edges={['left', 'right']} className="flex-1 bg-slate-50 dark:bg-slate-950">
+    // 1. A solid background View to prevent white flashes
+    <View style={{ flex: 1, backgroundColor: isDark ? '#020617' : '#f8fafc' }}>
+      
+      {/* 2. KeyboardAvoidingView on the OUTSIDE, using explicit style={{flex: 1}} */}
       <KeyboardAvoidingView 
-        className="flex-1" 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
+        style={{ flex: 1 }} 
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <View className="flex-1">
+        
+        {/* 3. SafeAreaView inside the Keyboard layout */}
+        <SafeAreaView edges={['left', 'right']} style={{ flex: 1 }}>
+          
           {/* Header */}
           <View
             className="flex-row items-center justify-between px-4 pb-3 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
             style={{ paddingTop: Math.max(insets.top, 12) + 4 }}
           >
             <TouchableOpacity onPress={() => router.back()} className="w-10 h-10 items-center justify-center">
-              <Ionicons name="arrow-back" size={24} className="text-slate-800 dark:text-slate-100" color="currentColor" />
+              <Ionicons name="arrow-back" size={24} color={themeIconColor} />
             </TouchableOpacity>
             <View className="flex-1 flex-row items-center gap-3 ml-2">
               <AvatarBadge color={conversation.avatarColor} emoji={conversation.avatarEmoji} size={40} />
@@ -378,14 +448,14 @@ export default function ChatScreen() {
               </View>
             </View>
             <TouchableOpacity onPress={() => setShowConversationActions(true)} className="w-10 h-10 items-center justify-center">
-              <Ionicons name="ellipsis-vertical" size={20} className="text-slate-500 dark:text-slate-400" color="currentColor" />
+              <Ionicons name="ellipsis-vertical" size={20} color={themeSecondaryIconColor} />
             </TouchableOpacity>
           </View>
 
-          {/* Thread */}
+          {/* Thread (Messages) */}
           <ScrollView
             ref={scrollViewRef}
-            className="flex-1"
+            style={{ flex: 1 }}
             contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 20, flexGrow: 1 }}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
@@ -396,14 +466,14 @@ export default function ChatScreen() {
                 <Text className="text-slate-500 dark:text-slate-400 text-sm">Loading messages...</Text>
               </View>
             ) : (
-              messages.map( renderMessage)
+              messages.map(renderMessage)
             )}
           </ScrollView>
 
-          {/* Composer */}
+          {/* Composer (Text Input) */}
           <View
             className="flex-row items-end px-4 pt-3 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 gap-3"
-            style={{ paddingBottom: Math.max(insets.bottom, 12) }}
+            style={{ paddingBottom: isKeyboardVisible ? 12 : Math.max(insets.bottom, 12) }}
           >
             <View className="flex-1 flex-row items-end bg-slate-100 dark:bg-slate-800 rounded-3xl px-1 py-1 min-h-[50px] max-h-[120px]">
               <TextInput
@@ -419,7 +489,7 @@ export default function ChatScreen() {
                 {uploading ? (
                   <ActivityIndicator size="small" color="#64748b" />
                 ) : (
-                  <Feather name="image" size={20} className="text-slate-500 dark:text-slate-400" color="currentColor" />
+                  <Feather name="image" size={20} color={themeSecondaryIconColor} />
                 )}
               </TouchableOpacity>
             </View>
@@ -431,66 +501,95 @@ export default function ChatScreen() {
               <Ionicons name="paper-plane-outline" size={20} color="#FFFFFF" className="ml-1" />
             </TouchableOpacity>
           </View>
-        </View>
 
-        {/* Action Modal */}
-        <Modal transparent visible={showConversationActions} animationType="slide" onRequestClose={() => setShowConversationActions(false)}>
-          <Pressable className="flex-1 bg-black/40 justify-end" onPress={() => setShowConversationActions(false)}>
-            <Pressable className="bg-white dark:bg-slate-900 rounded-t-3xl px-5 pt-3 pb-10" onPress={(e) => e.stopPropagation()}>
-              <View className="w-12 h-1.5 rounded-full bg-slate-300 dark:bg-slate-700 self-center mb-6" />
-              <TouchableOpacity className="flex-row items-center gap-4 py-4 px-2">
-                <Ionicons name="trash-outline" size={22} color="#ef4444" />
-                <Text className="text-lg text-slate-900 dark:text-slate-100">Delete Chat</Text>
-              </TouchableOpacity>
-              <View className="h-[1px] bg-slate-100 dark:bg-slate-800" />
-              <TouchableOpacity className="flex-row items-center gap-4 py-4 px-2">
-                <Ionicons name="alert-circle-outline" size={22} color="#ef4444" />
-                <Text className="text-lg text-slate-900 dark:text-slate-100">Report User</Text>
-              </TouchableOpacity>
-            </Pressable>
-          </Pressable>
-        </Modal>
-
-        {/* Offer Detail Modal */}
-        <Modal transparent visible={showOfferDetail} animationType="slide" onRequestClose={() => setShowOfferDetail(false)}>
-          <Pressable className="flex-1 bg-black/40 justify-end" onPress={() => setShowOfferDetail(false)}>
-            <Pressable className="bg-white dark:bg-slate-900 rounded-t-3xl px-5 pt-3 pb-8" onPress={(e) => e.stopPropagation()}>
-              <View className="w-12 h-1.5 rounded-full bg-slate-300 dark:bg-slate-700 self-center mb-6" />
-              <View className="flex-row justify-between items-center mb-2">
-                <Text className="text-xl font-bold text-slate-900 dark:text-slate-100">Order Detail</Text>
-                <TouchableOpacity onPress={() => setShowOfferDetail(false)} className="p-1">
-                  <Ionicons name="close" size={24} className="text-slate-900 dark:text-slate-100" color="currentColor" />
-                </TouchableOpacity>
-              </View>
-              <Text className="text-[15px] text-slate-500 dark:text-slate-400 mb-6 leading-6">Review the custom offer and confirm the details before continuing.</Text>
-              
-              <View className="mb-4">
-                <Text className="text-[14px] font-bold text-slate-900 dark:text-slate-100 mb-1">Order title</Text>
-                <Text className="text-[15px] text-slate-600 dark:text-slate-300">{OFFER_DETAILS.title}</Text>
-              </View>
-              <View className="mb-4">
-                <Text className="text-[14px] font-bold text-slate-900 dark:text-slate-100 mb-1">Agreed description</Text>
-                <Text className="text-[15px] text-slate-600 dark:text-slate-300 leading-6">{OFFER_DETAILS.description}</Text>
-              </View>
-              <View className="mb-4">
-                <Text className="text-[14px] font-bold text-slate-900 dark:text-slate-100 mb-1">Agreed amount</Text>
-                <Text className="text-[16px] font-bold text-blue-600 dark:text-blue-400">{OFFER_DETAILS.amount}</Text>
-              </View>
-              
-              <TouchableOpacity className="bg-indigo-600 dark:bg-indigo-700 rounded-full py-4 items-center mt-6" onPress={() => {
-                  setShowOfferDetail(false);
-                  router.push('/(tabs)/checkout');
-              }}>
-                <Text className="text-white text-lg font-bold">Accept offer</Text>
-              </TouchableOpacity>
-              <TouchableOpacity className="rounded-full py-4 items-center border border-slate-200 dark:border-slate-700 mt-3" onPress={() => setShowOfferDetail(false)}>
-                <Text className="text-slate-600 dark:text-slate-300 text-lg font-semibold">Not now</Text>
-              </TouchableOpacity>
-            </Pressable>
-          </Pressable>
-        </Modal>
-
+        </SafeAreaView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+
+      {/* --- MODALS STAY OUTSIDE THE KEYBOARD AVOIDING VIEW --- */}
+      
+      {/* Lightbox Modal for Images */}
+      <Modal 
+        visible={!!selectedImage} 
+        transparent={true} 
+        animationType="fade" 
+        onRequestClose={() => setSelectedImage(null)}
+      >
+        <View className="flex-1 bg-black/95 justify-center items-center">
+          <TouchableOpacity 
+            className="absolute right-4 z-10 w-12 h-12 items-center justify-center bg-white/10 rounded-full"
+            style={{ top: Math.max(insets.top, 20) }}
+            onPress={() => setSelectedImage(null)}
+          >
+            <Ionicons name="close" size={28} color="#FFFFFF" />
+          </TouchableOpacity>
+          
+          {selectedImage && (
+            <Image 
+              source={{ uri: selectedImage }} 
+              style={{ width: '100%', height: '80%' }} 
+              contentFit="contain" 
+            />
+          )}
+        </View>
+      </Modal>
+
+      {/* Action Modal */}
+      <Modal transparent visible={showConversationActions} animationType="slide" onRequestClose={() => setShowConversationActions(false)}>
+        <Pressable className="flex-1 bg-black/40 justify-end" onPress={() => setShowConversationActions(false)}>
+          <Pressable className="bg-white dark:bg-slate-900 rounded-t-3xl px-5 pt-3 pb-10" onPress={(e) => e.stopPropagation()}>
+            <View className="w-12 h-1.5 rounded-full bg-slate-300 dark:bg-slate-700 self-center mb-6" />
+            <TouchableOpacity className="flex-row items-center gap-4 py-4 px-2">
+              <Ionicons name="trash-outline" size={22} color="#ef4444" />
+              <Text className="text-lg text-slate-900 dark:text-slate-100">Delete Chat</Text>
+            </TouchableOpacity>
+            <View className="h-[1px] bg-slate-100 dark:bg-slate-800" />
+            <TouchableOpacity className="flex-row items-center gap-4 py-4 px-2">
+              <Ionicons name="alert-circle-outline" size={22} color="#ef4444" />
+              <Text className="text-lg text-slate-900 dark:text-slate-100">Report User</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Offer Detail Modal */}
+      <Modal transparent visible={showOfferDetail} animationType="slide" onRequestClose={() => setShowOfferDetail(false)}>
+        <Pressable className="flex-1 bg-black/40 justify-end" onPress={() => setShowOfferDetail(false)}>
+          <Pressable className="bg-white dark:bg-slate-900 rounded-t-3xl px-5 pt-3 pb-8" onPress={(e) => e.stopPropagation()}>
+            <View className="w-12 h-1.5 rounded-full bg-slate-300 dark:bg-slate-700 self-center mb-6" />
+            <View className="flex-row justify-between items-center mb-2">
+              <Text className="text-xl font-bold text-slate-900 dark:text-slate-100">Order Detail</Text>
+              <TouchableOpacity onPress={() => setShowOfferDetail(false)} className="p-1">
+                <Ionicons name="close" size={24} color={themeIconColor} />
+              </TouchableOpacity>
+            </View>
+            <Text className="text-[15px] text-slate-500 dark:text-slate-400 mb-6 leading-6">Review the custom offer and confirm the details before continuing.</Text>
+            
+            <View className="mb-4">
+              <Text className="text-[14px] font-bold text-slate-900 dark:text-slate-100 mb-1">Order title</Text>
+              <Text className="text-[15px] text-slate-600 dark:text-slate-300">{OFFER_DETAILS.title}</Text>
+            </View>
+            <View className="mb-4">
+              <Text className="text-[14px] font-bold text-slate-900 dark:text-slate-100 mb-1">Agreed description</Text>
+              <Text className="text-[15px] text-slate-600 dark:text-slate-300 leading-6">{OFFER_DETAILS.description}</Text>
+            </View>
+            <View className="mb-4">
+              <Text className="text-[14px] font-bold text-slate-900 dark:text-slate-100 mb-1">Agreed amount</Text>
+              <Text className="text-[16px] font-bold text-blue-600 dark:text-blue-400">{OFFER_DETAILS.amount}</Text>
+            </View>
+            
+            <TouchableOpacity className="bg-indigo-600 dark:bg-indigo-700 rounded-full py-4 items-center mt-6" onPress={() => {
+                setShowOfferDetail(false);
+                router.push('/(tabs)/checkout');
+            }}>
+              <Text className="text-white text-lg font-bold">Accept offer</Text>
+            </TouchableOpacity>
+            <TouchableOpacity className="rounded-full py-4 items-center border border-slate-200 dark:border-slate-700 mt-3" onPress={() => setShowOfferDetail(false)}>
+              <Text className="text-slate-600 dark:text-slate-300 text-lg font-semibold">Not now</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+    </View>
   );
 }

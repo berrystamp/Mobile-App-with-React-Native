@@ -64,7 +64,7 @@ export default function MessagesScreen() {
         localConversationId: conversation.id,
         participantId: String(conversation.participantId || ''),
         participantName: conversation.name,
-        participantRole: 'Designer',
+        participantRole: conversation.role,
       },
     });
   };

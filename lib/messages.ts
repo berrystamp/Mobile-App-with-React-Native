@@ -21,7 +21,12 @@ export interface ChatMessageDto {
   text?: string;
   createdAtLabel: string;
   status?: 'sent' | 'seen';
-  bundle?: { title: string; items: { id: string; image: any; overlayText?: string }[]; footerLabel: string };
+  bundle?: {
+    title: string;
+    productCount?: number;
+    items: { id: string; image?: any; imageUrl?: string; overlayText?: string }[];
+    footerLabel: string;
+  };
   offer?: { title: string; priceLabel: string; description: string; image: any; ctaLabel: string };
 }
 
