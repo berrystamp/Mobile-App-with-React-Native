@@ -15,7 +15,7 @@ import { useRouter } from "expo-router";
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { toAccountType, useAuthStore } from '@/store/authStore';
+import { toAccountType, toProfileType, useAuthStore } from '@/store/authStore';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -108,8 +108,7 @@ export default function SignUpScreen() {
   const router = useRouter();
   const isDark = useColorScheme() === 'dark';
   const { role: selectedProfileType, signUp, setHasSelectedInterests, setNeedsInterestOnboarding } = useAuthStore();
-  const isBusiness = selectedProfileType !== 'CUSTOMER';
-
+  const isBusiness = selectedProfileType?.toUpperCase() !== 'CUSTOMER';
   // Form States
   const [isLoading, setIsLoading] = useState(false);
   const [fullName, setFullName] = useState('');
@@ -136,6 +135,7 @@ export default function SignUpScreen() {
     if (!isFormValid) return;
 
     setIsLoading(true);
+    const normalizedProfileType = toProfileType(selectedProfileType);
 
     // Build the payload exactly as defined in your Swagger docs
     const payload = {
@@ -164,18 +164,22 @@ export default function SignUpScreen() {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'profileType': selectedProfileType??"customer" // Ensure profileType is sent in headers as expected by backend
+                'profileType': normalizedProfileType,
             },
             body: JSON.stringify(payload)
         });
 
         if (response.ok) {
-            const accountType = toAccountType(selectedProfileType ?? 'customer');
+            const accountType = toAccountType(normalizedProfileType);
+            console.log(accountType)
             signUp(accountType);
             setHasSelectedInterests(accountType !== 'customer');
             setNeedsInterestOnboarding(accountType === 'customer');
             Alert.alert("Success", "Account created! Please verify your email.");
-            router.push('/verify-otp'); 
+            router.push({
+              pathname: '/(auth)/verify-account',
+              params: { email: email.trim() },
+            });
         } else {
             const errorData = await response.json();
             Alert.alert("Registration Failed", errorData.message || "An error occurred.");

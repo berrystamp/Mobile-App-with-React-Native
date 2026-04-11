@@ -1,8 +1,11 @@
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import Svg, { Circle, Line, Polygon, Rect } from 'react-native-svg';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useState } from 'react';
+import ApiService from '@/services/apiClient';
+import { useAuthStore } from '@/store/authStore';
 
 const NAVY = '#2F2D8C';
 const INDIGO = '#6B6BD6';
@@ -48,6 +51,27 @@ function EnvelopeIllustration() {
 export default function VerifyAccountScreen() {
   const isDark = useColorScheme() === 'dark';
   const t = isDark ? darkTheme : lightTheme;
+  const { email } = useLocalSearchParams<{ email?: string }>();
+  const profileType = useAuthStore((state) => state.role);
+  const [isResending, setIsResending] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const normalizedEmail = String(email || '').trim();
+
+  async function handleResend() {
+    if (!normalizedEmail || isResending) return;
+
+    setIsResending(true);
+    setMessage(null);
+    try {
+      const response = await ApiService.resendOtp(normalizedEmail, profileType);
+      setMessage(response?.responseMessage || response?.message || 'Verification code sent again.');
+    } catch (error: any) {
+      setMessage(error?.response?.data?.responseMessage || error?.response?.data?.message || error?.message || 'Unable to resend verification code.');
+    } finally {
+      setIsResending(false);
+    }
+  }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: t.bg }]}>
@@ -61,6 +85,22 @@ export default function VerifyAccountScreen() {
           A verification code has been sent to your email.{' '}
           <Text style={[styles.subtitleBold, { color: t.textPrimary }]}>Kindly verify your account now.</Text>
         </Text>
+
+        {!!normalizedEmail && (
+          <Text style={[styles.emailText, { color: t.textPrimary }]}>{normalizedEmail}</Text>
+        )}
+
+        {!!message && (
+          <Text style={[styles.infoText, { color: t.textSecondary }]}>{message}</Text>
+        )}
+
+        {!!normalizedEmail && (
+          <TouchableOpacity onPress={handleResend} disabled={isResending} activeOpacity={0.8}>
+            <Text style={styles.resendText}>
+              {isResending ? 'Sending...' : 'Resend code'}
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Proceed button pinned to bottom */}
@@ -68,7 +108,12 @@ export default function VerifyAccountScreen() {
         <TouchableOpacity
           style={styles.proceedButton}
           activeOpacity={0.85}
-          onPress={() => router.push('/verify-otp' as never)}
+          onPress={() =>
+            router.push({
+              pathname: '/(auth)/verify-otp',
+              params: normalizedEmail ? { email: normalizedEmail } : undefined,
+            })
+          }
         >
           <Text style={styles.proceedButtonText}>Proceed</Text>
         </TouchableOpacity>
@@ -113,6 +158,24 @@ const styles = StyleSheet.create({
   },
   subtitleBold: {
     fontWeight: '700',
+  },
+  emailText: {
+    marginTop: 12,
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  infoText: {
+    marginTop: 12,
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  resendText: {
+    marginTop: 18,
+    fontSize: 14,
+    fontWeight: '600',
+    color: INDIGO,
   },
   footer: {
     paddingHorizontal: 24,

@@ -24,6 +24,7 @@ export default function MyShopScreen() {
   const [showPaymentPrompt, setShowPaymentPrompt] = useState(false);
   const [showPaymentSuccess, setShowPaymentSuccess] = useState(false);
   const [menuTarget, setMenuTarget] = useState<GridItem | null>(null);
+  const [followLoading, setFollowLoading] = useState(false);
 
   const theme = {
     background: isDark ? '#111113' : '#F6F6F8',
@@ -138,6 +139,35 @@ export default function MyShopScreen() {
     }
   };
 
+  const handleFollowToggle = async () => {
+    if (!readOnly || !shop?.profile?.profileId || followLoading) return;
+
+    try {
+      setFollowLoading(true);
+      if (shop.profile.isFollowing) {
+        await ApiService.unfollowProfile(shop.profile.profileId);
+      } else {
+        await ApiService.followProfile(shop.profile.profileId);
+      }
+
+      setShop((prev: any) => ({
+        ...prev,
+        profile: {
+          ...prev.profile,
+          isFollowing: !prev.profile.isFollowing,
+          followers: Math.max(0, Number(prev.profile.followers || 0) + (prev.profile.isFollowing ? -1 : 1)),
+        },
+      }));
+    } catch (error: any) {
+      Alert.alert(
+        shop?.profile?.isFollowing ? 'Unable to unfollow' : 'Unable to follow',
+        error?.response?.data?.responseMessage || error?.message || 'Please try again.',
+      );
+    } finally {
+      setFollowLoading(false);
+    }
+  };
+
   if (loading && !shop) {
     return (
       <View style={[styles.centered, { backgroundColor: theme.background }]}>
@@ -162,6 +192,28 @@ export default function MyShopScreen() {
             onOpenFollowers={() => router.push({ pathname: '/shop-follows', params: { profileId: String(shop.profile.profileId), tab: 'followers' } })}
             onOpenFollowing={() => router.push({ pathname: '/shop-follows', params: { profileId: String(shop.profile.profileId), tab: 'following' } })}
           />
+
+          {readOnly ? (
+            <View style={{ paddingHorizontal: 16, marginTop: 14 }}>
+              <TouchableOpacity
+                style={{
+                  backgroundColor: shop?.profile?.isFollowing ? theme.surface : theme.primary,
+                  borderColor: theme.primary,
+                  borderWidth: 1,
+                  borderRadius: 12,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  paddingVertical: 14,
+                  opacity: followLoading ? 0.7 : 1,
+                }}
+                disabled={followLoading}
+                onPress={handleFollowToggle}>
+                <Text style={{ color: shop?.profile?.isFollowing ? theme.primary : '#FFFFFF', fontWeight: '700', fontSize: 15 }}>
+                  {followLoading ? 'Please wait...' : shop?.profile?.isFollowing ? 'Unfollow Artist' : 'Follow Artist'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
 
           <View style={[styles.bodyCard, { backgroundColor: theme.surface }]}> 
             <View style={[styles.tabRow, { borderBottomColor: theme.border }]}> 
@@ -260,7 +312,7 @@ function SheetAction({ label, onPress }: { label: string; onPress: () => void })
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1 },
+  screen: { flex: 1,},
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   bodyCard: { marginTop: 16, borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 16, paddingBottom: 20 },
   tabRow: { marginTop: 8, flexDirection: 'row', borderBottomWidth: 1 },

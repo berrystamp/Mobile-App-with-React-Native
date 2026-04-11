@@ -15,33 +15,9 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import ApiService from '@/services/apiClient';
+import type { BankOption } from '@/services/apiClient';
 import { normalizePaymentDetails } from '@/lib/profile';
 import { useAppTheme } from '@/lib/theme/appTheme';
-
-const NIGERIAN_BANKS = [
-  { name: 'Access Bank', code: '044' },
-  { name: 'Citibank', code: '023' },
-  { name: 'Diamond Bank', code: '063' },
-  { name: 'Ecobank Nigeria', code: '050' },
-  { name: 'Fidelity Bank Nigeria', code: '070' },
-  { name: 'First Bank of Nigeria', code: '011' },
-  { name: 'First City Monument Bank', code: '214' },
-  { name: 'Guaranty Trust Bank', code: '058' },
-  { name: 'Heritage Bank Plc', code: '030' },
-  { name: 'Jaiz Bank', code: '301' },
-  { name: 'Keystone Bank Limited', code: '082' },
-  { name: 'Providus Bank Plc', code: '101' },
-  { name: 'Polaris Bank', code: '076' },
-  { name: 'Stanbic IBTC Bank Nigeria Limited', code: '221' },
-  { name: 'Standard Chartered Bank', code: '068' },
-  { name: 'Sterling Bank', code: '232' },
-  { name: 'Suntrust Bank Nigeria Limited', code: '100' },
-  { name: 'Union Bank of Nigeria', code: '032' },
-  { name: 'United Bank for Africa', code: '033' },
-  { name: 'Unity Bank Plc', code: '215' },
-  { name: 'Wema Bank', code: '035' },
-  { name: 'Zenith Bank', code: '057' },
-];
 
 type CurrencyType = 'NGN' | 'USD';
 
@@ -66,6 +42,8 @@ export default function PaymentDetailsScreen() {
   // Modal state
   const [modalVisible, setModalVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [banks, setBanks] = useState<BankOption[]>([]);
+  const [banksLoading, setBanksLoading] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -88,11 +66,29 @@ export default function PaymentDetailsScreen() {
     }
   }, []);
 
+  const loadBanks = useCallback(async () => {
+    try {
+      setBanksLoading(true);
+      const bankList = await ApiService.getBanks();
+      setBanks(bankList);
+    } catch (error: any) {
+      Alert.alert(
+        'Unable to load banks',
+        error?.response?.data?.responseMessage || error?.message || 'Please try again.'
+      );
+    } finally {
+      setBanksLoading(false);
+    }
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       setLoading(true);
       load();
-    }, [load])
+      if (!banks.length) {
+        loadBanks();
+      }
+    }, [banks.length, load, loadBanks])
   );
 
   // Auto-verify bank when account number is 10 digits and bank is selected
@@ -111,7 +107,7 @@ export default function PaymentDetailsScreen() {
             accountNumber,
             bankCode,
           });
-          const resolvedName = response?.data?.responseBody?.accountName;
+          const resolvedName = response?.responseBody?.accountName || response?.accountName;
           if (resolvedName) {
             setAccountName(resolvedName);
           }
@@ -136,17 +132,31 @@ export default function PaymentDetailsScreen() {
   );
 
   const filteredBanks = useMemo(() => {
-    return NIGERIAN_BANKS.filter((bank) =>
-      bank.name.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-  }, [searchQuery]);
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+    const currencyBanks =
+      activeCurrency === 'NGN'
+        ? banks.filter((bank) => bank.currency === 'NGN')
+        : banks;
 
-  const handleBankSelect = (bank: typeof NIGERIAN_BANKS[0]) => {
+    return currencyBanks.filter((bank) =>
+      bank.name.toLowerCase().includes(normalizedQuery)
+    );
+  }, [activeCurrency, banks, searchQuery]);
+
+  const handleBankSelect = (bank: BankOption) => {
     setBankName(bank.name);
     setBankCode(bank.code);
     setAccountName(''); // Clear account name when bank changes
     setModalVisible(false);
     setSearchQuery('');
+  };
+
+  const openBankModal = async () => {
+    setModalVisible(true);
+
+    if (banks.length || banksLoading) return;
+
+    await loadBanks();
   };
 
   const handleSave = async () => {
@@ -295,7 +305,7 @@ export default function PaymentDetailsScreen() {
                 styles.bankRow,
                 { borderColor: theme.border, backgroundColor: theme.surface },
               ]}
-              onPress={() => setModalVisible(true)}
+              onPress={openBankModal}
             >
               <Text
                 style={[
@@ -495,9 +505,17 @@ export default function PaymentDetailsScreen() {
           </View>
 
           <ScrollView>
-            {filteredBanks.map((bank) => (
+            {banksLoading ? (
+              <View style={styles.bankListState}>
+                <ActivityIndicator color={theme.primary} size="small" />
+                <Text style={[styles.bankListStateText, { color: theme.textMuted }]}>
+                  Loading banks...
+                </Text>
+              </View>
+            ) : filteredBanks.length ? (
+              filteredBanks.map((bank) => (
               <TouchableOpacity
-                key={bank.code}
+                key={`${bank.code}-${bank.name}`}
                 style={[
                   styles.bankItem,
                   { borderBottomColor: theme.border },
@@ -519,7 +537,14 @@ export default function PaymentDetailsScreen() {
                   <Ionicons name="checkmark" size={20} color={theme.primary} />
                 )}
               </TouchableOpacity>
-            ))}
+              ))
+            ) : (
+              <View style={styles.bankListState}>
+                <Text style={[styles.bankListStateText, { color: theme.textMuted }]}>
+                  No banks found.
+                </Text>
+              </View>
+            )}
           </ScrollView>
         </View>
       </Modal>
@@ -675,4 +700,15 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   bankItemText: { fontSize: 16 },
+  bankListState: {
+    paddingHorizontal: 20,
+    paddingVertical: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  bankListStateText: {
+    fontSize: 14,
+    textAlign: 'center',
+  },
 });

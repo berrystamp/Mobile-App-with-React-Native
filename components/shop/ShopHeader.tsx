@@ -44,14 +44,14 @@ export function ShopHeader({
 
       <Image source={{ uri: profile.avatar || FALLBACK_AVATAR }} style={{ width: 72, height: 72, borderRadius: 36, marginTop: -34, borderWidth: 3, borderColor: '#fff' }} />
 
-      <View style={{ marginTop: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+      <View style={{ marginTop: 10, paddingHorizontal:10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
         <Text style={{ color: textColor, fontSize: 24, fontWeight: '700', flex: 1 }}>{profile.fullName}</Text>
         <TouchableOpacity onPress={onOpenReviews}>
           <Text style={{ color: primaryColor, fontSize: 14 }}>{toCountLabel(profile.reviews, 'review')}</Text>
         </TouchableOpacity>
       </View>
 
-      <View style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center' }}>
+      <View style={{ marginTop: 8, paddingHorizontal:10, flexDirection: 'row', alignItems: 'center' }}>
         <Text style={{ color: textColor, fontSize: 14 }}>{toCountLabel(profile.uploads, 'design')}</Text>
         <Text style={{ color: primaryColor, marginHorizontal: 6 }}>|</Text>
         <TouchableOpacity onPress={onOpenFollowers}>
@@ -63,11 +63,11 @@ export function ShopHeader({
         </TouchableOpacity>
       </View>
 
-      <Text style={{ marginTop: 10, color: mutedColor, fontSize: 14, lineHeight: 20 }} numberOfLines={2}>
+      <Text style={{ marginTop: 10, paddingHorizontal: 10, color: mutedColor, fontSize: 14, lineHeight: 20 }} numberOfLines={2}>
         {profile.bio || 'Tell people what your shop creates and the kind of projects you are open to.'}
       </Text>
 
-      <View style={{ marginTop: 10, flexDirection: 'row', flexWrap: 'wrap' }}>
+      <View style={{ marginTop: 10, paddingHorizontal: 5, flexDirection: 'row', flexWrap: 'wrap' }}>
         {profile.categories.slice(0, 6).map((item) => (
           <View key={item} style={{ borderWidth: 1, borderColor, borderRadius: 14, paddingHorizontal: 10, paddingVertical: 4, marginRight: 8, marginBottom: 8 }}>
             <Text style={{ color: mutedColor, fontSize: 12 }}>{item}</Text>

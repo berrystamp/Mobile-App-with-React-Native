@@ -5,6 +5,33 @@ import { extractFaqFromHtml, type FaqItem } from '@/lib/faq';
 import { useAuthStore } from '@/store/authStore';
 
 type ProfileTypeInterface = 'CUSTOMER' | 'DESIGNER' | 'PRINTER';
+export interface BankOption {
+  name: string;
+  country: string;
+  currency: string;
+  code: string;
+}
+export interface DesignMockInput {
+  limitedStatus: boolean;
+  imageUrl: string;
+  availableQty: number;
+  name: string;
+  category: string;
+  colours: string[];
+}
+
+export interface CreateDesignPayload {
+  name: string;
+  frontImageUrl: string;
+  designImages: string[];
+  description: string;
+
+  openForCustomization: boolean;
+  amount: number;
+  mocks: DesignMockInput[];
+  tags: string[];
+  categories: string[];
+}
 
 // Safe non-reactive read for Zustand store outside of React components
 const getProfileType = () => {
@@ -40,6 +67,24 @@ class ApiService {
     await AsyncStorage.removeItem('userToken');
     await AsyncStorage.removeItem('userData');
     await AsyncStorage.removeItem('profileType');
+  }
+
+  async activateAccount(otp: string, email: string) {
+    const response = await api.patch(`/auth/activate/${encodeURIComponent(otp.trim())}`, {
+      email: email.trim(),
+    });
+    return response.data;
+  }
+
+  async resendOtp(email: string, profileType?: string) {
+    const response = await api.post(
+      '/auth/resend-code',
+      { email: email.trim() },
+      profileType
+        ? { headers: { profileType: profileType.toUpperCase() } }
+        : undefined,
+    );
+    return response.data;
   }
 
   async getUserProfile(profileId: string | number) {
@@ -422,6 +467,29 @@ class ApiService {
     return response.data;
   }
 
+  async getBanks(): Promise<BankOption[]> {
+    const response = await api.get('/banks');
+    const body = response.data?.responseBody || response.data || [];
+    const banks = Array.isArray(body) ? body : [];
+    const seen = new Set<string>();
+
+    return banks
+      .map((bank: any) => ({
+        name: String(bank?.name || '').trim(),
+        country: String(bank?.country || '').trim(),
+        currency: String(bank?.currency || '').trim().toUpperCase(),
+        code: String(bank?.code || '').trim(),
+      }))
+      .filter((bank: BankOption) => {
+        if (!bank.name || !bank.code) return false;
+
+        const uniqueKey = `${bank.code}:${bank.name.toLowerCase()}`;
+        if (seen.has(uniqueKey)) return false;
+        seen.add(uniqueKey);
+        return true;
+      });
+  }
+
   async getMyInterests() {
     try {
       const response = await api.get('/user/design-interest');
@@ -544,6 +612,26 @@ class ApiService {
     }
 
     return { requestSuccessful: true, responseBody: payload };
+  }
+
+  async createDesign(payload: CreateDesignPayload) {
+    const headers = { profileType: getProfileType() };
+    const response = await api.post('/designs', payload, { headers });
+    return response.data;
+  }
+
+  async followProfile(profileId: string | number) {
+    const headers = { profileType: getProfileType() };
+    const payload = { followingProfileId: Number(profileId) };
+    const response = await api.post('/follow/add', payload, { headers });
+    return response.data;
+  }
+
+  async unfollowProfile(profileId: string | number) {
+    const headers = { profileType: getProfileType() };
+    const payload = { followingProfileId: Number(profileId) };
+    const response = await api.post('/follow/remove', payload, { headers });
+    return response.data;
   }
   async getDesigner(id: string | number) {
      const profileType = getProfileType();
@@ -893,28 +981,6 @@ class ApiService {
     }
 
     return { responseBody: { content: [] } };
-  }
-
-  async unfollowProfile(profileId: string | number) {
-    const payload = { profileId: Number(profileId) };
-    const candidates = [
-      () => api.delete('/follow/remove', { data: payload }),
-      () => api.post('/follow/remove', payload),
-      () => api.delete(`/follow/${profileId}`),
-    ];
-
-    for (const request of candidates) {
-      try {
-        const response = await request();
-        return response.data;
-      } catch (error: any) {
-        if (error?.response?.status && ![400, 404].includes(error.response.status)) {
-          throw error;
-        }
-      }
-    }
-
-    return { requestSuccessful: false };
   }
 
   async deleteCustomDesign(designId: string | number) {

@@ -29,11 +29,14 @@ api.interceptors.request.use(async (config) => {
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    // If the API says our token is invalid/expired
-    if (error.response && error.response.status === 401) {
+    const hadAuthHeader = Boolean(error.config?.headers?.Authorization);
+
+    // If an authenticated request says our token is invalid/expired
+    if (error.response && error.response.status === 401 && hadAuthHeader) {
       console.warn("Token expired or invalid, redirecting to login...");
       await AsyncStorage.removeItem('userToken');
       await AsyncStorage.removeItem('userData');
+      await AsyncStorage.removeItem('profileType');
       
       // Automatically redirect to login
       // Adjust path if your login screen is named differently

@@ -34,11 +34,12 @@ export const toCountLabel = (count: number, noun: string) => `${count} ${noun}${
 
 export async function fetchShopData(activeRole: 'CUSTOMER' | 'DESIGNER' | 'PRINTER', targetProfileId?: number): Promise<ShopData> {
   const currentUser = (await ApiService.getCurrentUser()) as User | null;
-  const [myProfileResponse, designsResponse, collectionsResponse, paymentResponse] = await Promise.all([
+  const [myProfileResponse, designsResponse, collectionsResponse, paymentResponse, currentFollowingResponse] = await Promise.all([
     targetProfileId ? ApiService.getUserProfile(targetProfileId).catch(() => ApiService.getMyProfile()) : ApiService.getMyProfile(),
     targetProfileId ? ApiService.getDesigns({ page: 0, size: 40, designer: targetProfileId }) : ApiService.getCustomDesigns(0, 40),
     ApiService.getMyCollections(0, 40).catch(() => ({ responseBody: { content: [] } })),
     ApiService.getPaymentDetails().catch(() => null),
+    targetProfileId ? ApiService.getFollowing(undefined, 0, 100).catch(() => ({ responseBody: { content: [] } })) : Promise.resolve({ responseBody: { content: [] } }),
   ]);
 
   const normalized = normalizeProfileResponse(myProfileResponse);
@@ -83,7 +84,12 @@ export async function fetchShopData(activeRole: 'CUSTOMER' | 'DESIGNER' | 'PRINT
 
   const followers = unwrapList(followerResponse);
   const following = unwrapList(followingResponse);
+  const currentFollowing = unwrapList(currentFollowingResponse);
   const payment = normalizePaymentDetails(paymentResponse || {});
+  const isFollowing = Boolean(
+    targetProfileId &&
+      currentFollowing.some((item: any) => Number(item?.id || item?.profileId || item?.profile?.id || item?.followingProfileId) === profileId),
+  );
 
   return {
     profile: {
@@ -98,6 +104,7 @@ export async function fetchShopData(activeRole: 'CUSTOMER' | 'DESIGNER' | 'PRINT
       following: Number(insight.totalFollowing || following.length || 0),
       reviews: Number(insight.totalReviews || reviews.length || 0),
       uploads: Number(insight.totalUploads || designs.length || 0),
+      isFollowing,
     },
     designs,
     collections,

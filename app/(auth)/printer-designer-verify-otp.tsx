@@ -16,7 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 const NAVY = '#2F2D8C';
 const INDIGO = '#6B6BD6';
-const OTP_LENGTH = 5;
+const OTP_LENGTH = 6;
 const RESEND_SECONDS = 60;
 
 export default function PrinterDesignerVerifyOtpScreen() {
@@ -48,8 +48,32 @@ export default function PrinterDesignerVerifyOtpScreen() {
   }
 
   function handleChange(text: string, index: number) {
-    // Only accept single digit
-    const digit = text.replace(/[^0-9]/g, '').slice(-1);
+    const sanitized = text.replace(/[^0-9]/g, '');
+
+    if (!sanitized) {
+      const next = [...otp];
+      next[index] = '';
+      setOtp(next);
+      return;
+    }
+
+    if (sanitized.length > 1) {
+      const next = [...otp];
+      sanitized
+        .slice(0, OTP_LENGTH - index)
+        .split('')
+        .forEach((digit, offset) => {
+          next[index + offset] = digit;
+        });
+      setOtp(next);
+
+      const nextFocusIndex = Math.min(index + sanitized.length, OTP_LENGTH - 1);
+      inputRefs.current[nextFocusIndex]?.focus();
+      setFocusedIndex(nextFocusIndex);
+      return;
+    }
+
+    const digit = sanitized.slice(-1);
     const next = [...otp];
     next[index] = digit;
     setOtp(next);
@@ -115,9 +139,9 @@ export default function PrinterDesignerVerifyOtpScreen() {
                   onKeyPress={({ nativeEvent }) => handleKeyPress(nativeEvent.key, i)}
                   onFocus={() => setFocusedIndex(i)}
                   keyboardType="number-pad"
-                  maxLength={1}
+                  textContentType="oneTimeCode"
                   selectTextOnFocus
-                  caretHidden
+                  contextMenuHidden={false}
                   autoFocus={i === 0}
                 />
               ))}

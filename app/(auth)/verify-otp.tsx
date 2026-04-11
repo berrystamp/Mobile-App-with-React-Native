@@ -1,8 +1,9 @@
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
@@ -13,20 +14,28 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import ApiService from '@/services/apiClient';
+import { useAuthStore } from '@/store/authStore';
 
 const NAVY = '#2F2D8C';
 const INDIGO = '#6B6BD6';
-const OTP_LENGTH = 5;
+const OTP_LENGTH = 6;
 const RESEND_SECONDS = 60;
 
 export default function VerifyOtpScreen() {
+  const { email } = useLocalSearchParams<{ email?: string }>();
   const [otp, setOtp] = useState<string[]>(Array(OTP_LENGTH).fill(''));
   const [focusedIndex, setFocusedIndex] = useState(0);
   const [seconds, setSeconds] = useState(RESEND_SECONDS);
   const [canResend, setCanResend] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const inputRefs = useRef<(TextInput | null)[]>([]);
   const isDark = useColorScheme() === 'dark';
+  const profileType = useAuthStore((state) => state.role);
   const t = isDark ? darkTheme : lightTheme;
+  const normalizedEmail = String(email || '').trim();
 
   // Countdown timer
   useEffect(() => {
@@ -44,15 +53,59 @@ export default function VerifyOtpScreen() {
     setFocusedIndex(0);
     setSeconds(RESEND_SECONDS);
     setCanResend(false);
+    setErrorMessage(null);
     inputRefs.current[0]?.focus();
   }
 
+  async function handleResendCode() {
+    if (!canResend) return;
+    if (!normalizedEmail) {
+      setErrorMessage('Missing email address for verification.');
+      return;
+    }
+
+    handleResend();
+    setInfoMessage(null);
+
+    try {
+      const response = await ApiService.resendOtp(normalizedEmail, profileType);
+      setInfoMessage(response?.responseMessage || response?.message || 'Verification code sent again.');
+    } catch (error: any) {
+      setErrorMessage(error?.response?.data?.responseMessage || error?.response?.data?.message || error?.message || 'Unable to resend verification code.');
+    }
+  }
+
   function handleChange(text: string, index: number) {
-    // Only accept single digit
-    const digit = text.replace(/[^0-9]/g, '').slice(-1);
+    const sanitized = text.replace(/[^0-9]/g, '');
+
+    if (!sanitized) {
+      const next = [...otp];
+      next[index] = '';
+      setOtp(next);
+      return;
+    }
+
+    if (sanitized.length > 1) {
+      const next = [...otp];
+      sanitized
+        .slice(0, OTP_LENGTH - index)
+        .split('')
+        .forEach((digit, offset) => {
+          next[index + offset] = digit;
+        });
+      setOtp(next);
+
+      const nextFocusIndex = Math.min(index + sanitized.length, OTP_LENGTH - 1);
+      inputRefs.current[nextFocusIndex]?.focus();
+      setFocusedIndex(nextFocusIndex);
+      return;
+    }
+
+    const digit = sanitized.slice(-1);
     const next = [...otp];
     next[index] = digit;
     setOtp(next);
+    setErrorMessage(null);
 
     if (digit && index < OTP_LENGTH - 1) {
       inputRefs.current[index + 1]?.focus();
@@ -77,6 +130,30 @@ export default function VerifyOtpScreen() {
   }
 
   const filled = otp.every(d => d !== '');
+  const otpValue = otp.join('');
+
+  async function handleSubmit() {
+    if (!filled || isSubmitting) return;
+    if (!normalizedEmail) {
+      setErrorMessage('Missing email address for verification.');
+      return;
+    }
+
+    Keyboard.dismiss();
+    setIsSubmitting(true);
+    setErrorMessage(null);
+    setInfoMessage(null);
+
+    try {
+      const response = await ApiService.activateAccount(otpValue, normalizedEmail);
+      setInfoMessage(response?.responseMessage || response?.message || 'Email verified successfully.');
+      router.replace('/(auth)/login');
+    } catch (error: any) {
+      setErrorMessage(error?.response?.data?.responseMessage || error?.response?.data?.message || error?.message || 'Unable to verify code.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: t.bg }]}>
@@ -95,6 +172,10 @@ export default function VerifyOtpScreen() {
           <Text style={[styles.subtitle, { color: t.textMuted }]}>
             Enter the code sent to your email address
           </Text>
+
+          {!!normalizedEmail && (
+            <Text style={[styles.emailText, { color: t.textPrimary }]}>{normalizedEmail}</Text>
+          )}
 
           {/* OTP Boxes */}
           <View style={styles.otpRow}>
@@ -115,9 +196,9 @@ export default function VerifyOtpScreen() {
                   onKeyPress={({ nativeEvent }) => handleKeyPress(nativeEvent.key, i)}
                   onFocus={() => setFocusedIndex(i)}
                   keyboardType="number-pad"
-                  maxLength={1}
+                  textContentType="oneTimeCode"
                   selectTextOnFocus
-                  caretHidden
+                  contextMenuHidden={false}
                   autoFocus={i === 0}
                 />
               ))}
@@ -126,7 +207,7 @@ export default function VerifyOtpScreen() {
           {/* Resend row */}
           <View style={styles.resendRow}>
             <Text style={[styles.resendText, { color: t.textSecondary }]}>Didn&apos;t get the code? </Text>
-            <TouchableOpacity onPress={handleResend} disabled={!canResend}>
+            <TouchableOpacity onPress={handleResendCode} disabled={!canResend}>
               <Text style={[styles.resendLink, !canResend && styles.resendDisabled]}>
                 Resend
               </Text>
@@ -137,6 +218,14 @@ export default function VerifyOtpScreen() {
           {!canResend && (
             <Text style={styles.countdown}>{seconds}secs</Text>
           )}
+
+          {!!errorMessage && (
+            <Text style={styles.errorText}>{errorMessage}</Text>
+          )}
+
+          {!!infoMessage && !errorMessage && (
+            <Text style={styles.infoText}>{infoMessage}</Text>
+          )}
         </View>
 
         {/* Proceed button */}
@@ -144,13 +233,10 @@ export default function VerifyOtpScreen() {
           <TouchableOpacity
             style={[styles.proceedButton, !filled && styles.proceedButtonDisabled]}
             activeOpacity={0.85}
-            disabled={!filled}
-            onPress={() => {
-              Keyboard.dismiss();
-              // TODO: navigate to next screen after OTP confirmed
-            }}
+            disabled={!filled || isSubmitting}
+            onPress={handleSubmit}
           >
-            <Text style={styles.proceedButtonText}>Proceed</Text>
+            {isSubmitting ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.proceedButtonText}>Proceed</Text>}
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -203,6 +289,13 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     marginBottom: 40,
   },
+  emailText: {
+    marginTop: -22,
+    marginBottom: 24,
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
   otpRow: {
     flexDirection: 'row',
     gap: 12,
@@ -244,6 +337,20 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: INDIGO,
     fontWeight: '500',
+  },
+  errorText: {
+    marginTop: 18,
+    color: '#D64545',
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  infoText: {
+    marginTop: 18,
+    color: INDIGO,
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
   },
   footer: {
     paddingHorizontal: 24,

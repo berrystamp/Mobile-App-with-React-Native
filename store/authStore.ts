@@ -50,7 +50,7 @@ export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
       isLoggedIn: false,
-      role: "customer",
+      role: "CUSTOMER",
       accountType: null,
       hasSelectedInterests: false,
       needsInterestOnboarding: false,

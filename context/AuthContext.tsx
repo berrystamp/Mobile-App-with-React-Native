@@ -111,6 +111,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error('Login error:', error);
       // Axios wraps errors, so we can check for a response payload
       const errorMessage = error.response?.data?.responseMessage || error.response?.data?.message || 'Network Error. Unable to reach the server.';
+      const statusCode = error.response?.status;
+      const normalizedErrorMessage = String(errorMessage).toLowerCase();
+      const emailNotVerified =
+        normalizedErrorMessage.includes('email not verified');
+      const requiresVerification =
+        statusCode === 401 &&
+        (normalizedErrorMessage.includes('verification') || normalizedErrorMessage.includes('verify'));
+
+      if (emailNotVerified) {
+        router.replace({
+          pathname: '/(auth)/verify-account',
+          params: { email: email.trim() },
+        });
+      } else if (requiresVerification) {
+        router.replace({
+          pathname: '/(auth)/verify-otp',
+          params: { email: email.trim() },
+        });
+      }
+
       return { success: false, error: errorMessage };
     }
   };

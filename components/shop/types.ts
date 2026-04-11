@@ -21,6 +21,7 @@ export type ShopProfile = {
   following: number;
   reviews: number;
   uploads: number;
+  isFollowing?: boolean;
 };
 
 export type ReviewItem = {
