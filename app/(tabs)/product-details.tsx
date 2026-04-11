@@ -168,13 +168,15 @@ export default function ProductDetailsScreen() {
               <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
             </TouchableOpacity>
 
-            <View className="ml-2 flex-1 flex-row items-center">
+            <TouchableOpacity
+              onPress={() => router.push({ pathname: '/my-shop', params: { profileId: String(design.profile.id) } })}
+              className="ml-2 flex-1 flex-row items-center">
               <Image source={design.profile.profilePicturePath ? { uri: design.profile.profilePicturePath } : AVATAR_FALLBACK} className="h-10 w-10 rounded-full" />
               <View className="ml-3 flex-1">
                 <Text numberOfLines={1} className="text-lg font-semibold text-white">{design.title}</Text>
                 <Text numberOfLines={1} className="text-sm text-white/90">Designed by {artistName}</Text>
               </View>
-            </View>
+            </TouchableOpacity>
 
             <View className="flex-row items-center">
               <TouchableOpacity onPress={handleFavoriteToggle} className="mx-1 h-9 w-9 items-center justify-center">

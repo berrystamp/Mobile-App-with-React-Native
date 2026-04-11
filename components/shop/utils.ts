@@ -32,11 +32,11 @@ export const toDisplayName = (person: any) => {
 
 export const toCountLabel = (count: number, noun: string) => `${count} ${noun}${count === 1 ? '' : 's'}`;
 
-export async function fetchShopData(activeRole: 'CUSTOMER' | 'DESIGNER' | 'PRINTER'): Promise<ShopData> {
+export async function fetchShopData(activeRole: 'CUSTOMER' | 'DESIGNER' | 'PRINTER', targetProfileId?: number): Promise<ShopData> {
   const currentUser = (await ApiService.getCurrentUser()) as User | null;
   const [myProfileResponse, designsResponse, collectionsResponse, paymentResponse] = await Promise.all([
-    ApiService.getMyProfile(),
-    ApiService.getCustomDesigns(0, 40),
+    targetProfileId ? ApiService.getUserProfile(targetProfileId).catch(() => ApiService.getMyProfile()) : ApiService.getMyProfile(),
+    targetProfileId ? ApiService.getDesigns({ page: 0, size: 40, designer: targetProfileId }) : ApiService.getCustomDesigns(0, 40),
     ApiService.getMyCollections(0, 40).catch(() => ({ responseBody: { content: [] } })),
     ApiService.getPaymentDetails().catch(() => null),
   ]);
@@ -51,7 +51,7 @@ export async function fetchShopData(activeRole: 'CUSTOMER' | 'DESIGNER' | 'PRINT
         : merged.customerProfile;
 
   const insight = roleProfile?.insight || {};
-  const profileId = Number(normalized.id || currentUser?.id || roleProfile?.id || 0);
+  const profileId = Number(targetProfileId || normalized.id || currentUser?.id || roleProfile?.id || 0);
   const [followerResponse, followingResponse, reviewResponse] = await Promise.all([
     ApiService.getFollowers(profileId || undefined, 0, 100).catch(() => ({ responseBody: { content: [] } })),
     ApiService.getFollowing(profileId || undefined, 0, 100).catch(() => ({ responseBody: { content: [] } })),

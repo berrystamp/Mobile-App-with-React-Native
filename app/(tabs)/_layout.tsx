@@ -15,14 +15,14 @@ export default function TabsLayout() {
   const hideHeader = useMemo(
     () =>
       !isCustomer ||
-      ['/chat', '/checkout', '/Search', '/Filter', '/filter-product-category', '/filter-design-category', '/select-printer', '/products', '/my-shop', '/custom-design', '/SelectDesignForScreen', '/SelectDesignThemeScreen', '/SelectItemsScreen', '/favorites', '/messages', '/profile', '/notification', '/payments', '/edit-profile', '/track-order', '/faq', '/referral', '/referral-how-it-works', '/manage-order', '/update-interest'].includes(pathname) ||
+      ['/chat', '/checkout', '/Search', '/Filter', '/filter-product-category', '/filter-design-category', '/select-printer', '/products', '/my-shop', '/custom-design', '/SelectDesignForScreen', '/SelectDesignThemeScreen', '/SelectItemsScreen', '/favorites', '/messages', '/profile', '/notification', '/payments', '/edit-profile', '/track-order', '/faq', '/referral', '/referral-how-it-works', '/manage-order', '/update-interest', '/switch-account', '/upload-design', '/create-collection'].includes(pathname) ||
       pathname.startsWith('/sp-') ||
       pathname.startsWith('/order/'),
     [isCustomer, pathname],
   );
 
   const hideBottomNavigation = useMemo(
-    () => ['/chat', '/checkout', '/Filter', '/filter-product-category', '/filter-design-category', '/select-printer', '/products', '/my-shop', '/custom-design', '/SelectDesignForScreen', '/SelectDesignThemeScreen', '/SelectItemsScreen', '/notification', '/payments', '/edit-profile', '/track-order', '/faq', '/referral', '/referral-how-it-works', '/manage-order', '/update-interest'].includes(pathname) || pathname.startsWith('/order/') || pathname.startsWith('/sp-'),
+    () => ['/chat', '/checkout', '/Filter', '/filter-product-category', '/filter-design-category', '/select-printer', '/products', '/my-shop', '/custom-design', '/SelectDesignForScreen', '/SelectDesignThemeScreen', '/SelectItemsScreen', '/notification', '/payments', '/edit-profile', '/track-order', '/faq', '/referral', '/referral-how-it-works', '/manage-order', '/update-interest', '/switch-account', '/upload-design', '/create-collection'].includes(pathname) || pathname.startsWith('/order/') || pathname.startsWith('/sp-'),
     [pathname],
   );
 
@@ -69,6 +69,9 @@ export default function TabsLayout() {
           <Stack.Screen name="faq" />
           <Stack.Screen name="referral" />
           <Stack.Screen name="referral-how-it-works" />
+          <Stack.Screen name="switch-account" />
+          <Stack.Screen name="upload-design" />
+          <Stack.Screen name="create-collection" />
           <Stack.Screen name="Search" />
           <Stack.Screen name="select-printer" />
           <Stack.Screen name="my-shop" />

@@ -1108,6 +1108,143 @@ class ApiService {
     return { requestSuccessful: false, responseMessage: 'Redeem endpoint unavailable.' };
   }
 
+
+
+  async createCollection(payload: { name: string; description?: string; imagePath?: string }) {
+    const headers = { profileType: getProfileType() };
+    const candidates = [
+      () => api.post('/collections', payload, { headers }),
+      () => api.post('/collections/create', payload, { headers }),
+    ];
+
+    for (const request of candidates) {
+      try {
+        const response = await request();
+        return response.data;
+      } catch (error: any) {
+        if (error?.response?.status && ![400, 404].includes(error.response.status)) throw error;
+      }
+    }
+
+    return { requestSuccessful: false };
+  }
+
+  async updateCollection(collectionId: string | number, payload: { name?: string; description?: string; imagePath?: string }) {
+    const headers = { profileType: getProfileType() };
+    const candidates = [
+      () => api.put(`/collections/${collectionId}`, payload, { headers }),
+      () => api.patch(`/collections/${collectionId}`, payload, { headers }),
+    ];
+
+    for (const request of candidates) {
+      try {
+        const response = await request();
+        return response.data;
+      } catch (error: any) {
+        if (error?.response?.status && ![400, 404].includes(error.response.status)) throw error;
+      }
+    }
+
+    return { requestSuccessful: false };
+  }
+
+  async deleteCollection(collectionId: string | number) {
+    const headers = { profileType: getProfileType() };
+    const candidates = [
+      () => api.delete(`/collections/${collectionId}`, { headers }),
+      () => api.delete(`/collections/remove/${collectionId}`, { headers }),
+    ];
+
+    for (const request of candidates) {
+      try {
+        const response = await request();
+        return response.data;
+      } catch (error: any) {
+        if (error?.response?.status && ![400, 404].includes(error.response.status)) throw error;
+      }
+    }
+
+    return { requestSuccessful: false };
+  }
+
+  async createCustomDesign(payload: Record<string, unknown>) {
+    const headers = { profileType: getProfileType() };
+    const candidates = [
+      () => api.post('/designs', payload, { headers }),
+      () => api.post('/custom-designs', payload, { headers }),
+    ];
+
+    for (const request of candidates) {
+      try {
+        const response = await request();
+        return response.data;
+      } catch (error: any) {
+        if (error?.response?.status && ![400, 404].includes(error.response.status)) throw error;
+      }
+    }
+
+    return { requestSuccessful: false };
+  }
+
+  async updateCustomDesign(designId: string | number, payload: Record<string, unknown>) {
+    const headers = { profileType: getProfileType() };
+    const candidates = [
+      () => api.put(`/designs/${designId}`, payload, { headers }),
+      () => api.patch(`/designs/${designId}`, payload, { headers }),
+    ];
+
+    for (const request of candidates) {
+      try {
+        const response = await request();
+        return response.data;
+      } catch (error: any) {
+        if (error?.response?.status && ![400, 404].includes(error.response.status)) throw error;
+      }
+    }
+
+    return { requestSuccessful: false };
+  }
+
+  async addDesignToCollection(payload: { designId: string | number; collectionId: string | number }) {
+    const headers = { profileType: getProfileType() };
+    const body = { designId: Number(payload.designId), collectionId: Number(payload.collectionId) };
+    const candidates = [
+      () => api.post('/collections/designs', body, { headers }),
+      () => api.post(`/collections/${payload.collectionId}/designs/${payload.designId}`, {}, { headers }),
+    ];
+
+    for (const request of candidates) {
+      try {
+        const response = await request();
+        return response.data;
+      } catch (error: any) {
+        if (error?.response?.status && ![400, 404].includes(error.response.status)) throw error;
+      }
+    }
+
+    return { requestSuccessful: false };
+  }
+
+  async getDesignInsights(designId: string | number) {
+    const headers = { profileType: getProfileType() };
+    const candidates = [
+      () => api.get(`/designs/${designId}/insights`, { headers }),
+      () => api.get(`/designs/insights/${designId}`, { headers }),
+      () => api.get(`/analytics/designs/${designId}`, { headers }),
+    ];
+
+    for (const request of candidates) {
+      try {
+        const response = await request();
+        return response.data;
+      } catch (error: any) {
+        if (error?.response?.status && ![400, 404].includes(error.response.status)) throw error;
+      }
+    }
+
+    return { responseBody: {} };
+  }
+
   // Generic request method
   async request(config: AxiosRequestConfig) {
     const response = await api.request(config);
