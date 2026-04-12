@@ -2,7 +2,7 @@ import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router"; // Added for automatic redirection
 
-const API_BASE_URL = 'https://berrystamp-backend-dev-4cn29.ondigitalocean.app';
+const API_BASE_URL = 'https://backend-prod-api.berrystamp.com/api/v1';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
