@@ -40,25 +40,7 @@ const sortDesigns = (designs: Design[], sortBy: string) => {
   );
 };
 
-const applyStoredFilters = (designs: Design[], filters: SearchFilters) => {
-  const [minPrice, maxPrice] = filters.priceRange;
-
-  return sortDesigns(
-    designs.filter((design) => {
-      const lowestPrice = getLowestPrice(design);
-      const matchesProductCategory =
-        filters.productCategories.length === 0 ||
-        design.mocks.some((mock) => filters.productCategories.includes(mock.name));
-      const matchesDesignCategory =
-        filters.designCategories.length === 0 ||
-        design.categories?.some((category) => filters.designCategories.includes(category));
-      const matchesPrice = lowestPrice >= minPrice && lowestPrice <= maxPrice;
-
-      return matchesProductCategory && matchesDesignCategory && matchesPrice;
-    }),
-    filters.sortBy,
-  );
-};
+const applyStoredFilters = (designs: Design[], filters: SearchFilters) => sortDesigns(designs, filters.sortBy);
 
 function SearchDesignCard({ design, onPress }: { design: Design; onPress: () => void }) {
   const isDark = useColorScheme() === 'dark';
@@ -134,9 +116,17 @@ const SearchScreen = () => {
         setIsLoading(true);
         setError(null);
 
-        const response = query.trim()
-          ? await ApiService.searchDesigns({ searchField: query.trim(), size: 20, page: 0 })
-          : await ApiService.getRecentDesigns(20);
+        const [minPrice, maxPrice] = filters.priceRange;
+        const response = await ApiService.getDesigns({
+          page: 0,
+          size: 20,
+          searchField: query.trim() || undefined,
+          designCategories: filters.designCategories.length ? filters.designCategories.join(',') : undefined,
+          mockName: filters.productCategories.length ? filters.productCategories.join(',') : undefined,
+          mockCategory: filters.productCategories.length ? filters.productCategories.join(',') : undefined,
+          lowerPriceRange: minPrice,
+          upperPriceRange: maxPrice,
+        });
 
         const normalizedResults = normalizeDesignListResponse(response);
         setResults(applyStoredFilters(normalizedResults, filters));

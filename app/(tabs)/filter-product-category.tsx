@@ -29,7 +29,7 @@ export default function FilterProductCategoryScreen() {
       const [filters, designResponse] = await Promise.all([getSearchFilters(), ApiService.getDesigns({ size: 40 })]);
       const designs = normalizeDesignListResponse(designResponse);
       setSelectedItems(filters.productCategories);
-      setItems(Array.from(new Set(designs.flatMap((design) => design.mocks.map((mock) => mock.name)).filter(Boolean))));
+      setItems(Array.from(new Set(designs.flatMap((design) => design.mocks.map((mock) => mock.category || mock.name)).filter(Boolean))));
     };
 
     loadState().catch((error) => console.error('Failed to load product categories', error));

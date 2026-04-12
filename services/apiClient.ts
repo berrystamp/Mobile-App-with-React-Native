@@ -5,6 +5,15 @@ import { extractFaqFromHtml, type FaqItem } from '@/lib/faq';
 import { useAuthStore } from '@/store/authStore';
 
 type ProfileTypeInterface = 'CUSTOMER' | 'DESIGNER' | 'PRINTER';
+type OrderStatus = 
+  | 'REVIEW' 
+  | 'REJECTED' 
+  | 'ACTIVE' 
+  | 'CANCELLED' 
+  | 'AWAITING_CONFIRMATION' 
+  | 'COMPLETED' 
+  | 'PICKUP_REQUESTED' 
+  | 'DELIVER_REQUESTED';
 export interface BankOption {
   name: string;
   country: string;
@@ -25,12 +34,35 @@ export interface CreateDesignPayload {
   frontImageUrl: string;
   designImages: string[];
   description: string;
-
+  printerId?: number;
   openForCustomization: boolean;
   amount: number;
   mocks: DesignMockInput[];
   tags: string[];
   categories: string[];
+}
+
+export interface GetDesignsParams {
+  page?: number;
+  size?: number;
+  designer?: number;
+  tags?: string;
+  designCategories?: string;
+  mockName?: string;
+  mockCategory?: string;
+  upperPriceRange?: number;
+  lowerPriceRange?: number;
+  searchField?: string;
+  sort?: string;
+}
+
+export interface CreateMockPayload {
+  limitedStatus: boolean;
+  imageUrl: string;
+  availableQty: number;
+  name: string;
+  category: string;
+  colours: string[];
 }
 
 // Safe non-reactive read for Zustand store outside of React components
@@ -247,75 +279,79 @@ class ApiService {
     return { requestSuccessful: true };
   }
 
-  async getManageOrders(options?: {
-    profileType?: ProfileTypeInterface;
-    page?: number;
-    size?: number;
-    search?: string;
-    status?: string;
-  }) {
-    const profileType = getProfileType();
-    const params: Record<string, unknown> = {
-      page: options?.page ?? 0,
-      size: options?.size ?? 50,
-      sort: 'id,desc',
-    };
+    async getManageOrders(options?: {
+      profileType?: ProfileTypeInterface;
+      page?: number;
+      size?: number;
+      search?: string;
+      status?: OrderStatus | string; // Will be mapped to 'orderStatus'
+      startDate?: string;            // Expected format: YYYY-MM-DD
+      endDate?: string;              // Expected format: YYYY-MM-DD
+    }) {
+      const profileType = getProfileType();
+      
+      // The 'pageable' backend object is traditionally populated via flat query params
+      const params: Record<string, unknown> = {
+        page: options?.page ?? 0,
+        size: options?.size ?? 50,
+        sort: 'id,desc',
+      };
 
-    const normalizedSearch = options?.search?.trim();
-    const normalizedStatus = options?.status?.trim();
-    if (normalizedSearch) {
-      params.search = normalizedSearch;
-      params.query = normalizedSearch;
-      params.searchField = normalizedSearch;
-    }
-    if (normalizedStatus) {
-      params.status = normalizedStatus.toUpperCase();
-    }
+      const normalizedSearch = options?.search?.trim();
+      const normalizedStatus = options?.status?.trim();
 
-    const headers = { profileType };
-    const candidates = [
-      () => api.get('/orders', { params, headers }),
-      () => api.get('/orders/manage', { params, headers }),
-      () => api.get('/manage-orders', { params, headers }),
-      () => api.get('/berry/orders', { params, headers }),
-    ];
+      // Map legacy search if your backend still utilizes it alongside the new spec
+      if (normalizedSearch) {
+        params.search = normalizedSearch;
+      }
 
-    for (const request of candidates) {
+      // Map to the required 'orderStatus' param
+      if (normalizedStatus) {
+        params.orderStatus = normalizedStatus.toUpperCase();
+      }
+
+      // Add date filters if provided
+      if (options?.startDate) {
+        params.startDate = options.startDate;
+      }
+      if (options?.endDate) {
+        params.endDate = options.endDate;
+      }
+
+      const headers = { profileType };
+
       try {
-        const response = await request();
+        // Replaced the candidate loop with the exact endpoint provided
+        const response = await api.get('/orders', { params, headers });
         return response.data;
       } catch (error: any) {
+        // Ignore 404s and return empty content, but throw on other server errors
         if (error?.response?.status && error.response.status !== 404) {
           throw error;
         }
+        return { responseBody: { content: [] } };
       }
     }
 
-    return { responseBody: { content: [] } };
-  }
+async getManageOrderById(orderId: string | number, profileType?: ProfileTypeInterface) {
+  const activeProfileType = profileType;
+  const headers = { profileType: activeProfileType };
 
-  async getManageOrderById(orderId: string | number, profileType?: ProfileTypeInterface) {
-    const activeProfileType = profileType;
-    const headers = { profileType: activeProfileType };
-    const candidates = [
-      () => api.get(`/orders/${orderId}`, { headers }),
-      () => api.get(`/orders/details/${orderId}`, { headers }),
-      () => api.get(`/manage-orders/${orderId}`, { headers }),
-      () => api.get(`/berry/orders/${orderId}`, { headers }),
-    ];
-
-    for (const request of candidates) {
-      try {
-        const response = await request();
-        return response.data;
-      } catch (error: any) {
-        if (error?.response?.status && error.response.status !== 404) {
-          throw error;
-        }
-      }
+  try {
+    const response = await api.get(`/orders/${orderId}`, { headers });
+    return response.data;
+  } catch (error: any) {
+    if (error?.response?.status && error.response.status !== 404) {
+      throw error;
     }
-
     return { responseBody: null };
+  }
+}
+
+  async getOrderById(orderId: string | number) {
+    const headers = { profileType: getProfileType() };
+    const response = await api.get(`/orders/${orderId}`, { headers });
+    return response.data;
   }
 
   async uploadSingleFile(fileUri: string, fieldName: string = 'file') {
@@ -620,6 +656,22 @@ class ApiService {
     return response.data;
   }
 
+  async uploadDesignAsset(designId: string | number, imagePath: string) {
+    const headers = { profileType: getProfileType() };
+    const response = await api.post(
+      `/designs/${designId}/design-uploads`,
+      { imagePath },
+      { headers },
+    );
+    return response.data;
+  }
+
+  async addDesignMock(designId: string | number, payload: CreateMockPayload) {
+    const headers = { profileType: getProfileType() };
+    const response = await api.post(`/designs/${designId}/mock`, payload, { headers });
+    return response.data;
+  }
+
   async followProfile(profileId: string | number) {
     const headers = { profileType: getProfileType() };
     const payload = { followingProfileId: Number(profileId) };
@@ -643,25 +695,46 @@ class ApiService {
     });
     return response.data;
   }
-  async getDesigns(filters:any = {}) {
+
+  async getPublicProfiles(profile: 'CUSTOMER' | 'DESIGNER' | 'PRINTER', page: number = 0, size: number = 60) {
+    const response = await api.get('/public/profile', {
+      params: {
+        profile,
+        page,
+        size,
+      },
+    });
+    return response.data;
+  }
+
+  async getDesigns(filters: GetDesignsParams = {}) {
+    const profileType = getProfileType();
     const response = await api.get('/designs', {
       params: {
-        page: 0,
-        size: 20,
-        sort: 'id,desc',
-        ...filters,
+        page: filters.page ?? 0,
+        size: filters.size ?? 20,
+        designer: filters.designer,
+        tags: filters.tags,
+        designCategories: filters.designCategories,
+        mockName: filters.mockName,
+        mockCategory: filters.mockCategory,
+        upperPriceRange: filters.upperPriceRange,
+        lowerPriceRange: filters.lowerPriceRange,
+        searchField: filters.searchField,
+        sort: filters.sort ?? 'id,desc',
       },
       headers: {
-        profileType: 'CUSTOMER',
+        profileType,
       },
     });
     return response.data;
   }
 
   async fetchDesignById(designId: number) {
+    const profileType = getProfileType();
     const response = await api.get(`/designs/${designId}`, {
       headers: {
-        profileType: 'CUSTOMER',
+        profileType,
       },
     });
     return response.data;
@@ -760,67 +833,63 @@ class ApiService {
   }
 
   async getConversations(page: number = 0, size: number = 50) {
-    const headers = { profileType: 'CUSTOMER' };
-    const candidates = [
-      () => api.get('/messages/conversations', { params: { page, size, sort: 'updatedAt,desc' }, headers }),
-      () => api.get('/conversations', { params: { page, size, sort: 'updatedAt,desc' }, headers }),
-    ];
-
-    for (const request of candidates) {
-      try {
-        const response = await request();
-        return response.data;
-      } catch (error: any) {
-        if (error?.response?.status && error.response.status !== 404) {
-          throw error;
-        }
+    const profileType = getProfileType();
+    const response = await api.get('/conversations', {
+      params: { page, size },
+      headers: {
+        profileType
       }
-    }
-
-    return { responseBody: { content: [] } };
+    });
+    console.log(response.data.responseBody)
+    return response.data;
   }
 
   async getConversationMessages(conversationId: string, page: number = 0, size: number = 100) {
-    const headers = { profileType: 'CUSTOMER' };
-    const candidates = [
-      () => api.get(`/messages/conversations/${conversationId}`, { params: { page, size, sort: 'createdAt,asc' }, headers }),
-      () => api.get(`/conversations/${conversationId}/messages`, { params: { page, size, sort: 'createdAt,asc' }, headers }),
-    ];
+    const profileType = getProfileType();
+    const response = await api.get(`/conversations/${conversationId}/messages`, {
+      params: { page, size, sort: 'createdAt,asc' },
+      headers: { profileType },
+    });
 
-    for (const request of candidates) {
-      try {
-        const response = await request();
-        return response.data;
-      } catch (error: any) {
-        if (error?.response?.status && error.response.status !== 404) {
-          throw error;
-        }
-      }
-    }
-
-    return { responseBody: { content: [] } };
+    return response.data;
   }
 
-  async sendMessage(conversationId: string, payload: { content: string; receiverId?: number }) {
-    const headers = { profileType: 'CUSTOMER' };
+  async sendMessage(payload: { toProfileId: number; content: string; caption?: string; chatType?: string }) {
+    const profileType = getProfileType();
+    const response = await api.post(
+      '/messages/send',
+      payload,
+      {
+        headers: { profileType },
+      },
+    );
 
-    const candidates = [
-      () => api.post(`/messages/conversations/${conversationId}`, payload, { headers }),
-      () => api.post(`/conversations/${conversationId}/messages`, payload, { headers }),
-    ];
+    return response.data;
+  }
 
-    for (const request of candidates) {
-      try {
-        const response = await request();
-        return response.data;
-      } catch (error: any) {
-        if (error?.response?.status && error.response.status !== 404) {
-          throw error;
-        }
-      }
-    }
+  async sendOrderMessage(
+    orderId: string | number,
+    payload: { toProfileId: number; content: string; caption?: string; chatType?: string },
+  ) {
+    const profileType = getProfileType();
+    const response = await api.post(`/messages/send/order/${orderId}`, payload, {
+      headers: { profileType },
+    });
 
-    throw new Error('Unable to send message. Messaging endpoint is unavailable.');
+    return response.data;
+  }
+
+  async markMessageAsRead(messageId: string) {
+    const profileType = getProfileType();
+    console.log("Marking read",messageId)
+    const response = await api.patch(
+      `/messages/send/${messageId}/read`,
+      {
+        headers: { profileType },
+      },
+    );
+
+    return response.data;
   }
 
   async deleteConversation(conversationId: string) {

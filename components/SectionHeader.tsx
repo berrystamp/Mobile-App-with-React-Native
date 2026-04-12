@@ -22,7 +22,7 @@ export const SectionHeader: React.FC<SectionHeaderProps> = ({
 
   return (
     <View style={styles.container}>
-      <Text style={[styles.title]}>{title}</Text>
+      <Text className='text-black dark:text-white' style={[styles.title]}>{title}</Text>
       {showViewAll && onViewAllPress && (
         <TouchableOpacity onPress={onViewAllPress} activeOpacity={0.7}>
           <Text style={[styles.viewAll, { color: theme.link }]}>View all</Text>

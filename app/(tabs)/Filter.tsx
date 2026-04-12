@@ -55,7 +55,7 @@ const FilterScreen = () => {
         
         // Extract unique categories from the designs array
         const nextProductCategories = Array.from(
-          new Set(designs.flatMap((design) => design.mocks.map((mock) => mock.name)).filter(Boolean))
+          new Set(designs.flatMap((design) => design.mocks.map((mock) => mock.category || mock.name)).filter(Boolean))
         ).slice(0, 12);
         
         const nextDesignCategories = Array.from(

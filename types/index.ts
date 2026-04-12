@@ -64,6 +64,7 @@ export interface Artist {
 export interface Mock {
   id: number;
   name: string;
+  category?: string;
   imagePath: string;
   price: number;
   available: boolean;

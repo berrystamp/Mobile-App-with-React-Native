@@ -1,7 +1,14 @@
-import { Artist } from '@/types';
-import { Ionicons } from '@expo/vector-icons';
-import React from 'react';
-import { Image, StyleSheet, Text, TouchableOpacity, useColorScheme, View } from 'react-native';
+import { Artist } from "@/types";
+import { Ionicons } from "@expo/vector-icons";
+import React from "react";
+import {
+  Image,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  useColorScheme,
+  View,
+} from "react-native";
 
 interface ArtistCardProps {
   artist: Artist;
@@ -10,11 +17,11 @@ interface ArtistCardProps {
 
 export const ArtistCard: React.FC<ArtistCardProps> = ({ artist, onPress }) => {
   const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
+  const isDark = colorScheme === "dark";
 
   const theme = {
-    text: isDark ? '#FFFFFF' : '#1A1A1A',
-    subtext: isDark ? '#A0A0A0' : '#7A7A7A',
+    text: isDark ? "#FFFFFF" : "#1A1A1A",
+    subtext: isDark ? "#A0A0A0" : "#7A7A7A",
   };
 
   const renderStars = (rating: number) => {
@@ -24,20 +31,25 @@ export const ArtistCard: React.FC<ArtistCardProps> = ({ artist, onPress }) => {
 
     for (let i = 0; i < fullStars; i++) {
       stars.push(
-        <Ionicons key={`star-${i}`} name="star" size={12} color="#FFB800" />
+        <Ionicons key={`star-${i}`} name="star" size={12} color="#FFB800" />,
       );
     }
 
     if (hasHalfStar) {
       stars.push(
-        <Ionicons key="star-half" name="star-half" size={12} color="#FFB800" />
+        <Ionicons key="star-half" name="star-half" size={12} color="#FFB800" />,
       );
     }
 
     const emptyStars = 5 - Math.ceil(rating);
     for (let i = 0; i < emptyStars; i++) {
       stars.push(
-        <Ionicons key={`empty-${i}`} name="star-outline" size={12} color="#FFB800" />
+        <Ionicons
+          key={`empty-${i}`}
+          name="star-outline"
+          size={12}
+          color="#FFB800"
+        />,
       );
     }
 
@@ -47,19 +59,20 @@ export const ArtistCard: React.FC<ArtistCardProps> = ({ artist, onPress }) => {
   const getAvatarUrl = () => {
     if (artist.profilePicturePath) {
       // If it's a full URL, use it directly
-      if (artist.profilePicturePath.startsWith('http')) {
+      if (artist.profilePicturePath.startsWith("http")) {
         return artist.profilePicturePath;
       }
-      
-      return `https://berrystamp-backend-dev-4cn29.ondigitalocean.app/${artist.profilePicturePath}`;
+
+      return `https://backend-prod-api.berrystamp.com/${artist.profilePicturePath}`;
     }
     return null;
   };
-  console.log(artist)
+  console.log(artist);
   const avatarUrl = getAvatarUrl();
-  const fullName = artist.username || 
-  `${artist.firstName || ''} ${artist.lastName || ''}`.trim() || 
-  'Unknown Artist';
+  const fullName =
+    artist.username ||
+    `${artist.firstName || ""} ${artist.lastName || ""}`.trim() ||
+    "Unknown Artist";
 
   return (
     <TouchableOpacity style={styles.container} onPress={onPress}>
@@ -72,11 +85,11 @@ export const ArtistCard: React.FC<ArtistCardProps> = ({ artist, onPress }) => {
           </View>
         )}
       </View>
-      
+
       <View style={styles.starsContainer}>
         {renderStars(artist.rating || 0)}
       </View>
-      
+
       <Text style={[styles.name, { color: theme.text }]} numberOfLines={1}>
         {fullName}
       </Text>
@@ -86,7 +99,7 @@ export const ArtistCard: React.FC<ArtistCardProps> = ({ artist, onPress }) => {
 
 const styles = StyleSheet.create({
   container: {
-    alignItems: 'center',
+    alignItems: "center",
     marginRight: 16,
     width: 90,
   },
@@ -99,18 +112,18 @@ const styles = StyleSheet.create({
     borderRadius: 35,
   },
   avatarPlaceholder: {
-    backgroundColor: '#4B3A99',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#4B3A99",
+    justifyContent: "center",
+    alignItems: "center",
   },
   starsContainer: {
-    flexDirection: 'row',
+    flexDirection: "row",
     marginBottom: 6,
     gap: 2,
   },
   name: {
     fontSize: 13,
-    fontWeight: '500',
-    textAlign: 'center',
+    fontWeight: "500",
+    textAlign: "center",
   },
 });

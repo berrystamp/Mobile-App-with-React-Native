@@ -1,16 +1,23 @@
-import { mergeUserAndProfile, normalizePaymentDetails, normalizeProfileResponse } from '@/lib/profile';
-import ApiService from '@/services/apiClient';
-import type { User } from '@/types';
-import type { CollectionItem, ReviewItem, ShopData } from './types';
+import {
+    mergeUserAndProfile,
+    normalizePaymentDetails,
+    normalizeProfileResponse,
+} from "@/lib/profile";
+import { normalizeDesignListResponse } from "@/lib/designs";
+import ApiService from "@/services/apiClient";
+import type { User } from "@/types";
+import type { CollectionItem, ReviewItem, ShopData } from "./types";
 
-const API_ORIGIN = 'https://berrystamp-backend-dev-4cn29.ondigitalocean.app';
-export const FALLBACK_COVER = 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?w=1200';
-export const FALLBACK_AVATAR = 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=300';
+const API_ORIGIN = "https://backend-prod-api.berrystamp.com";
+export const FALLBACK_COVER =
+  "https://images.unsplash.com/photo-1511795409834-ef04bbd61622?w=1200";
+export const FALLBACK_AVATAR =
+  "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=300";
 
 export const toAbsoluteImage = (path?: string) => {
-  if (!path || path === 'string') return '';
-  if (path.startsWith('http') || path.startsWith('file:')) return path;
-  return `${API_ORIGIN}/${path.replace(/^\/+/, '')}`;
+  if (!path || path === "string") return "";
+  if (path.startsWith("http") || path.startsWith("file:")) return path;
+  return `${API_ORIGIN}/${path.replace(/^\/+/, "")}`;
 };
 
 export const unwrapList = (response: any): any[] => {
@@ -24,48 +31,79 @@ export const unwrapList = (response: any): any[] => {
 };
 
 export const toDisplayName = (person: any) => {
-  const direct = String(person?.name || '').trim();
+  const direct = String(person?.name || "").trim();
   if (direct) return direct;
-  const built = `${person?.firstName || ''} ${person?.lastName || ''}`.trim();
-  return built || person?.username || person?.userName || 'User';
+  const built = `${person?.firstName || ""} ${person?.lastName || ""}`.trim();
+  return built || person?.username || person?.userName || "User";
 };
 
-export const toCountLabel = (count: number, noun: string) => `${count} ${noun}${count === 1 ? '' : 's'}`;
+export const toCountLabel = (count: number, noun: string) =>
+  `${count} ${noun}${count === 1 ? "" : "s"}`;
 
-export async function fetchShopData(activeRole: 'CUSTOMER' | 'DESIGNER' | 'PRINTER', targetProfileId?: number): Promise<ShopData> {
+export async function fetchShopData(
+  activeRole: "CUSTOMER" | "DESIGNER" | "PRINTER",
+  targetProfileId?: number,
+): Promise<ShopData> {
   const currentUser = (await ApiService.getCurrentUser()) as User | null;
-  const [myProfileResponse, designsResponse, collectionsResponse, paymentResponse, currentFollowingResponse] = await Promise.all([
-    targetProfileId ? ApiService.getUserProfile(targetProfileId).catch(() => ApiService.getMyProfile()) : ApiService.getMyProfile(),
-    targetProfileId ? ApiService.getDesigns({ page: 0, size: 40, designer: targetProfileId }) : ApiService.getCustomDesigns(0, 40),
-    ApiService.getCollections(targetProfileId, 0, 40).catch(() => ({ responseBody: { content: [] } })),
-    ApiService.getPaymentDetails().catch(() => null),
-    targetProfileId ? ApiService.getFollowing(undefined, 0, 100).catch(() => ({ responseBody: { content: [] } })) : Promise.resolve({ responseBody: { content: [] } }),
-  ]);
+  const myProfileResponse = targetProfileId
+    ? await ApiService.getUserProfile(targetProfileId).catch(() =>
+        ApiService.getMyProfile(),
+      )
+    : await ApiService.getMyProfile();
 
   const normalized = normalizeProfileResponse(myProfileResponse);
   const merged = mergeUserAndProfile(currentUser, normalized);
   const roleProfile =
-    activeRole === 'DESIGNER'
+    activeRole === "DESIGNER"
       ? merged.designerProfile
-      : activeRole === 'PRINTER'
+      : activeRole === "PRINTER"
         ? merged.printerProfile
         : merged.customerProfile;
 
   const insight = roleProfile?.insight || {};
-  const profileId = Number(targetProfileId || normalized.id || currentUser?.id || roleProfile?.id || 0);
-  const [followerResponse, followingResponse, reviewResponse] = await Promise.all([
-    ApiService.getFollowers(profileId || undefined, 0, 100).catch(() => ({ responseBody: { content: [] } })),
-    ApiService.getFollowing(profileId || undefined, 0, 100).catch(() => ({ responseBody: { content: [] } })),
-    ApiService.getShopReviews(profileId || undefined, 0, 50).catch(() => ({ responseBody: { content: [] } })),
-  ]);
+  const profileId = Number(
+    targetProfileId || normalized.id || currentUser?.id || roleProfile?.id || 0,
+  );
+  const [designsResponse, collectionsResponse, paymentResponse, currentFollowingResponse] =
+    await Promise.all([
+      ApiService.getDesigns({ page: 0, size: 40, designer: profileId || undefined }),
+      ApiService.getCollections(targetProfileId, 0, 40).catch(() => ({
+        responseBody: { content: [] },
+      })),
+      ApiService.getPaymentDetails().catch(() => null),
+      targetProfileId
+        ? ApiService.getFollowing(undefined, 0, 100).catch(() => ({
+            responseBody: { content: [] },
+          }))
+        : Promise.resolve({ responseBody: { content: [] } }),
+    ]);
+  const [followerResponse, followingResponse, reviewResponse] =
+    await Promise.all([
+      ApiService.getFollowers(profileId || undefined, 0, 100).catch(() => ({
+        responseBody: { content: [] },
+      })),
+      ApiService.getFollowing(profileId || undefined, 0, 100).catch(() => ({
+        responseBody: { content: [] },
+      })),
+      ApiService.getShopReviews(profileId || undefined, 0, 50).catch(() => ({
+        responseBody: { content: [] },
+      })),
+    ]);
 
-  const designs = unwrapList(designsResponse);
+  const designs = normalizeDesignListResponse(designsResponse);
   const collections = unwrapList(collectionsResponse).map(
     (item: any): CollectionItem => ({
       id: item?.id || String(Math.random()),
-      name: String(item?.name || item?.title || 'Untitled collection'),
-      imagePath: toAbsoluteImage(item?.imagePath || item?.coverPath || item?.previewImage || item?.image?.url),
-      designCount: Number(item?.designCount || item?.designsCount || item?.designs?.length || 0),
+      name: String(item?.name || item?.title || "Untitled collection"),
+      imagePath: toAbsoluteImage(
+        item?.imagePath ||
+          item?.coverPath ||
+          item?.previewImage ||
+          item?.image?.url,
+      ),
+      designCount: Number(
+        item?.designCount || item?.designsCount || item?.designs?.length || 0,
+      ),
     }),
   );
 
@@ -73,9 +111,15 @@ export async function fetchShopData(activeRole: 'CUSTOMER' | 'DESIGNER' | 'PRINT
     .map(
       (item: any, index: number): ReviewItem => ({
         id: item?.id || `review-${index}`,
-        author: toDisplayName(item?.profile || item?.user || item?.author || {}),
-        avatar: toAbsoluteImage(item?.profile?.profilePicturePath || item?.user?.profilePicturePath || item?.avatar),
-        comment: String(item?.comment || item?.review || item?.message || ''),
+        author: toDisplayName(
+          item?.profile || item?.user || item?.author || {},
+        ),
+        avatar: toAbsoluteImage(
+          item?.profile?.profilePicturePath ||
+            item?.user?.profilePicturePath ||
+            item?.avatar,
+        ),
+        comment: String(item?.comment || item?.review || item?.message || ""),
         stars: Number(item?.stars || item?.rating || item?.rate || 0),
         createdAt: item?.createdAt || item?.date,
       }),
@@ -88,18 +132,38 @@ export async function fetchShopData(activeRole: 'CUSTOMER' | 'DESIGNER' | 'PRINT
   const payment = normalizePaymentDetails(paymentResponse || {});
   const isFollowing = Boolean(
     targetProfileId &&
-      currentFollowing.some((item: any) => Number(item?.id || item?.profileId || item?.profile?.id || item?.followingProfileId) === profileId),
+    currentFollowing.some(
+      (item: any) =>
+        Number(
+          item?.id ||
+            item?.profileId ||
+            item?.profile?.id ||
+            item?.followingProfileId,
+        ) === profileId,
+    ),
   );
 
   return {
     profile: {
       profileId,
-      fullName: merged.fullName || merged.username || 'My Shop',
-      username: merged.username || merged.fullName || 'shop',
-      bio: roleProfile?.bio || currentUser?.bio || '',
-      categories: Array.isArray(roleProfile?.categories) ? roleProfile.categories : [],
-      cover: toAbsoluteImage(roleProfile?.coverPic || roleProfile?.coverPhotoPath || normalized.coverPic || normalized.coverImageUrl),
-      avatar: toAbsoluteImage(roleProfile?.profilePic || normalized.profilePicturePath || normalized.profileImageUrl || merged.avatar),
+      fullName: merged.fullName || merged.username || "My Shop",
+      username: merged.username || merged.fullName || "shop",
+      bio: roleProfile?.bio || currentUser?.bio || "",
+      categories: Array.isArray(roleProfile?.categories)
+        ? roleProfile.categories
+        : [],
+      cover: toAbsoluteImage(
+        roleProfile?.coverPic ||
+          roleProfile?.coverPhotoPath ||
+          normalized.coverPic ||
+          normalized.coverImageUrl,
+      ),
+      avatar: toAbsoluteImage(
+        roleProfile?.profilePic ||
+          normalized.profilePicturePath ||
+          normalized.profileImageUrl ||
+          merged.avatar,
+      ),
       followers: Number(insight.totalFollowers || followers.length || 0),
       following: Number(insight.totalFollowing || following.length || 0),
       reviews: Number(insight.totalReviews || reviews.length || 0),
@@ -111,6 +175,8 @@ export async function fetchShopData(activeRole: 'CUSTOMER' | 'DESIGNER' | 'PRINT
     reviews,
     followers,
     following,
-    shouldPromptPayment: !Boolean(payment.bankName && payment.accountName && payment.accountNumber),
+    shouldPromptPayment: !Boolean(
+      payment.bankName && payment.accountName && payment.accountNumber,
+    ),
   };
 }

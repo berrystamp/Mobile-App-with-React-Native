@@ -50,7 +50,7 @@ export default function CustomDesignScreen() {
           <View className="rounded-[28px] bg-[#4A34A5] px-5 py-5 dark:bg-[#362774]">
             <Text className="text-[20px] font-semibold text-white">Bring your idea to life</Text>
             <Text className="mt-2 text-[13px] leading-5 text-white/75">
-              Tell us what you want to create and we&apos;ll help you connect with the right printer.
+              Tell us what you want to create and we&apos;ll help you connect with the right designer.
             </Text>
 
             <View className="mt-5 flex-row flex-wrap">
@@ -116,10 +116,10 @@ export default function CustomDesignScreen() {
 
       <View className="absolute bottom-0 left-0 right-0 border-t border-[#ECE8F4] bg-[#F8F8FB] px-4 pb-8 pt-4 dark:border-[#232327] dark:bg-[#121212]">
         <TouchableOpacity
-          onPress={() => router.push({ pathname: '/select-printer', params: { draft: encoded } })}
+          onPress={() => router.push({ pathname: '/select-designer', params: { draft: encoded } })}
           disabled={!canContinue}
           className={`items-center rounded-full py-4 ${canContinue ? 'bg-[#4A34A5]' : 'bg-[#CFC8E8] dark:bg-[#3A3450]'}`}>
-          <Text className="text-[15px] font-semibold text-white">Select Printer</Text>
+          <Text className="text-[15px] font-semibold text-white">Select Designer</Text>
         </TouchableOpacity>
       </View>
     </View>

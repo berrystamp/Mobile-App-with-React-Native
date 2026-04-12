@@ -174,13 +174,13 @@ export default function MyShopScreen() {
 
     const conversationId = await upsertLocalConversation({
       participantId: shop.profile.profileId,
-      name: shop.profile.fullName,
+      name: shop.profile.username,
       role: 'Designer',
       initialMessages: [
         {
           id: `msg-${Date.now()}`,
           type: 'text',
-          text: `Hi ${shop.profile.fullName}, I would like to ask about your designs and collections.`,
+          text: `Hi ${shop.profile.username}, I would like to ask about your designs and collections.`,
           author: 'me',
           createdAt: new Date().toISOString(),
           status: 'sent',
@@ -193,7 +193,7 @@ export default function MyShopScreen() {
       params: {
         localConversationId: conversationId,
         participantId: String(shop.profile.profileId),
-        participantName: shop.profile.fullName,
+        participantName: shop.profile.username,
         participantRole: 'Designer',
       },
     });

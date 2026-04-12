@@ -61,10 +61,13 @@ export default function MessagesScreen() {
     router.push({
       pathname: '/chat',
       params: {
-        localConversationId: conversation.id,
+        ...(conversation.source === 'local'
+          ? { localConversationId: conversation.id }
+          : { conversationId: conversation.id }),
         participantId: String(conversation.participantId || ''),
         participantName: conversation.name,
         participantRole: conversation.role,
+        chatType: conversation.lastMessageDetail?.chatType || '',
       },
     });
   };

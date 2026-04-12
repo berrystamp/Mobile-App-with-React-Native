@@ -1,4 +1,4 @@
 export const ENV = {
-  BASE_URL: "https://berrystamp-backend-dev-4cn29.ondigitalocean.app",
+  BASE_URL: "https://backend-prod-api.berrystamp.com",
   TIMEOUT: 15000,
 };

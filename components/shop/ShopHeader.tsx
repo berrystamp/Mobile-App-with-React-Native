@@ -36,6 +36,7 @@ export function ShopHeader({
   readOnly?: boolean;
   followLoading?: boolean;
 }) {
+  console.log(profile)
   return (
     <>
       <View style={{ height: 200, position: 'relative' }}>
@@ -57,7 +58,7 @@ export function ShopHeader({
       <Image source={{ uri: profile.avatar || FALLBACK_AVATAR }} style={{ width: 72, height: 72, borderRadius: 36, marginTop: -34, borderWidth: 3, borderColor: '#fff' }} />
 
       <View style={{ marginTop: 10, paddingHorizontal: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Text style={{ color: textColor, fontSize: 24, fontWeight: '700', flex: 1 }}>{profile.fullName}</Text>
+        <Text style={{ color: textColor, fontSize: 24, fontWeight: '700', flex: 1 }}>{profile.username}</Text>
         {readOnly ? (
           <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 12 }}>
             <TouchableOpacity

@@ -1,10 +1,10 @@
-import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import axios, { AxiosInstance, AxiosRequestConfig } from "axios";
 
 // Berrystamp Backend API Base URL
-const API_BASE_URL = 'https://berrystamp-backend-dev-4cn29.ondigitalocean.app/api/v1';
+const API_BASE_URL = "https://backend-prod-api.berrystamp.com/api/v1";
 
-type TProfileType = 'CUSTOMER' | 'DESIGNER' | 'PRINTER';
+type TProfileType = "CUSTOMER" | "DESIGNER" | "PRINTER";
 
 class ApiService {
   private api: AxiosInstance;
@@ -14,16 +14,17 @@ class ApiService {
       baseURL: API_BASE_URL,
       timeout: 15000,
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
     });
 
     // Request interceptor to add auth token and profile type
     this.api.interceptors.request.use(
       async (config) => {
-        const token = await AsyncStorage.getItem('idToken');
-        const profileType = await AsyncStorage.getItem('profileType') || 'CUSTOMER';
-        
+        const token = await AsyncStorage.getItem("idToken");
+        const profileType =
+          (await AsyncStorage.getItem("profileType")) || "CUSTOMER";
+
         if (token) {
           config.headers.Authorization = `Bearer ${token}`;
           config.headers.profileType = profileType;
@@ -32,7 +33,7 @@ class ApiService {
       },
       (error) => {
         return Promise.reject(error);
-      }
+      },
     );
 
     // Response interceptor for error handling
@@ -41,40 +42,47 @@ class ApiService {
       async (error) => {
         if (error.response?.status === 401) {
           // Token expired or invalid - clear storage
-          await AsyncStorage.removeItem('idToken');
-          await AsyncStorage.removeItem('userData');
-          await AsyncStorage.removeItem('profileType');
+          await AsyncStorage.removeItem("idToken");
+          await AsyncStorage.removeItem("userData");
+          await AsyncStorage.removeItem("profileType");
         }
         return Promise.reject(error);
-      }
+      },
     );
   }
 
   // Auth methods
   async login(email: string, password: string) {
-    const response = await this.api.post('/auth/login', 
+    const response = await this.api.post(
+      "/auth/login",
       { email, password },
-      { headers: { profileType: 'CUSTOMER' } }
+      { headers: { profileType: "CUSTOMER" } },
     );
-    
+
     if (response.data.idToken) {
-      await AsyncStorage.setItem('idToken', response.data.idToken);
-      await AsyncStorage.setItem('userData', JSON.stringify(response.data.user));
-      await AsyncStorage.setItem('profileType', 'CUSTOMER');
+      await AsyncStorage.setItem("idToken", response.data.idToken);
+      await AsyncStorage.setItem(
+        "userData",
+        JSON.stringify(response.data.user),
+      );
+      await AsyncStorage.setItem("profileType", "CUSTOMER");
     }
-    
+
     return response.data;
   }
 
-  async register(userData: {
-    email: string;
-    password: string;
-    firstName: string;
-    lastName: string;
-    username: string;
-    phoneNumber: string;
-  }, profileType: TProfileType = 'CUSTOMER') {
-    const response = await this.api.post('/auth/register', userData, {
+  async register(
+    userData: {
+      email: string;
+      password: string;
+      firstName: string;
+      lastName: string;
+      username: string;
+      phoneNumber: string;
+    },
+    profileType: TProfileType = "CUSTOMER",
+  ) {
+    const response = await this.api.post("/auth/register", userData, {
       headers: { profileType },
     });
     return response.data;
@@ -86,33 +94,33 @@ class ApiService {
   }
 
   async resendOtp(email: string) {
-    const response = await this.api.post('/auth/resend-code', { email });
+    const response = await this.api.post("/auth/resend-code", { email });
     return response.data;
   }
 
   async logout() {
-    await AsyncStorage.removeItem('idToken');
-    await AsyncStorage.removeItem('userData');
-    await AsyncStorage.removeItem('profileType');
+    await AsyncStorage.removeItem("idToken");
+    await AsyncStorage.removeItem("userData");
+    await AsyncStorage.removeItem("profileType");
   }
 
   async checkAuth() {
-    const token = await AsyncStorage.getItem('idToken');
+    const token = await AsyncStorage.getItem("idToken");
     return !!token;
   }
 
   async getCurrentUser() {
-    const userData = await AsyncStorage.getItem('userData');
+    const userData = await AsyncStorage.getItem("userData");
     return userData ? JSON.parse(userData) : null;
   }
 
   // Profile methods
   async fetchUser() {
-    const response = await this.api.get('/user');
+    const response = await this.api.get("/user");
     return response.data;
   }
 
-  async fetchAllProfiles(queries: string = '') {
+  async fetchAllProfiles(queries: string = "") {
     const response = await this.api.get(`/public/profile?${queries}`);
     return response.data;
   }
@@ -123,12 +131,12 @@ class ApiService {
   }
 
   // Design methods
-  async fetchAllDesigns(queries: string = '') {
-    const token = await AsyncStorage.getItem('idToken');
-    
+  async fetchAllDesigns(queries: string = "") {
+    const token = await AsyncStorage.getItem("idToken");
+
     if (token) {
       const response = await this.api.get(`/designs?${queries}`, {
-        headers: { profileType: 'CUSTOMER' },
+        headers: { profileType: "CUSTOMER" },
       });
       return response.data;
     } else {
@@ -138,11 +146,11 @@ class ApiService {
   }
 
   async fetchDesignById(designId: number) {
-    const token = await AsyncStorage.getItem('idToken');
-    
+    const token = await AsyncStorage.getItem("idToken");
+
     if (token) {
       const response = await this.api.get(`/designs/${designId}`, {
-        headers: { profileType: 'CUSTOMER' },
+        headers: { profileType: "CUSTOMER" },
       });
       return response.data;
     } else {
@@ -151,9 +159,9 @@ class ApiService {
     }
   }
 
-  async fetchLikedDesigns(queries: string = '') {
+  async fetchLikedDesigns(queries: string = "") {
     const response = await this.api.get(`/designs/all/likes?${queries}`, {
-      headers: { profileType: 'CUSTOMER' },
+      headers: { profileType: "CUSTOMER" },
     });
     return response.data;
   }
@@ -162,13 +170,13 @@ class ApiService {
     const response = await this.api.patch(
       `/designs/${designId}/likes`,
       {},
-      { headers: { profileType: 'CUSTOMER' } }
+      { headers: { profileType: "CUSTOMER" } },
     );
     return response.data;
   }
 
   // Collection methods
-  async fetchAllCollections(queries: string = '') {
+  async fetchAllCollections(queries: string = "") {
     const response = await this.api.get(`/public/collections?${queries}`);
     return response.data;
   }
@@ -180,22 +188,26 @@ class ApiService {
 
   // Follows methods
   async fetchFollowings(profileId: number) {
-    const response = await this.api.get(`/public/follows/following/${profileId}`);
+    const response = await this.api.get(
+      `/public/follows/following/${profileId}`,
+    );
     return response.data;
   }
 
   async fetchFollowers(profileId: number) {
-    const response = await this.api.get(`/public/follows/follower/${profileId}`);
+    const response = await this.api.get(
+      `/public/follows/follower/${profileId}`,
+    );
     return response.data;
   }
 
   async followUser(profileId: number) {
-    const response = await this.api.post('/follow/add', { profileId });
+    const response = await this.api.post("/follow/add", { profileId });
     return response.data;
   }
 
   async unfollowUser(profileId: number) {
-    const response = await this.api.delete('/follow/remove', {
+    const response = await this.api.delete("/follow/remove", {
       data: { profileId },
     });
     return response.data;
@@ -203,7 +215,7 @@ class ApiService {
 
   // Cart methods
   async fetchAllItemsInCart() {
-    const response = await this.api.get('/cart-items');
+    const response = await this.api.get("/cart-items");
     return response.data;
   }
 
@@ -218,12 +230,12 @@ class ApiService {
   }
 
   async emptyCart() {
-    const response = await this.api.delete('/cart-items');
+    const response = await this.api.delete("/cart-items");
     return response.data;
   }
 
   // Order methods
-  async fetchAllOrders(queries: string = '') {
+  async fetchAllOrders(queries: string = "") {
     const response = await this.api.get(`/orders?${queries}`);
     return response.data;
   }
@@ -234,7 +246,7 @@ class ApiService {
   }
 
   async createNewOrder(orderData: any) {
-    const response = await this.api.post('/orders', orderData);
+    const response = await this.api.post("/orders", orderData);
     return response.data;
   }
 
@@ -245,22 +257,24 @@ class ApiService {
 
   // Conversation methods
   async fetchAllConversations() {
-    const response = await this.api.get('/conversations');
+    const response = await this.api.get("/conversations");
     return response.data;
   }
 
   async fetchConversationMessages(conversationId: string) {
-    const response = await this.api.get(`/conversations/${conversationId}/messages`);
+    const response = await this.api.get(
+      `/conversations/${conversationId}/messages`,
+    );
     return response.data;
   }
 
   async sendMessage(data: any) {
-    const response = await this.api.post('/messages/send', data);
+    const response = await this.api.post("/messages/send", data);
     return response.data;
   }
 
   // Notification methods
-  async fetchAllNotifications(queries: string = '') {
+  async fetchAllNotifications(queries: string = "") {
     const response = await this.api.get(`/notifications?${queries}`);
     return response.data;
   }
@@ -271,40 +285,40 @@ class ApiService {
   }
 
   async markAllNotificationsAsRead() {
-    const response = await this.api.patch('/notifications/read');
+    const response = await this.api.patch("/notifications/read");
     return response.data;
   }
 
   // Wallet methods
   async fetchWallet() {
-    const response = await this.api.get('/wallets');
+    const response = await this.api.get("/wallets");
     return response.data;
   }
 
   async fetchWalletHistory() {
-    const response = await this.api.get('/wallets/histories');
+    const response = await this.api.get("/wallets/histories");
     return response.data;
   }
 
   async withdraw(data: any) {
-    const response = await this.api.post('/wallets/withdraw', data);
+    const response = await this.api.post("/wallets/withdraw", data);
     return response.data;
   }
 
   // File upload methods
   async uploadSingleImage(formData: FormData) {
-    const response = await this.api.post('/files/single', formData, {
+    const response = await this.api.post("/files/single", formData, {
       headers: {
-        'Content-Type': 'multipart/form-data',
+        "Content-Type": "multipart/form-data",
       },
     });
     return response.data;
   }
 
   async uploadMultipleImages(formData: FormData) {
-    const response = await this.api.post('/files/multi', formData, {
+    const response = await this.api.post("/files/multi", formData, {
       headers: {
-        'Content-Type': 'multipart/form-data',
+        "Content-Type": "multipart/form-data",
       },
     });
     return response.data;
@@ -313,13 +327,17 @@ class ApiService {
   // Helper methods for Home Screen
   async getTopArtists(limit: number = 10) {
     // Fetch top rated profiles (designers/printers)
-    const response = await this.fetchAllProfiles(`size=${limit}&page=0&sort=rating,desc`);
+    const response = await this.fetchAllProfiles(
+      `size=${limit}&page=0&sort=rating,desc`,
+    );
     return response;
   }
 
   async getTrendingDesigns(limit: number = 10) {
     // Fetch trending designs (sorted by likes/views)
-    const response = await this.fetchAllDesigns(`size=${limit}&page=0&sort=likes,desc`);
+    const response = await this.fetchAllDesigns(
+      `size=${limit}&page=0&sort=likes,desc`,
+    );
     return response;
   }
 
@@ -335,7 +353,9 @@ class ApiService {
   }
 
   async searchDesigns(query: string, limit: number = 20) {
-    const response = await this.fetchAllDesigns(`search=${query}&size=${limit}&page=0`);
+    const response = await this.fetchAllDesigns(
+      `search=${query}&size=${limit}&page=0`,
+    );
     return response;
   }
 

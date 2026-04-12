@@ -23,7 +23,9 @@ import { AvatarBadge } from '@/components/messages/AvatarBadge';
 import { useFileUpload } from '@/hooks/useFileUpload';
 import { ENV } from '@/lib/config/env';
 import { appendLocalConversationMessage, getLocalConversationById } from '@/lib/localConversations';
+import { normalizeManageOrder } from '@/lib/orders';
 import {
+  normalizeMessagesResponse,
   normalizeConversationsResponse,
   type ChatMessageDto,
   type ConversationSummaryDto,
@@ -108,25 +110,35 @@ export default function ChatScreen() {
   const themeIconColor = isDark ? '#FFFFFF' : '#000000';
   const themeSecondaryIconColor = isDark ? '#94a3b8' : '#64748b';
 
-  const { conversationId, participantId, participantName, printerId, localConversationId, participantRole } = useLocalSearchParams<{
+  const { conversationId, participantId, participantName, printerId, localConversationId, participantRole, orderId, chatType } = useLocalSearchParams<{
     conversationId?: string;
     participantId?: string;
     participantName?: string;
     printerId?: string;
     localConversationId?: string;
     participantRole?: string;
+    orderId?: string;
+    chatType?: string;
   }>();
 
   const [conversation, setConversation] = useState<ConversationSummaryDto>({
     id: String(localConversationId || conversationId || printerId || 'new-conversation'),
+    source: String(localConversationId || '').startsWith('local-') ? 'local' : 'backend',
     name: participantName || 'Conversation',
     role: participantRole === 'Printers' ? 'Printers' : 'Designer',
     avatarColor: '#A9D8FF',
-    avatarEmoji: '🤓',
+    avatarEmoji: '????',
+    avatarInitials: String(participantName || 'Conversation')
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase() || '')
+      .join('') || 'C',
     lastMessage: '',
     unreadCount: 0,
     updatedAtLabel: 'Now',
     participantId: participantId ? Number(participantId) : printerId ? Number(printerId) : undefined,
+    participants: [],
   });
   
   const [isLoading, setIsLoading] = useState(true);
@@ -136,6 +148,8 @@ export default function ChatScreen() {
   const [showOfferDetail, setShowOfferDetail] = useState(false);
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [orderDetailsByMessageId, setOrderDetailsByMessageId] = useState<Record<string, any>>({});
+  const isLocalConversation = Boolean(localConversationId && String(localConversationId).startsWith('local-'));
 
   useEffect(() => {
     const showSub = Keyboard.addListener(
@@ -159,7 +173,7 @@ export default function ChatScreen() {
         setIsLoading(true);
         const me = await ApiService.getCurrentUser();
 
-        if (localConversationId) {
+        if (isLocalConversation) {
           const localConversation = await getLocalConversationById(String(localConversationId));
           if (localConversation) {
             setConversation((current) => ({
@@ -214,21 +228,33 @@ export default function ChatScreen() {
             setConversation((current) => ({ ...current, ...selected }));
           }
 
-          const content = messagesRes?.responseBody?.content || messagesRes?.content || messagesRes?.data || messagesRes || [];
-          const list = Array.isArray(content) ? content : [];
+          const myId = me?.id || me?.userId || me?.profileId;
+          const normalizedMessages = normalizeMessagesResponse(messagesRes, myId).map((item) => {
+            const senderId = item.sender?.id || item.sender?.userId;
+            const receiverId = item.receiver?.id || item.receiver?.userId;
+            const resolvedAuthor =
+              Number(senderId) === Number(selected?.participantId || participantId)
+                ? 'other'
+                : Number(receiverId) === Number(selected?.participantId || participantId)
+                  ? 'me'
+                  : item.author;
 
-          setMessages(
-            list.map((item: any, index: number) =>
-              withImageMetadata({
-                id: String(item.id || `${index}`),
-                type: 'text',
-                author: Number(item.senderId) === Number(me?.id) ? 'me' : 'other',
-                text: item.content || item.text || '',
-                createdAtLabel: formatMessageTime(item.createdAt),
-                status: item.read ? 'seen' : 'sent',
-              }),
-            ),
-          );
+            return withImageMetadata({
+              ...item,
+              author: resolvedAuthor,
+            });
+          });
+
+          setMessages(normalizedMessages);
+
+          const unreadIncomingMessageIds = normalizedMessages
+            .filter((item) => item.author === 'other' && item.status !== 'seen')
+            .map((item) => String(item.messageIdentifier || item.id))
+            .filter(Boolean);
+
+          if (unreadIncomingMessageIds.length) {
+            Promise.allSettled(unreadIncomingMessageIds.map((messageId) => ApiService.markMessageAsRead(messageId))).catch(() => {});
+          }
         }
       } catch (error) {
         console.error('Failed to load chat', error);
@@ -239,7 +265,7 @@ export default function ChatScreen() {
     };
 
     load();
-  }, [conversationId, localConversationId]);
+  }, [conversationId, isLocalConversation, localConversationId, participantId]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -248,11 +274,41 @@ export default function ChatScreen() {
     return () => clearTimeout(timer);
   }, [messages]);
 
+  useEffect(() => {
+    const orderMessages = messages.filter((message) => {
+      const orderId = Number(message.text || message.caption || 0);
+      return message.chatType === 'ORDER' && Number.isFinite(orderId) && orderId > 0 && !orderDetailsByMessageId[message.id];
+    });
+
+    if (!orderMessages.length) return;
+
+    Promise.allSettled(
+      orderMessages.map(async (message) => {
+        const orderId = Number(message.text || message.caption || 0);
+        const response = await ApiService.getOrderById(orderId);
+        const order = normalizeManageOrder(response);
+        return { messageId: message.id, order };
+      }),
+    ).then((results) => {
+      const next: Record<string, any> = {};
+
+      results.forEach((result) => {
+        if (result.status === 'fulfilled') {
+          next[result.value.messageId] = result.value.order;
+        }
+      });
+
+      if (Object.keys(next).length) {
+        setOrderDetailsByMessageId((current) => ({ ...current, ...next }));
+      }
+    });
+  }, [messages, orderDetailsByMessageId]);
+
   const handleSend = async () => {
     const trimmed = draft.trim();
     if (!trimmed) return;
 
-    const newMessage = {
+    const newMessage: ChatMessageDto & { imageUrl?: string } = {
       id: `local-${Date.now()}`,
       type: 'text' as const,
       author: 'me',
@@ -265,7 +321,7 @@ export default function ChatScreen() {
     setDraft('');
 
     try {
-      if (localConversationId) {
+      if (isLocalConversation) {
         await appendLocalConversationMessage(String(localConversationId), {
           id: newMessage.id,
           text: trimmed,
@@ -274,10 +330,18 @@ export default function ChatScreen() {
           status: 'sent',
         });
       } else {
-        await ApiService.sendMessage(String(conversation.id), {
+        const payload = {
+          toProfileId: Number(conversation.participantId || participantId || 0),
           content: trimmed,
-          receiverId: conversation.participantId,
-        });
+          caption: '',
+          chatType: String(chatType || conversation.lastMessageDetail?.chatType || 'ORDER'),
+        };
+
+        if (orderId) {
+          await ApiService.sendOrderMessage(String(orderId), payload);
+        } else {
+          await ApiService.sendMessage(payload);
+        }
       }
     } catch (error) {
       console.warn('Message endpoint unavailable', error);
@@ -296,7 +360,7 @@ export default function ChatScreen() {
         const uploaded = await uploadFile(uri);
         
         if (uploaded?.path) {
-          const newMessage = {
+          const newMessage: ChatMessageDto & { imageUrl?: string } = {
             id: `img-${Date.now()}`,
             type: 'text' as const,
             author: 'me',
@@ -308,7 +372,7 @@ export default function ChatScreen() {
 
           setMessages((current) => [...current, newMessage]);
 
-          if (localConversationId) {
+          if (isLocalConversation) {
             await appendLocalConversationMessage(String(localConversationId), {
               id: newMessage.id,
               text: uploaded.path,
@@ -317,10 +381,18 @@ export default function ChatScreen() {
               status: 'sent',
             });
           } else {
-            await ApiService.sendMessage(String(conversation.id), {
+            const payload = {
+              toProfileId: Number(conversation.participantId || participantId || 0),
               content: uploaded.path,
-              receiverId: conversation.participantId,
-            });
+              caption: '',
+              chatType: String(chatType || conversation.lastMessageDetail?.chatType || 'ORDER'),
+            };
+
+            if (orderId) {
+              await ApiService.sendOrderMessage(String(orderId), payload);
+            } else {
+              await ApiService.sendMessage(payload);
+            }
           }
         }
       } catch (error) {
@@ -330,6 +402,44 @@ export default function ChatScreen() {
   };
 
   const renderMessage = (message: ChatMessageDto & { imageUrl?: string }) => {
+    const orderDetail = orderDetailsByMessageId[message.id];
+
+    if (message.chatType === 'ORDER' && orderDetail) {
+      const gallery = Array.isArray(orderDetail.uploadedDesigns)
+        ? orderDetail.uploadedDesigns.map((uri: string) => resolveImageUri(uri)).filter(Boolean)
+        : [];
+
+      return (
+        <View key={message.id} className={`w-full my-1 flex-row ${message.author === 'me' ? 'justify-end' : 'justify-start'}`}>
+          <View className={`max-w-[82%] rounded-2xl overflow-hidden ${message.author === 'me' ? 'bg-indigo-600 dark:bg-indigo-700' : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700'}`}>
+            {gallery.length ? (
+              <View className="flex-row flex-wrap">
+                {gallery.slice(0, 4).map((uri: string, index: number) => (
+                  <TouchableOpacity key={`${uri}-${index}`} className="w-1/2 aspect-square" onPress={() => setSelectedImage(uri)}>
+                    <Image source={{ uri }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : null}
+            <View className="px-4 py-3">
+              <Text className={`${message.author === 'me' ? 'text-white' : 'text-slate-900 dark:text-slate-100'} text-[15px] font-semibold`}>
+                {orderDetail.title}
+              </Text>
+              <Text className={`${message.author === 'me' ? 'text-indigo-100' : 'text-slate-500 dark:text-slate-400'} mt-1 text-[13px]`}>
+                {orderDetail.code} • {orderDetail.status}
+              </Text>
+              <Text className={`${message.author === 'me' ? 'text-indigo-50' : 'text-slate-700 dark:text-slate-200'} mt-2 text-[13px]`}>
+                {orderDetail.description}
+              </Text>
+              <Text className={`${message.author === 'me' ? 'text-white' : 'text-slate-900 dark:text-slate-100'} mt-3 text-[14px] font-bold`}>
+                ₦{Number(orderDetail.amount || 0).toLocaleString()}
+              </Text>
+            </View>
+          </View>
+        </View>
+      );
+    }
+
     if (message.type === 'bundle' && message.bundle) {
       return (
         <View key={message.id} className="w-full items-end my-1">
