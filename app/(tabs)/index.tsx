@@ -281,10 +281,9 @@ export default function HomeScreen() {
                 artist={artist}
                 onPress={() =>
                   router.push({
-                    pathname: '/products',
+                    pathname: '/my-shop',
                     params: {
-                      artistId: String(artist.id),
-                      artistName: `${artist.firstName} ${artist.lastName}`.trim(),
+                      profileId: String(artist.id),
                     },
                   })
                 }

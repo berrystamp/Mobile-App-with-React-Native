@@ -185,11 +185,9 @@ export default function ProfileScreen() {
             items={accountItems}
             footer={
               <View className="pt-2">
-                <TouchableOpacity
-                  onPress={() => router.push('/switch-account')}
-                  className="mb-3 rounded-2xl border border-[#E5E0F5] px-4 py-3 dark:border-[#403A58]">
+                {/* <TouchableOpacity onPress={() => router.push('/switch-account')} className="mb-3 rounded-2xl border border-[#E5E0F5] px-4 py-3 dark:border-[#403A58]">
                   <Text className="text-sm font-semibold text-[#4B3A99] dark:text-[#B8ADFF]">Switch account</Text>
-                </TouchableOpacity>
+                </TouchableOpacity> */}
                 {switchTargets.length ? (
                   switchTargets.map((target) => (
                     <TouchableOpacity

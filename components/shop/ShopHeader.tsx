@@ -13,9 +13,13 @@ export function ShopHeader({
   borderColor,
   onBack,
   onEdit,
+  onMessage,
+  onFollow,
   onOpenReviews,
   onOpenFollowers,
   onOpenFollowing,
+  readOnly = false,
+  followLoading = false,
 }: {
   profile: ShopProfile;
   textColor: string;
@@ -24,9 +28,13 @@ export function ShopHeader({
   borderColor: string;
   onBack: () => void;
   onEdit: () => void;
+  onMessage?: () => void;
+  onFollow?: () => void;
   onOpenReviews: () => void;
   onOpenFollowers: () => void;
   onOpenFollowing: () => void;
+  readOnly?: boolean;
+  followLoading?: boolean;
 }) {
   return (
     <>
@@ -36,19 +44,61 @@ export function ShopHeader({
           <TouchableOpacity onPress={onBack} style={iconBtn}>
             <Ionicons name="arrow-back" size={20} color="#fff" />
           </TouchableOpacity>
-          <TouchableOpacity onPress={onEdit} style={iconBtn}>
-            <Ionicons name="create-outline" size={20} color="#fff" />
-          </TouchableOpacity>
+          {readOnly ? (
+            <View style={{ width: 36, height: 36 }} />
+          ) : (
+            <TouchableOpacity onPress={onEdit} style={iconBtn}>
+              <Ionicons name="create-outline" size={20} color="#fff" />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
       <Image source={{ uri: profile.avatar || FALLBACK_AVATAR }} style={{ width: 72, height: 72, borderRadius: 36, marginTop: -34, borderWidth: 3, borderColor: '#fff' }} />
 
-      <View style={{ marginTop: 10, paddingHorizontal:10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+      <View style={{ marginTop: 10, paddingHorizontal: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
         <Text style={{ color: textColor, fontSize: 24, fontWeight: '700', flex: 1 }}>{profile.fullName}</Text>
-        <TouchableOpacity onPress={onOpenReviews}>
-          <Text style={{ color: primaryColor, fontSize: 14 }}>{toCountLabel(profile.reviews, 'review')}</Text>
-        </TouchableOpacity>
+        {readOnly ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 12 }}>
+            <TouchableOpacity
+              onPress={onMessage}
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: 17,
+                borderWidth: 1,
+                borderColor,
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginRight: 10,
+              }}>
+              <Ionicons name="mail-outline" size={16} color={primaryColor} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={onFollow}
+              disabled={followLoading}
+              style={{
+                minWidth: 86,
+                paddingHorizontal: 18,
+                height: 34,
+                borderRadius: 17,
+                backgroundColor: profile.isFollowing ? '#FFFFFF' : primaryColor,
+                borderWidth: 1,
+                borderColor: primaryColor,
+                alignItems: 'center',
+                justifyContent: 'center',
+                opacity: followLoading ? 0.7 : 1,
+              }}>
+              <Text style={{ color: profile.isFollowing ? primaryColor : '#FFFFFF', fontSize: 14, fontWeight: '700' }}>
+                {followLoading ? '...' : profile.isFollowing ? 'Following' : 'Follow'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity onPress={onOpenReviews}>
+            <Text style={{ color: primaryColor, fontSize: 14 }}>{toCountLabel(profile.reviews, 'review')}</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       <View style={{ marginTop: 8, paddingHorizontal:10, flexDirection: 'row', alignItems: 'center' }}>

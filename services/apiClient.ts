@@ -914,6 +914,34 @@ class ApiService {
     return { responseBody: { content: [] } };
   }
 
+  async getCollections(profileId?: string | number, page: number = 0, size: number = 20) {
+    if (!profileId) {
+      return this.getMyCollections(page, size);
+    }
+
+    const headers = { profileType: getProfileType() };
+    const normalizedProfileId = Number(profileId);
+    const candidates = [
+      () => api.get(`/public/collections/profile/${normalizedProfileId}`, { params: { page, size, sort: 'id,desc' } }),
+      () => api.get(`/collections/profile/${normalizedProfileId}`, { params: { page, size, sort: 'id,desc' }, headers }),
+      () => api.get('/collections', { params: { page, size, sort: 'id,desc', profileId: normalizedProfileId }, headers }),
+      () => api.get('/public/collections', { params: { page, size, sort: 'id,desc', profileId: normalizedProfileId } }),
+    ];
+
+    for (const request of candidates) {
+      try {
+        const response = await request();
+        return response.data;
+      } catch (error: any) {
+        if (error?.response?.status && ![400, 404].includes(error.response.status)) {
+          throw error;
+        }
+      }
+    }
+
+    return { responseBody: { content: [] } };
+  }
+
   async getShopReviews(profileId?: string | number, page: number = 0, size: number = 20) {
     const headers = { profileType: getProfileType() };
 

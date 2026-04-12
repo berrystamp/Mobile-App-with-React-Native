@@ -37,7 +37,7 @@ export async function fetchShopData(activeRole: 'CUSTOMER' | 'DESIGNER' | 'PRINT
   const [myProfileResponse, designsResponse, collectionsResponse, paymentResponse, currentFollowingResponse] = await Promise.all([
     targetProfileId ? ApiService.getUserProfile(targetProfileId).catch(() => ApiService.getMyProfile()) : ApiService.getMyProfile(),
     targetProfileId ? ApiService.getDesigns({ page: 0, size: 40, designer: targetProfileId }) : ApiService.getCustomDesigns(0, 40),
-    ApiService.getMyCollections(0, 40).catch(() => ({ responseBody: { content: [] } })),
+    ApiService.getCollections(targetProfileId, 0, 40).catch(() => ({ responseBody: { content: [] } })),
     ApiService.getPaymentDetails().catch(() => null),
     targetProfileId ? ApiService.getFollowing(undefined, 0, 100).catch(() => ({ responseBody: { content: [] } })) : Promise.resolve({ responseBody: { content: [] } }),
   ]);

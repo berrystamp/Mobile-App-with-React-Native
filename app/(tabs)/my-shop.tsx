@@ -3,6 +3,7 @@ import { ActivityIndicator, Alert, Modal, RefreshControl, ScrollView, Share, Sty
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 
 import ApiService from '@/services/apiClient';
+import { upsertLocalConversation } from '@/lib/localConversations';
 import { toProfileType, useAuthStore } from '@/store/authStore';
 import { ShopGrid } from '@/components/shop/ShopGrid';
 import { ShopHeader } from '@/components/shop/ShopHeader';
@@ -168,6 +169,36 @@ export default function MyShopScreen() {
     }
   };
 
+  const handleMessageArtist = async () => {
+    if (!readOnly || !shop?.profile?.profileId) return;
+
+    const conversationId = await upsertLocalConversation({
+      participantId: shop.profile.profileId,
+      name: shop.profile.fullName,
+      role: 'Designer',
+      initialMessages: [
+        {
+          id: `msg-${Date.now()}`,
+          type: 'text',
+          text: `Hi ${shop.profile.fullName}, I would like to ask about your designs and collections.`,
+          author: 'me',
+          createdAt: new Date().toISOString(),
+          status: 'sent',
+        },
+      ],
+    });
+
+    router.push({
+      pathname: '/chat',
+      params: {
+        localConversationId: conversationId,
+        participantId: String(shop.profile.profileId),
+        participantName: shop.profile.fullName,
+        participantRole: 'Designer',
+      },
+    });
+  };
+
   if (loading && !shop) {
     return (
       <View style={[styles.centered, { backgroundColor: theme.background }]}>
@@ -188,32 +219,14 @@ export default function MyShopScreen() {
             borderColor={theme.border}
             onBack={() => router.back()}
             onEdit={() => (readOnly ? router.back() : router.push('/edit-profile'))}
+            onMessage={handleMessageArtist}
+            onFollow={handleFollowToggle}
             onOpenReviews={() => router.push({ pathname: '/shop-reviews', params: { profileId: String(shop.profile.profileId) } })}
             onOpenFollowers={() => router.push({ pathname: '/shop-follows', params: { profileId: String(shop.profile.profileId), tab: 'followers' } })}
             onOpenFollowing={() => router.push({ pathname: '/shop-follows', params: { profileId: String(shop.profile.profileId), tab: 'following' } })}
+            readOnly={readOnly}
+            followLoading={followLoading}
           />
-
-          {readOnly ? (
-            <View style={{ paddingHorizontal: 16, marginTop: 14 }}>
-              <TouchableOpacity
-                style={{
-                  backgroundColor: shop?.profile?.isFollowing ? theme.surface : theme.primary,
-                  borderColor: theme.primary,
-                  borderWidth: 1,
-                  borderRadius: 12,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  paddingVertical: 14,
-                  opacity: followLoading ? 0.7 : 1,
-                }}
-                disabled={followLoading}
-                onPress={handleFollowToggle}>
-                <Text style={{ color: shop?.profile?.isFollowing ? theme.primary : '#FFFFFF', fontWeight: '700', fontSize: 15 }}>
-                  {followLoading ? 'Please wait...' : shop?.profile?.isFollowing ? 'Unfollow Artist' : 'Follow Artist'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          ) : null}
 
           <View style={[styles.bodyCard, { backgroundColor: theme.surface }]}> 
             <View style={[styles.tabRow, { borderBottomColor: theme.border }]}> 
@@ -233,6 +246,7 @@ export default function MyShopScreen() {
               text={theme.text}
               muted={theme.muted}
               onMenu={(item) => setMenuTarget(item)}
+              showMenu={!readOnly}
               onItemPress={(item) => {
                 if (item.type === 'design') {
                   router.push({ pathname: '/product-details', params: { designId: String(item.id) } });
@@ -312,7 +326,7 @@ function SheetAction({ label, onPress }: { label: string; onPress: () => void })
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1,},
+  screen: { flex: 1 },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   bodyCard: { marginTop: 16, borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 16, paddingBottom: 20 },
   tabRow: { marginTop: 8, flexDirection: 'row', borderBottomWidth: 1 },
