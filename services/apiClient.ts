@@ -1149,7 +1149,7 @@ class ApiService {
     const candidates = [
       () => api.get('/referrals/histories', { params: { page, size, sort: 'id,desc' } }),
       () => api.get('/referrals/history', { params: { page, size, sort: 'id,desc' } }),
-      () => api.get('/referrals', { params: { page, size, sort: 'id,desc' } }),
+      () => api.get('/referrals', { params: { page, size, sort: 'id,desc' } }), () => api.get('/referral', { params: { page, size, sort: 'id,desc' } }),
     ];
 
     for (const request of candidates) {
