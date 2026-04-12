@@ -69,7 +69,19 @@ export default function PaymentDetailsScreen() {
   const loadBanks = useCallback(async () => {
     try {
       setBanksLoading(true);
-      const bankList = await ApiService.getBanks();
+      // Fetch banks from api/v1/banks
+      const response = await ApiService.get('api/v1/banks');
+      const bankData = response?.data?.responseBody || response?.data || response || [];
+      
+      // Transform to BankOption format if needed
+      const bankList: BankOption[] = Array.isArray(bankData) 
+        ? bankData.map((bank: any) => ({
+            code: bank.code || bank.bankCode || '',
+            name: bank.name || bank.bankName || '',
+            currency: bank.currency || 'NGN',
+          }))
+        : [];
+      
       setBanks(bankList);
     } catch (error: any) {
       Alert.alert(
@@ -103,13 +115,24 @@ export default function PaymentDetailsScreen() {
         try {
           setVerifying(true);
           setVerifyError(false);
-          const response = await ApiService.verifyBankAccount({
+          
+          // Verify using api/v1/banks/verify endpoint
+          const response = await ApiService.post('api/v1/banks/verify', {
             accountNumber,
             bankCode,
           });
-          const resolvedName = response?.responseBody?.accountName || response?.accountName;
+          
+          // Extract account name from response
+          const resolvedName = 
+            response?.data?.responseBody?.accountName || 
+            response?.responseBody?.accountName ||
+            response?.data?.accountName || 
+            response?.accountName;
+          
           if (resolvedName) {
             setAccountName(resolvedName);
+          } else {
+            setVerifyError(true);
           }
         } catch (error: any) {
           setVerifyError(true);
@@ -135,7 +158,7 @@ export default function PaymentDetailsScreen() {
     const normalizedQuery = searchQuery.trim().toLowerCase();
     const currencyBanks =
       activeCurrency === 'NGN'
-        ? banks.filter((bank) => bank.currency === 'NGN')
+        ? banks.filter((bank) => bank.currency === 'NGN' || !bank.currency)
         : banks;
 
     return currencyBanks.filter((bank) =>
