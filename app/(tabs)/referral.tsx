@@ -20,35 +20,53 @@ export default function ReferralScreen() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [summary, setSummary] = useState<any>({});
+  const [stats, setStats] = useState<any>({});
+  const [referralCode, setReferralCode] = useState('');
   const [history, setHistory] = useState<ReferralHistoryItemModel[]>([]);
   const [showRedeemOption, setShowRedeemOption] = useState(false);
   const [showCashSheet, setShowCashSheet] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [redeemMode, setRedeemMode] = useState<'WALLET' | 'CASH'>('WALLET');
   const [bankName, setBankName] = useState('');
+  const [bankCode, setBankCode] = useState('');
   const [accountNumber, setAccountNumber] = useState('');
+  const [accountName, setAccountName] = useState('');
 
   const loadData = useCallback(async () => {
     try {
-      const [summaryResponse, historyResponse] = await Promise.all([
-        ApiService.getReferralSummary(),
-        ApiService.getReferralHistory(0, 20),
+      // Fetch from three separate endpoints as per backend structure
+      const [statsResponse, codeResponse, historyResponse] = await Promise.all([
+        ApiService.get('api/v1/referral/stats'),
+        ApiService.get('api/v1/referral/code'),
+        ApiService.get('api/v1/referral'),
       ]);
 
-      const normalizedSummary = summaryResponse?.responseBody || summaryResponse || {};
-      const historyBody = historyResponse?.responseBody || historyResponse || {};
+      // Extract stats from response
+      const statsPayload = statsResponse?.data?.responseBody || statsResponse?.data || statsResponse || {};
+      setStats(statsPayload);
 
-      const mappedHistory: ReferralHistoryItemModel[] = toList(historyBody).map((item: any, index: number) => ({
-        id: String(item?.id || item?.referralId || index + 1),
-        name: String(item?.name || item?.referredUser?.name || item?.beneficiaryName || 'Referral').trim(),
-        amount: formatNaira(item?.amount || item?.rewardAmount || 0),
-        date: String(item?.createdAt || item?.date || item?.updatedAt || '').slice(0, 10),
-        status: String(item?.status || 'PENDING').toUpperCase() === 'COMPLETED' ? 'COMPLETED' : 'PENDING',
-        avatar: item?.avatar || item?.referredUser?.profilePicture,
-      }));
+      // Extract referral code from response
+      const codePayload = codeResponse?.data?.responseBody || codeResponse?.data || codeResponse || {};
+      const code = codePayload?.referralCode || codePayload?.code || '';
+      setReferralCode(code);
 
-      setSummary(normalizedSummary);
+      // Extract history list from response
+      const historyBody = historyResponse?.data?.responseBody || historyResponse?.data || historyResponse || {};
+      const historyList = toList(historyBody);
+
+      // Map history items to match UI structure
+      const mappedHistory: ReferralHistoryItemModel[] = historyList.map((item: any, index: number) => {
+        const referred = item?.referred || item?.user || {};
+        return {
+          id: String(item?.id || index + 1),
+          name: String(referred?.name || referred?.userName || 'Referral').trim(),
+          amount: formatNaira(item?.referrerReward || item?.totalAmount || 0),
+          date: String(item?.lastCreatedDate || item?.createdDate || item?.redemption?.lastModifiedDate || '').slice(0, 10),
+          status: (item?.status || item?.redemption?.status || 'PENDING').toUpperCase().includes('PENDING') ? 'PENDING' : 'COMPLETED',
+          avatar: referred?.profilePic || referred?.profilePicture,
+        };
+      });
+
       setHistory(mappedHistory);
     } catch (error: any) {
       Alert.alert('Unable to load referrals', error?.response?.data?.responseMessage || error?.message || 'Please try again later.');
@@ -62,15 +80,8 @@ export default function ReferralScreen() {
   }, [loadData]);
 
   const referralLink = useMemo(
-    () =>
-      String(
-        summary?.referralLink ||
-          summary?.shareLink ||
-          summary?.inviteLink ||
-          summary?.codeLink ||
-          'https://berrystamp.com',
-      ),
-    [summary],
+    () => (referralCode ? `https://berrystamp.com/auth/register?ref=${referralCode}` : 'https://berrystamp.com'),
+    [referralCode],
   );
 
   const handleShare = async () => {
@@ -88,16 +99,30 @@ export default function ReferralScreen() {
   const handleRedeem = async () => {
     setSubmitting(true);
     try {
-      const payload = {
-        mode: redeemMode,
-        amount: Number(summary?.pendingRewards || summary?.availableBalance || 0),
-        bankName: redeemMode === 'CASH' ? bankName : undefined,
-        accountNumber: redeemMode === 'CASH' ? accountNumber : undefined,
-      };
-      const result = await ApiService.redeemReferralReward(payload);
+      let result;
+      const redeemAmount = Number(stats?.totalReward || stats?.rewardBalance || 0);
+
+      if (redeemMode === 'WALLET') {
+        // POST to api/v1/referral/redeem/wallet
+        result = await ApiService.post('api/v1/referral/redeem/wallet', {
+          method: 'WALLET',
+          beneficiary: {},
+        });
+      } else {
+        // POST to api/v1/referral/redeem/bank
+        result = await ApiService.post('api/v1/referral/redeem/bank', {
+          amount: redeemAmount,
+          bankCode: bankCode,
+          accountNumber: accountNumber,
+          bankName: bankName,
+          accountName: accountName,
+        });
+      }
+
       if (result?.requestSuccessful === false) {
         throw new Error(result?.responseMessage || 'Unable to redeem reward.');
       }
+
       setShowCashSheet(false);
       setShowRedeemOption(false);
       setShowSuccess(true);
@@ -129,8 +154,12 @@ export default function ReferralScreen() {
       <ScrollView className="flex-1 px-4" contentContainerStyle={{ paddingBottom: 30 }}>
         <View className="rounded-3xl bg-[#4330A2] p-4">
           <Text className="text-center text-sm text-white/75">Reward balance</Text>
-          <Text className="mt-1 text-center text-5xl font-semibold text-white">{formatNaira(summary?.rewardBalance || summary?.balance || 0)}</Text>
-          <Text className="mt-1 text-center text-xs text-white/80">Last updated: {String(summary?.lastUpdated || new Date().toISOString().slice(0, 10)).slice(0, 10)}</Text>
+          <Text className="mt-1 text-center text-5xl font-semibold text-white">
+            {formatNaira(stats?.totalReward || stats?.rewardBalance || 0)}
+          </Text>
+          <Text className="mt-1 text-center text-xs text-white/80">
+            Last updated: {String(stats?.lastModifiedDate ? new Date(stats.lastModifiedDate).toLocaleDateString() : new Date().toLocaleDateString())}
+          </Text>
 
           <View className="mt-4 flex-row">
             <TouchableOpacity onPress={() => setShowRedeemOption(true)} className="mr-2 flex-1 rounded-full border border-white/70 px-3 py-3">
@@ -147,9 +176,9 @@ export default function ReferralScreen() {
         </View>
 
         <View className="mt-4 flex-row gap-2">
-          <ReferralMetricCard label="Total referrals" value={String(summary?.totalReferrals || summary?.referrals || 0)} />
-          <ReferralMetricCard label="Pending rewards" value={formatNaira(summary?.pendingRewards || 0)} />
-          <ReferralMetricCard label="Total earnings" value={formatNaira(summary?.totalEarnings || 0)} />
+          <ReferralMetricCard label="Total referrals" value={String(stats?.totalCount || 0)} />
+          <ReferralMetricCard label="Pending rewards" value={formatNaira(stats?.pendingReward || 0)} />
+          <ReferralMetricCard label="Total earnings" value={formatNaira(stats?.completedReward || stats?.totalEarnings || 0)} />
         </View>
 
         <View className="mt-7 flex-row items-center justify-between">
@@ -197,11 +226,25 @@ export default function ReferralScreen() {
               <TouchableOpacity onPress={() => setShowCashSheet(false)}><Ionicons name="close" size={24} color="#88839A" /></TouchableOpacity>
             </View>
 
-            <TextInput value={bankName} onChangeText={setBankName} placeholder="Bank name" className="mb-3 rounded-xl border border-[#E3E0EE] px-4 py-3 text-base" />
-            <TextInput value={accountNumber} onChangeText={setAccountNumber} keyboardType="number-pad" placeholder="Account number" className="mb-3 rounded-xl border border-[#E3E0EE] px-4 py-3 text-base" />
+            <Text className="mb-3 text-center text-sm text-[#6F6982]">
+              Input correct details of the beneficiary account
+            </Text>
 
-            <TouchableOpacity disabled={submitting || !bankName || !accountNumber} onPress={handleRedeem} className="mt-2 rounded-full bg-[#4330A2] py-4 disabled:opacity-50">
-              <Text className="text-center text-lg font-semibold text-white">Withdraw cash</Text>
+            <TextInput value={bankName} onChangeText={setBankName} placeholder="Bank name" className="mb-3 rounded-xl border border-[#E3E0EE] px-4 py-3 text-base" />
+            <TextInput value={accountNumber} onChangeText={setAccountNumber} keyboardType="number-pad" maxLength={10} placeholder="Account number" className="mb-3 rounded-xl border border-[#E3E0EE] px-4 py-3 text-base" />
+            
+            {accountName ? (
+              <Text className="mb-3 text-base text-[#2B2833]">{accountName}</Text>
+            ) : null}
+
+            <TouchableOpacity 
+              disabled={submitting || !bankName || !accountNumber || accountNumber.length !== 10} 
+              onPress={handleRedeem} 
+              className="mt-2 rounded-full bg-[#4330A2] py-4 disabled:opacity-50"
+            >
+              <Text className="text-center text-lg font-semibold text-white">
+                {submitting ? 'Processing...' : `Withdraw ${formatNaira(stats?.totalReward || 0)}`}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
