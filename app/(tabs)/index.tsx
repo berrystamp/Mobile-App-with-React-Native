@@ -188,19 +188,27 @@ export default function HomeScreen() {
   const loadProfileDashboard = useCallback(async () => {
     try {
       setProfileLoading(true);
-      const [userResponse, walletResponse, walletHistoryResponse] =
+      const [profileResponse, walletResponse, walletHistoryResponse] =
         await Promise.all([
           ApiService.getMyProfile(),
           ApiService.getWallet().catch(() => null),
           ApiService.getWalletHistory().catch(() => null),
         ]);
       const current = (await ApiService.getCurrentUser()) as User | null;
-      const normalized = normalizeProfileResponse(userResponse);
+      const normalized = normalizeProfileResponse(profileResponse);
+
+      // Preserve nested profile objects with their insight data intact
+      const rawBody = profileResponse?.responseBody || profileResponse?.data || profileResponse || {};
       const merged = {
         ...(current || {}),
         ...normalized,
         profileType: activeRole,
+        // Preserve nested profiles from raw response so insight data is not lost
+        designerProfile: rawBody.designerProfile || normalized.designerProfile || (current as any)?.designerProfile,
+        printerProfile: rawBody.printerProfile || normalized.printerProfile || (current as any)?.printerProfile,
+        customerProfile: rawBody.customerProfile || normalized.customerProfile || (current as any)?.customerProfile,
       } as User;
+
       setCurrentUser(merged);
       setWallet(walletResponse?.responseBody || walletResponse || null);
       setWalletHistory(
@@ -256,18 +264,20 @@ export default function HomeScreen() {
     return currentUser.customerProfile;
   }, [activeRole, currentUser]);
 
-  const insight = activeProfile?.insight || {};
-  const totalEarnings = insight.totalEarnings || wallet?.balance || 0;
-  const rating = insight.rating?.avgStars || 0;
-  const followers = insight.totalFollowers || 0;
-  const following = insight.totalFollowing || 0;
-  const completedOrders = insight.totalCompletedOrders || 0;
-  const cancelledOrders = insight.totalCancelledOrders || 0;
+  const insight = activeProfile?.insight || activeProfile?.insights || {};
+  const totalEarnings = insight.totalEarnings || insight.earnings || wallet?.balance || 0;
+  const rating = insight.rating?.avgStars || insight.avgRating || insight.averageRating || insight.rating || 0;
+  const followers = insight.totalFollowers || insight.followers || 0;
+  const following = insight.totalFollowing || insight.following || 0;
+  const completedOrders = insight.totalCompletedOrders || insight.completedOrders || insight.totalOrders || 0;
+  const cancelledOrders = insight.totalCancelledOrders || insight.cancelledOrders || 0;
   const totalOrders = completedOrders + cancelledOrders;
-  const jobSuccess = insight.jobSuccessPercentage || 0;
+  const jobSuccess = insight.jobSuccessPercentage || insight.successRate || insight.successPercentage || 0;
   const activeName =
-    activeProfile?.userName ||
     activeProfile?.name ||
+    activeProfile?.userName ||
+    activeProfile?.brandName ||
+    activeProfile?.shopName ||
     mergedProfile.username ||
     mergedProfile.fullName;
   const dashboardTopInset = Math.max(insets.top, StatusBar.currentHeight || 0);
@@ -360,7 +370,7 @@ export default function HomeScreen() {
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={refresh} />
         }
-        contentContainerStyle={styles.contentContainer}
+        contentContainerStyle={[styles.contentContainer, { paddingBottom: 100 }]}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.section}>
@@ -386,6 +396,39 @@ export default function HomeScreen() {
             ))}
           </ScrollView>
         </View>
+
+        {/* Marketplace Banner */}
+        <TouchableOpacity
+          onPress={() => router.push("/products")}
+          activeOpacity={0.88}
+          style={{
+            marginHorizontal: 16,
+            marginBottom: 20,
+            borderRadius: 18,
+            overflow: "hidden",
+            backgroundColor: "#3D2DB5",
+          }}
+        >
+          <View style={{ padding: 20, flexDirection: "row", alignItems: "center" }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 11, fontWeight: "600", color: "rgba(255,255,255,0.65)", letterSpacing: 1, textTransform: "uppercase", marginBottom: 4 }}>
+                Marketplace
+              </Text>
+              <Text style={{ fontSize: 18, fontWeight: "800", color: "#FFFFFF", marginBottom: 4 }}>
+                Explore thousands{"
+"}of designs
+              </Text>
+              <Text style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", lineHeight: 17 }}>
+                Browse prints, clothing, accessories & more
+              </Text>
+            </View>
+            <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" }}>
+              <Ionicons name="grid-outline" size={24} color="#FFFFFF" />
+            </View>
+          </View>
+          <View style={{ position: "absolute", top: -20, right: 60, width: 100, height: 100, borderRadius: 50, backgroundColor: "rgba(255,255,255,0.05)" }} />
+          <View style={{ position: "absolute", bottom: -30, right: -10, width: 120, height: 120, borderRadius: 60, backgroundColor: "rgba(255,255,255,0.04)" }} />
+        </TouchableOpacity>
 
         <View style={styles.section}>
           <SectionHeader
@@ -696,7 +739,7 @@ export default function HomeScreen() {
             style={styles.paymentButton}
             onPress={() => router.push("/payments")}
           >
-            <Text style={styles.paymentButtonText}>Payment history</Text>
+            <Text style={styles.paymentButtonText}>My Wallet</Text>
           </TouchableOpacity>
         </View>
 

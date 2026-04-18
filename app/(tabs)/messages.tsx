@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, Modal, Pressable, SafeAreaView, Text, TextInput, TouchableOpacity, View, useColorScheme } from 'react-native';
+import { ActivityIndicator, FlatList, Modal, Pressable, RefreshControl, SafeAreaView, Text, TextInput, TouchableOpacity, View, useColorScheme } from 'react-native';
 
 import { ConversationRow } from '@/components/messages/ConversationRow';
 import { MessageEmptyState } from '@/components/messages/MessageEmptyState';
@@ -24,6 +24,7 @@ export default function MessagesScreen() {
   const [threads, setThreads] = useState<ConversationSummaryDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const [selectedConversation, setSelectedConversation] = useState<ConversationSummaryDto | null>(null);
   const [showActions, setShowActions] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -33,8 +34,14 @@ export default function MessagesScreen() {
   const fetchConversations = useCallback(async () => {
     try {
       setLoading(true);
+      const currentUser = await ApiService.getCurrentUser().catch(() => null);
+      const myId = Number((currentUser as any)?.id || (currentUser as any)?.profileId || 0);
+      setCurrentUserId(myId);
       const response = await ApiService.getConversations(0, 60);
-      setThreads(await getMergedConversations(response));
+      const all = await getMergedConversations(response);
+      // Filter out self-conversations (user chatting with their own other account)
+      const filtered = myId ? all.filter((t) => Number(t.participantId) !== myId) : all;
+      setThreads(filtered);
     } catch {
       setThreads(await getMergedConversations([]));
     } finally {

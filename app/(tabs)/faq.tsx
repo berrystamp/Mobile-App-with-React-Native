@@ -1,21 +1,27 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, Text, TouchableOpacity, View } from 'react-native';
-
+import { ActivityIndicator, Alert, ScrollView, Text, TouchableOpacity, View, useColorScheme } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ApiService from '@/services/apiClient';
 
-type FaqItem = {
-  id: string;
-  question: string;
-  answer: string;
-};
+type FaqItem = { id: string; question: string; answer: string };
 
 export default function FaqScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const isDark = useColorScheme() === 'dark';
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<FaqItem[]>([]);
   const [openId, setOpenId] = useState<string | null>(null);
+
+  const bg = isDark ? '#121212' : '#F7F7FB';
+  const surface = isDark ? '#1E1E1E' : '#FFFFFF';
+  const text = isDark ? '#FFFFFF' : '#1F1B2A';
+  const subtext = isDark ? '#A0A0A0' : '#686479';
+  const border = isDark ? '#2A2A2A' : '#F0EEF7';
+  const primary = '#4732A1';
+  const numBg = isDark ? '#2A2147' : primary;
 
   useEffect(() => {
     const load = async () => {
@@ -28,52 +34,59 @@ export default function FaqScreen() {
         setLoading(false);
       }
     };
-
     load();
   }, []);
 
   return (
-    <View className="flex-1 bg-[#F7F7FB]">
-      <View className="flex-row items-center px-4 pb-4 pt-14">
-        <TouchableOpacity onPress={() => router.back()} className="h-10 w-10 items-center justify-center rounded-xl bg-[#ECEAF7]">
-          <Ionicons name="arrow-back" size={22} color="#2B2833" />
+    <View style={{ flex: 1, backgroundColor: bg }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: insets.top + 8, paddingBottom: 16 }}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: isDark ? '#2A2A2A' : '#ECEAF7', alignItems: 'center', justifyContent: 'center' }}
+        >
+          <Ionicons name="arrow-back" size={20} color={isDark ? '#FFFFFF' : '#2B2833'} />
         </TouchableOpacity>
-        <Text className="ml-3 text-xl font-semibold text-[#1F1B2A]">FAQ</Text>
+        <Text style={{ marginLeft: 12, fontSize: 20, fontWeight: '700', color: text }}>FAQ</Text>
       </View>
 
       {loading ? (
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#4732A1" />
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <ActivityIndicator size="large" color={primary} />
         </View>
       ) : (
-        <ScrollView className="flex-1 px-4" contentContainerStyle={{ paddingBottom: 32 }}>
+        <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
           {items.map((item, index) => {
             const expanded = openId === item.id;
             return (
-              <View key={item.id} className="mb-3 overflow-hidden rounded-2xl bg-white">
-                <TouchableOpacity className="flex-row items-center px-4 py-4" onPress={() => setOpenId(expanded ? null : item.id)}>
-                  <View className="mr-3 h-9 w-9 items-center justify-center rounded-lg bg-[#4732A1]">
-                    <Text className="text-xs font-semibold text-white">{String(index + 1).padStart(2, '0')}</Text>
+              <View key={item.id} style={{ marginBottom: 10, borderRadius: 16, backgroundColor: surface, overflow: 'hidden', borderWidth: 1, borderColor: border }}>
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', alignItems: 'center', padding: 16 }}
+                  onPress={() => setOpenId(expanded ? null : item.id)}
+                  activeOpacity={0.75}
+                >
+                  <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: numBg, alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#FFFFFF' }}>
+                      {String(index + 1).padStart(2, '0')}
+                    </Text>
                   </View>
-                  <Text className="flex-1 text-sm font-medium text-[#2E2939]">{item.question}</Text>
-                  <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={20} color="#8B8797" />
+                  <Text style={{ flex: 1, fontSize: 14, fontWeight: '500', color: text, lineHeight: 20 }}>{item.question}</Text>
+                  <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color={subtext} />
                 </TouchableOpacity>
-
-                {expanded ? (
-                  <View className="border-t border-[#F0EEF7] px-4 pb-4 pt-3">
-                    <Text className="text-sm leading-6 text-[#686479]">{item.answer}</Text>
+                {expanded && (
+                  <View style={{ borderTopWidth: 1, borderTopColor: border, paddingHorizontal: 16, paddingVertical: 14 }}>
+                    <Text style={{ fontSize: 13, lineHeight: 22, color: subtext }}>{item.answer}</Text>
                   </View>
-                ) : null}
+                )}
               </View>
             );
           })}
-
-          {!items.length ? (
-            <View className="rounded-2xl bg-white px-5 py-6">
-              <Text className="text-base font-medium text-[#2A2732]">No FAQ available right now.</Text>
-              <Text className="mt-1 text-sm text-[#7E7A8C]">Please check back again later.</Text>
+          {items.length === 0 && (
+            <View style={{ backgroundColor: surface, borderRadius: 16, padding: 24, alignItems: 'center' }}>
+              <Ionicons name="help-circle-outline" size={40} color={subtext} />
+              <Text style={{ fontSize: 16, fontWeight: '600', color: text, marginTop: 12 }}>No FAQs available</Text>
+              <Text style={{ fontSize: 13, color: subtext, marginTop: 6, textAlign: 'center' }}>Please check back later.</Text>
             </View>
-          ) : null}
+          )}
         </ScrollView>
       )}
     </View>

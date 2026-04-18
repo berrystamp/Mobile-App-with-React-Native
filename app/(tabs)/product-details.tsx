@@ -77,7 +77,12 @@ export default function ProductDetailsScreen() {
 
   const artistName = useMemo(() => {
     if (!design) return 'Berrystamp';
-    return design.designerName || `${design.profile.firstName} ${design.profile.lastName}`.trim() || design.profile.username;
+    // Prefer shop/brand name over personal name
+    return (design as any).shopName
+      || (design as any).brandName
+      || design.designerName
+      || design.profile.username
+      || `${design.profile.firstName} ${design.profile.lastName}`.trim();
   }, [design]);
 
   const handleFavoriteToggle = async () => {
@@ -316,14 +321,21 @@ export default function ProductDetailsScreen() {
         ) : null}
       </ScrollView>
 
-      <View className="absolute bottom-0 left-0 right-0 flex-row bg-[#F5F5F5] px-6 pb-6 pt-3 dark:bg-[#121212]">
+      <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, flexDirection: 'row', backgroundColor: isDark ? '#121212' : '#F5F5F5', paddingHorizontal: 16, paddingBottom: 24, paddingTop: 12, gap: 8 }}>
         <TouchableOpacity
           onPress={() => handleAddToCart(false)}
-          className="mr-2 flex-1 items-center justify-center rounded-xl border border-[#3B2D85] py-4">
-          <Text className="text-base font-semibold text-[#3B2D85]">Add to cart</Text>
+          style={{ flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 14, borderWidth: 1.5, borderColor: '#3B2D85', paddingVertical: 14 }}>
+          <Text style={{ fontSize: 14, fontWeight: '600', color: '#3B2D85' }}>Add to cart</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => handleAddToCart(true)} className="ml-2 flex-1 items-center justify-center rounded-xl bg-[#3B2D85] py-4">
-          <Text className="text-base font-semibold text-white">Print now</Text>
+        <TouchableOpacity
+          onPress={() => handleAddToCart(true)}
+          style={{ flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: '#3B2D85', paddingVertical: 14 }}>
+          <Text style={{ fontSize: 14, fontWeight: '600', color: '#FFFFFF' }}>Print now</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={async () => { try { const { Share } = await import('react-native'); await Share.share({ message: 'Check out this design on Berrystamp: ' + (design?.title || ''), url: 'https://berrystamp.com' }); } catch {} }}
+          style={{ width: 50, alignItems: 'center', justifyContent: 'center', borderRadius: 14, borderWidth: 1.5, borderColor: isDark ? '#2A2A2A' : '#E0E0E0', backgroundColor: isDark ? '#1A1A1A' : '#FFFFFF' }}>
+          <Ionicons name="share-outline" size={20} color={isDark ? '#FFFFFF' : '#333333'} />
         </TouchableOpacity>
       </View>
 

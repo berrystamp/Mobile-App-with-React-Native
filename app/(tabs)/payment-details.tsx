@@ -69,19 +69,7 @@ export default function PaymentDetailsScreen() {
   const loadBanks = useCallback(async () => {
     try {
       setBanksLoading(true);
-      // Fetch banks from api/v1/banks
-      const response = await ApiService.get('api/v1/banks');
-      const bankData = response?.data?.responseBody || response?.data || response || [];
-      
-      // Transform to BankOption format if needed
-      const bankList: BankOption[] = Array.isArray(bankData) 
-        ? bankData.map((bank: any) => ({
-            code: bank.code || bank.bankCode || '',
-            name: bank.name || bank.bankName || '',
-            currency: bank.currency || 'NGN',
-          }))
-        : [];
-      
+      const bankList = await ApiService.getBanks();
       setBanks(bankList);
     } catch (error: any) {
       Alert.alert(
@@ -117,15 +105,12 @@ export default function PaymentDetailsScreen() {
           setVerifyError(false);
           
           // Verify using api/v1/banks/verify endpoint
-          const response = await ApiService.post('api/v1/banks/verify', {
-            accountNumber,
-            bankCode,
-          });
+          const response = await ApiService.verifyBankAccount({ accountNumber, bankCode });
           
           // Extract account name from response
           const resolvedName = 
-            response?.data?.responseBody?.accountName || 
-            response?.responseBody?.accountName ||
+            response?.responseBody?.accountName || 
+            response?.data?.responseBody?.accountName ||
             response?.data?.accountName || 
             response?.accountName;
           
