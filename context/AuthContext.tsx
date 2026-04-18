@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router, useSegments } from 'expo-router';
-import { User } from '@/types'; 
-import ApiService from '@/services/apiClient'; // Import your API service
+import { User } from '@/types';
+import ApiService from '@/services/apiClient';
 import { toAccountType, useAuthStore } from '@/store/authStore';
 
 interface AuthContextType {
@@ -21,10 +21,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const segments = useSegments(); // Used to know what screen we are currently on
+  const segments = useSegments();
   const loginStore = useAuthStore((state) => state.login);
   const needsInterestOnboarding = useAuthStore((state) => state.needsInterestOnboarding);
-  const currentRole = useAuthStore((state) => state.role);
 
   useEffect(() => {
     checkAuth();
@@ -51,14 +50,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const token = await AsyncStorage.getItem('userToken');
       const userData = await AsyncStorage.getItem('userData');
-      
       const inAuthGroup = segments[0] === '(auth)';
 
       if (token && userData) {
-        // Token exists, log them in
         setUser(JSON.parse(userData));
         setIsAuthenticated(true);
-        if (String(currentRole).toLowerCase() === 'customer' && needsInterestOnboarding) {
+        if (needsInterestOnboarding) {
           if (!(segments[0] === '(auth)' && segments[1] === 'interests')) {
             router.replace('/(auth)/interests');
           }
@@ -66,35 +63,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           router.replace('/(tabs)');
         }
       } else {
-        // No token found. If they aren't already in the auth screens, send them to login
         setIsAuthenticated(false);
         setUser(null);
+        // Unauthenticated users always go to login, not choose-account
         if (!inAuthGroup) {
-          router.replace('/(auth)/choose-account'); // Adjust this path if your choose-account screen is named differently
+          router.replace('/(auth)/login');
         }
       }
     } catch (error) {
       console.error('Failed to restore auth state', error);
-      router.replace('/(auth)/choose-account');
+      router.replace('/(auth)/login');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const login = async (email: string, password: string, rememberMe: boolean = true, profileType: string = "CUSTOMER"): Promise<{ success: boolean; error?: string }> => {
+  const login = async (
+    email: string,
+    password: string,
+    rememberMe: boolean = true,
+    profileType: string = 'CUSTOMER',
+  ): Promise<{ success: boolean; error?: string }> => {
     try {
-      // Use your ApiService here instead of raw fetch
-      const result = await ApiService.login(email, password, profileType);
+      // Always login as CUSTOMER first - user can switch account type after
+      const result = await ApiService.login(email, password, 'CUSTOMER');
 
       if (result.requestSuccessful && result.responseBody?.token) {
         const loggedInUser = (await ApiService.getCurrentUser()) || result.responseBody.user;
-        const normalizedAccountType = toAccountType(profileType);
+        const normalizedAccountType = toAccountType('CUSTOMER');
 
         setUser(loggedInUser);
         setIsAuthenticated(true);
         loginStore(normalizedAccountType);
-        
-        if (normalizedAccountType === 'customer' && needsInterestOnboarding) {
+
+        if (needsInterestOnboarding) {
           router.replace('/(auth)/interests');
         } else {
           router.replace('/(tabs)');
@@ -102,31 +104,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         return { success: true };
       } else {
-        return { 
-            success: false, 
-            error: result.responseMessage || result.message || 'Invalid email or password.' 
+        return {
+          success: false,
+          error: result.responseMessage || result.message || 'Invalid email or password.',
         };
       }
     } catch (error: any) {
       console.error('Login error:', error);
-      // Axios wraps errors, so we can check for a response payload
-      const errorMessage = error.response?.data?.responseMessage || error.response?.data?.message || 'Network Error. Unable to reach the server.';
+      const errorMessage =
+        error.response?.data?.responseMessage ||
+        error.response?.data?.message ||
+        'Network Error. Unable to reach the server.';
       const statusCode = error.response?.status;
       const normalizedErrorMessage = String(errorMessage).toLowerCase();
-      const emailNotVerified =
-        normalizedErrorMessage.includes('email not verified');
-      const requiresVerification =
-        statusCode === 401 &&
-        (normalizedErrorMessage.includes('verification') || normalizedErrorMessage.includes('verify'));
 
-      if (emailNotVerified) {
+      if (
+        statusCode === 401 &&
+        (normalizedErrorMessage.includes('verification') ||
+          normalizedErrorMessage.includes('verify') ||
+          normalizedErrorMessage.includes('email not verified'))
+      ) {
         router.replace({
           pathname: '/(auth)/verify-account',
-          params: { email: email.trim() },
-        });
-      } else if (requiresVerification) {
-        router.replace({
-          pathname: '/(auth)/verify-otp',
           params: { email: email.trim() },
         });
       }
@@ -137,11 +136,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     try {
-      // Use your ApiService to clear storage
       await ApiService.logout();
       setUser(null);
       setIsAuthenticated(false);
-      router.replace('/(auth)/login'); // Send user back to login upon logging out
+      router.replace('/(auth)/login');
     } catch (error) {
       console.error('Failed to log out', error);
     }
