@@ -6,15 +6,20 @@ import { Controller, useForm } from "react-hook-form";
 import {
   ActivityIndicator,
   Animated,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StatusBar,
   Text,
   TextInput,
   TouchableOpacity,
   useColorScheme,
-  View
+  View,
 } from "react-native";
 import { z } from "zod";
 import { useAuth } from "../../../context/AuthContext";
-import { useAuthStore } from "@/store/authStore";
+
 const schema = z.object({
   email: z.string().email("Invalid email"),
   password: z.string().min(6, "Minimum 6 characters"),
@@ -43,23 +48,46 @@ const FloatingLabelInput = ({
   const labelColor = animatedLabel.interpolate({ inputRange: [0, 1], outputRange: ["#aaa", "#4B3A99"] });
 
   return (
-    <View className={`border rounded-xl h-[58px] px-3.5 justify-end relative ${isFocused ? "border-[#4B3A99] dark:border-[#7A6AE6]" : isDark ? "border-[#333333] bg-[#1E1E1E]" : "border-[#E5E5EA] bg-white"}`}>
-      <Animated.Text style={[{ position: "absolute", left: 14, fontWeight: "400" }, { top: labelTop, fontSize: labelFontSize, color: labelColor }]}>{label}</Animated.Text>
-      <TextInput value={value} onChangeText={onChangeText} onFocus={handleFocus} onBlur={handleBlur} secureTextEntry={secureTextEntry} keyboardType={keyboardType} autoCapitalize="none" className={`text-[15px] pb-2 pt-4 ${rightIcon ? "pr-9" : "pr-2"} ${isDark ? "text-white" : "text-[#1a1a1a]"}`} />
-      {rightIcon && <View className="absolute right-[14px] top-0 bottom-0 justify-center">{rightIcon}</View>}
+    <View
+      style={{
+        borderWidth: 1,
+        borderRadius: 12,
+        height: 58,
+        paddingHorizontal: 14,
+        justifyContent: 'flex-end',
+        position: 'relative',
+        borderColor: isFocused ? '#4B3A99' : isDark ? '#333333' : '#E5E5EA',
+        backgroundColor: isDark ? '#1E1E1E' : '#FFFFFF',
+      }}
+    >
+      <Animated.Text style={{ position: "absolute", left: 14, fontWeight: "400", top: labelTop, fontSize: labelFontSize, color: labelColor }}>
+        {label}
+      </Animated.Text>
+      <TextInput
+        value={value}
+        onChangeText={onChangeText}
+        onFocus={handleFocus}
+        onBlur={handleBlur}
+        secureTextEntry={secureTextEntry}
+        keyboardType={keyboardType}
+        autoCapitalize="none"
+        style={{ fontSize: 15, paddingBottom: 8, paddingTop: 16, paddingRight: rightIcon ? 36 : 8, color: isDark ? '#FFFFFF' : '#1a1a1a' }}
+      />
+      {rightIcon && (
+        <View style={{ position: 'absolute', right: 14, top: 0, bottom: 0, justifyContent: 'center' }}>
+          {rightIcon}
+        </View>
+      )}
     </View>
   );
 };
 
 export default function LoginScreen() {
   const { login } = useAuth();
-  
-    const { role: selectedProfileType } = useAuthStore();
-
   const [loading, setLoading] = useState(false);
   const [secure, setSecure] = useState(true);
   const [rememberMe, setRememberMe] = useState(true);
-  const [serverError, setServerError] = useState<string | null>(null); // New state for UI errors
+  const [serverError, setServerError] = useState<string | null>(null);
 
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
@@ -68,78 +96,102 @@ export default function LoginScreen() {
   const { control, handleSubmit, formState: { errors, isValid } } = useForm<FormData>({
     resolver: zodResolver(schema), mode: "onChange", defaultValues: { email: "", password: "" },
   });
-  console.log("Selected Profile Type:", selectedProfileType);
-  const onSubmit = async (data: FormData) => {
-    setServerError(null); // Clear previous errors
-    setLoading(true);
-    
-    const result = await login(data.email, data.password, rememberMe, selectedProfileType??"customer");
-    
-    setLoading(false);
 
+  const onSubmit = async (data: FormData) => {
+    setServerError(null);
+    setLoading(true);
+    // Always login as CUSTOMER - users can switch to designer/printer from profile
+    const result = await login(data.email, data.password, rememberMe, 'CUSTOMER');
+    setLoading(false);
     if (!result.success) {
       setServerError(result.error || "An unexpected error occurred.");
     }
   };
 
   return (
-    <View className="flex-1 px-6 justify-center bg-[#F5F5F7] dark:bg-[#121212]">
-      <Text className="text-[26px] font-bold text-center text-[#1A1A1A] dark:text-white mb-1.5">
-        Welcome <Text className="text-[#4B3A99] dark:text-[#7A6AE6]">Back</Text>
-      </Text>
-      <Text className="text-center text-[15px] text-[#666666] dark:text-[#888888]">
-        We are so happy to see you
-      </Text>
-        <TouchableOpacity onPress={() => router.push("/(auth)/choose-account")} activeOpacity={0.7}>
-      <Text className="text-center text-xs font-bold text-[#4B3A99] dark:text-[#7A6AE6] uppercase tracking-widest mt-2 mb-6">
-        Logging in as {selectedProfileType}
-      </Text>
-        </TouchableOpacity>
-
-      {/* Render Server Errors in the UI gracefully */}
-      {serverError && (
-        <View className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg p-3 mb-4">
-            <Text className="text-red-600 dark:text-red-400 text-sm text-center font-medium">
-                {serverError}
-            </Text>
-        </View>
-      )}
-
-      <View className="flex-col gap-y-3">
-        <Controller control={control} name="email" render={({ field: { onChange, value } }) => (
-            <FloatingLabelInput label="Enter Email" value={value} onChangeText={onChange} keyboardType="email-address" isDark={isDark} />
-        )} />
-        {errors.email && <Text className="text-red-500 dark:text-[#FF6B6B] text-xs -mt-1.5 ml-1">{errors.email.message}</Text>}
-
-        <Controller control={control} name="password" render={({ field: { onChange, value } }) => (
-            <FloatingLabelInput label="Password" value={value} onChangeText={onChange} secureTextEntry={secure} isDark={isDark} rightIcon={<TouchableOpacity onPress={() => setSecure(!secure)} hitSlop={8}><Ionicons name={secure ? "eye-off-outline" : "eye-outline"} size={20} color={isDark ? "#A0A0A0" : "#999"} /></TouchableOpacity>} />
-        )} />
-        {errors.password && <Text className="text-red-500 dark:text-[#FF6B6B] text-xs -mt-1.5 ml-1">{errors.password.message}</Text>}
-
-        <View className="flex-row items-center justify-between mt-0.5 mb-1">
-            <TouchableOpacity className="flex-row items-center" onPress={() => setRememberMe(!rememberMe)} activeOpacity={0.7}>
-                <View className={`w-4 h-4 border-[1.5px] rounded mr-2 items-center justify-center ${rememberMe ? 'border-[#4B3A99] bg-[#4B3A99]' : 'border-[#A0A0A0] bg-transparent'}`}>
-                    {rememberMe && <Ionicons name="checkmark" size={10} color="#fff" />}
-                </View>
-                <Text className={`text-[13px] ${isDark ? "text-gray-300" : "text-[#666]"}`}>Remember me</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity onPress={() => router.push("/forgot-password")}>
-              <Text className="text-[#4B3A99] dark:text-[#7A6AE6] text-[13px] font-medium">Forgot Password?</Text>
-            </TouchableOpacity>
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: isDark ? '#121212' : '#F5F5F7' }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
+      <ScrollView
+        contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 40 }}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Logo */}
+        <View style={{ alignItems: 'center', marginBottom: 32 }}>
+          <Image
+            source={isDark ? require('@/assets/logo02.png') : require('@/assets/logo01.png')}
+            style={{ width: 180, height: 52 }}
+            resizeMode="contain"
+          />
         </View>
 
-        <TouchableOpacity disabled={!isValid || loading} onPress={handleSubmit(onSubmit)} className={`py-4 rounded-[30px] items-center mt-2 mb-1 ${!isValid ? 'bg-[#C5C1DA] dark:bg-[#4B3A99]/50' : 'bg-[#3D2E8E] dark:bg-[#5E4CBA]'}`} activeOpacity={0.85}>
-          {loading ? <ActivityIndicator color="#fff" /> : <Text className="text-white text-base font-semibold">Log in</Text>}
-        </TouchableOpacity>
+        <Text style={{ fontSize: 26, fontWeight: '700', textAlign: 'center', color: isDark ? '#FFFFFF' : '#1A1A1A', marginBottom: 6 }}>
+          Welcome <Text style={{ color: '#4B3A99' }}>Back</Text>
+        </Text>
+        <Text style={{ textAlign: 'center', fontSize: 15, color: isDark ? '#888888' : '#666666', marginBottom: 28 }}>
+          Sign in to your Berrystamp account
+        </Text>
 
-        <View className="flex-row justify-center items-center mt-3">
-          <Text className="text-[14px] text-[#666666] dark:text-[#888888]">Don&apos;t have an account? </Text>
-          <TouchableOpacity onPress={() => router.push("/signup")} activeOpacity={0.7}>
-            <Text className="text-[14px] font-semibold text-[#4B3A99] dark:text-[#7A6AE6]">Sign up</Text>
+        {serverError && (
+          <View style={{ backgroundColor: isDark ? 'rgba(239,68,68,0.15)' : '#FEF2F2', borderWidth: 1, borderColor: isDark ? 'rgba(239,68,68,0.4)' : '#FCA5A5', borderRadius: 10, padding: 12, marginBottom: 16 }}>
+            <Text style={{ color: isDark ? '#FCA5A5' : '#DC2626', fontSize: 14, textAlign: 'center' }}>{serverError}</Text>
+          </View>
+        )}
+
+        <View style={{ gap: 12 }}>
+          <Controller control={control} name="email" render={({ field: { onChange, value } }) => (
+            <FloatingLabelInput label="Email address" value={value} onChangeText={onChange} keyboardType="email-address" isDark={isDark} />
+          )} />
+          {errors.email && <Text style={{ color: '#EF4444', fontSize: 12, marginTop: -8, marginLeft: 4 }}>{errors.email.message}</Text>}
+
+          <Controller control={control} name="password" render={({ field: { onChange, value } }) => (
+            <FloatingLabelInput
+              label="Password"
+              value={value}
+              onChangeText={onChange}
+              secureTextEntry={secure}
+              isDark={isDark}
+              rightIcon={
+                <TouchableOpacity onPress={() => setSecure(!secure)} hitSlop={8}>
+                  <Ionicons name={secure ? "eye-off-outline" : "eye-outline"} size={20} color={isDark ? "#A0A0A0" : "#999"} />
+                </TouchableOpacity>
+              }
+            />
+          )} />
+          {errors.password && <Text style={{ color: '#EF4444', fontSize: 12, marginTop: -8, marginLeft: 4 }}>{errors.password.message}</Text>}
+
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4, marginBottom: 4 }}>
+            <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }} onPress={() => setRememberMe(!rememberMe)} activeOpacity={0.7}>
+              <View style={{ width: 16, height: 16, borderWidth: 1.5, borderRadius: 4, marginRight: 8, alignItems: 'center', justifyContent: 'center', borderColor: rememberMe ? '#4B3A99' : '#A0A0A0', backgroundColor: rememberMe ? '#4B3A99' : 'transparent' }}>
+                {rememberMe && <Ionicons name="checkmark" size={10} color="#fff" />}
+              </View>
+              <Text style={{ fontSize: 13, color: isDark ? '#CCCCCC' : '#666666' }}>Remember me</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push("/(auth)/forgot-password")}>
+              <Text style={{ color: '#4B3A99', fontSize: 13, fontWeight: '500' }}>Forgot Password?</Text>
+            </TouchableOpacity>
+          </View>
+
+          <TouchableOpacity
+            disabled={!isValid || loading}
+            onPress={handleSubmit(onSubmit)}
+            style={{ paddingVertical: 16, borderRadius: 30, alignItems: 'center', marginTop: 8, backgroundColor: !isValid ? '#C5C1DA' : '#3D2E8E' }}
+            activeOpacity={0.85}
+          >
+            {loading ? <ActivityIndicator color="#fff" /> : <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '600' }}>Log in</Text>}
           </TouchableOpacity>
+
+          <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 16 }}>
+            <Text style={{ fontSize: 14, color: isDark ? '#888888' : '#666666' }}>Don't have an account? </Text>
+            <TouchableOpacity onPress={() => router.push("/(auth)/choose-account")} activeOpacity={0.7}>
+              <Text style={{ fontSize: 14, fontWeight: '600', color: '#4B3A99' }}>Sign up</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
-    </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
