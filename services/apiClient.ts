@@ -258,8 +258,6 @@ class ApiService {
 
   async updateMyProfile(payload: Record<string, unknown>) {
     const profileType = getProfileType();
-    console.log(profileType)
-    console.log(payload)
     try {
       const response = await api.put('/profile', payload, {
         headers: {
@@ -800,7 +798,6 @@ async getManageOrderById(orderId: string | number, profileType?: ProfileTypeInte
         const response = await api.get('/designs/all/likes', { params: { page, size, sort: 'id,desc' }, headers });
         return response.data;
       } catch (error: any) {
-      console.log(JSON.stringify(error));
         if (error?.response?.status && error.response.status !== 404) {
           throw error;
         }
@@ -840,7 +837,6 @@ async getManageOrderById(orderId: string | number, profileType?: ProfileTypeInte
         profileType
       }
     });
-    console.log(response.data.responseBody)
     return response.data;
   }
 
@@ -881,7 +877,6 @@ async getManageOrderById(orderId: string | number, profileType?: ProfileTypeInte
 
   async markMessageAsRead(messageId: string) {
     const profileType = getProfileType();
-    console.log("Marking read",messageId)
     const response = await api.patch(
       `/messages/send/${messageId}/read`,
       {
