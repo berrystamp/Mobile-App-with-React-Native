@@ -20,8 +20,28 @@ import ApiService from '@/services/apiClient';
 import { toProfileType, useAuthStore } from '@/store/authStore';
 import type { ManageOrderItem } from '@/types';
 
-const countdownParts = ['06', '08', '10', '22'];
-const countdownLabels = ['Days', 'Hours', 'Minutes', 'Seconds'];
+const countdownLabels = ['Days', 'Hours', 'Mins', 'Secs'];
+
+function getCountdownParts(dueDate?: string): string[] {
+  if (!dueDate) return ['--', '--', '--', '--'];
+  // Try parsing dd/mm/yyyy from normalised date
+  const parts = dueDate.split('/');
+  let target: Date;
+  if (parts.length === 3) {
+    target = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+  } else {
+    target = new Date(dueDate);
+  }
+  if (isNaN(target.getTime())) return ['--', '--', '--', '--'];
+  const now = new Date();
+  const diff = target.getTime() - now.getTime();
+  if (diff <= 0) return ['00', '00', '00', '00'];
+  const days = Math.floor(diff / 86400000);
+  const hours = Math.floor((diff % 86400000) / 3600000);
+  const minutes = Math.floor((diff % 3600000) / 60000);
+  const seconds = Math.floor((diff % 60000) / 1000);
+  return [String(days).padStart(2, '0'), String(hours).padStart(2, '0'), String(minutes).padStart(2, '0'), String(seconds).padStart(2, '0')];
+}
 
 export default function OrderDetailScreen() {
   const isDark = useColorScheme() === 'dark';
