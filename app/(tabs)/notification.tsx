@@ -2,9 +2,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator, FlatList, SafeAreaView, Text,
+  ActivityIndicator, FlatList, Text,
   TouchableOpacity, View, useColorScheme
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context'; // <-- Imported from here instead
 import ApiService from '@/services/apiClient';
 
 type NotificationItem = {
@@ -45,10 +46,8 @@ export default function NotificationScreen() {
   const [markingAll, setMarkingAll] = useState(false);
 
   const bg = isDark ? '#121212' : '#FAFAFC';
-  const surface = isDark ? '#1E1E1E' : '#FFFFFF';
   const text = isDark ? '#FFFFFF' : '#1E1E1E';
   const subtext = isDark ? '#A0A0A0' : '#6B6880';
-  const border = isDark ? '#2A2A2A' : '#F0EEF7';
   const primary = '#4732A1';
 
   const loadNotifications = useCallback(async () => {
@@ -105,7 +104,7 @@ export default function NotificationScreen() {
   }, [markingAll, unreadCount, loadNotifications]);
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: bg }}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1, backgroundColor: bg }}>
       <View style={{ flex: 1, paddingHorizontal: 20 }}>
         {/* Header */}
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 16, paddingBottom: 12 }}>
@@ -143,7 +142,7 @@ export default function NotificationScreen() {
             <Ionicons name="notifications-outline" size={72} color={isDark ? '#555' : '#BCBBC3'} />
             <Text style={{ marginTop: 16, fontSize: 18, fontWeight: '600', color: text, textAlign: 'center' }}>No notifications yet</Text>
             <Text style={{ marginTop: 8, fontSize: 14, color: subtext, textAlign: 'center', lineHeight: 20 }}>
-              You'll be notified about activity on your account here.
+              You&apos;ll be notified about activity on your account here.
             </Text>
           </View>
         ) : (

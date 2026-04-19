@@ -415,8 +415,7 @@ export default function HomeScreen() {
                 Marketplace
               </Text>
               <Text style={{ fontSize: 18, fontWeight: "800", color: "#FFFFFF", marginBottom: 4 }}>
-                Explore thousands{"
-"}of designs
+                Explore thousands{" "}of designs
               </Text>
               <Text style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", lineHeight: 17 }}>
                 Browse prints, clothing, accessories & more

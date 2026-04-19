@@ -56,6 +56,21 @@ const formatMessageTime = (value?: string | number | Date) => {
   });
 };
 
+const formatDateLabel = (value?: string) => {
+  if (!value) return 'N/A';
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return date.toLocaleDateString('en-US');
+};
+
+const formatCurrency = (value?: string | number) => {
+  const numeric = Number(value || 0);
+  if (!numeric) return 'N/A';
+  return `₦${numeric.toLocaleString()}`;
+};
+
 const resolveImageUri = (value?: string) => {
   const trimmed = String(value || '').trim();
   if (!trimmed) return '';
@@ -104,7 +119,6 @@ export default function ChatScreen() {
   const { uploadFile, uploading } = useFileUpload();
   const insets = useSafeAreaInsets();
   
-  // Theme colors for icons that can't rely on currentColor
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const themeIconColor = isDark ? '#FFFFFF' : '#000000';
@@ -127,7 +141,7 @@ export default function ChatScreen() {
     name: participantName || 'Conversation',
     role: participantRole === 'Printers' ? 'Printers' : 'Designer',
     avatarColor: '#A9D8FF',
-    avatarEmoji: '????',
+    avatarEmoji: '✨',
     avatarInitials: String(participantName || 'Conversation')
       .split(/\s+/)
       .filter(Boolean)
@@ -146,9 +160,11 @@ export default function ChatScreen() {
   const [draft, setDraft] = useState('');
   const [showConversationActions, setShowConversationActions] = useState(false);
   const [showOfferDetail, setShowOfferDetail] = useState(false);
+  const [selectedProductDetail, setSelectedProductDetail] = useState<any>(null); // State for the Product modal
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [orderDetailsByMessageId, setOrderDetailsByMessageId] = useState<Record<string, any>>({});
+  const [chatOrderDetail, setChatOrderDetail] = useState<any>(null);
   const isLocalConversation = Boolean(localConversationId && String(localConversationId).startsWith('local-'));
 
   useEffect(() => {
@@ -201,6 +217,24 @@ export default function ChatScreen() {
                           id: item.id,
                           imageUrl: item.imageUrl ? resolveImageUri(item.imageUrl) : undefined,
                           overlayText: item.overlayText,
+                          name: item.name,
+                          title: item.title,
+                          price: item.price,
+                          quantity: item.quantity,
+                          colour: item.colour,
+                          color: item.color,
+                          size: item.size,
+                          variantText: item.variantText,
+                          designerName: item.designerName,
+                          printingType: item.printingType,
+                          budget: item.budget,
+                          deliveryDate: item.deliveryDate,
+                          preferredDeliveryDate: item.preferredDeliveryDate,
+                          deliveryAddress: item.deliveryAddress,
+                          pickupAddress: item.pickupAddress,
+                          itemAvailability: item.itemAvailability,
+                          inventorySource: item.inventorySource,
+                          hasOwnItem: item.hasOwnItem,
                         })),
                       },
                     }
@@ -275,17 +309,28 @@ export default function ChatScreen() {
   }, [messages]);
 
   useEffect(() => {
+    if (!orderId) {
+      setChatOrderDetail(null);
+      return;
+    }
+
+    ApiService.getOrderById(String(orderId))
+      .then((response) => setChatOrderDetail(normalizeManageOrder(response)))
+      .catch(() => setChatOrderDetail(null));
+  }, [orderId]);
+
+  useEffect(() => {
     const orderMessages = messages.filter((message) => {
-      const orderId = Number(message.text || message.caption || 0);
-      return message.chatType === 'ORDER' && Number.isFinite(orderId) && orderId > 0 && !orderDetailsByMessageId[message.id];
+      const orderIdVal = Number(message.text || message.caption || 0);
+      return message.chatType === 'ORDER' && Number.isFinite(orderIdVal) && orderIdVal > 0 && !orderDetailsByMessageId[message.id];
     });
 
     if (!orderMessages.length) return;
 
     Promise.allSettled(
       orderMessages.map(async (message) => {
-        const orderId = Number(message.text || message.caption || 0);
-        const response = await ApiService.getOrderById(orderId);
+        const orderIdVal = Number(message.text || message.caption || 0);
+        const response = await ApiService.getOrderById(orderIdVal);
         const order = normalizeManageOrder(response);
         return { messageId: message.id, order };
       }),
@@ -303,6 +348,15 @@ export default function ChatScreen() {
       }
     });
   }, [messages, orderDetailsByMessageId]);
+
+  const currentOrderDetail =
+    chatOrderDetail ||
+    Object.values(orderDetailsByMessageId)[0] ||
+    null;
+
+  const headerSubtitle = currentOrderDetail
+    ? `${currentOrderDetail.status} • ${currentOrderDetail.dueOn !== 'N/A' ? `Due ${currentOrderDetail.dueOn}` : formatCurrency(currentOrderDetail.amount)}`
+    : conversation.role;
 
   const handleSend = async () => {
     const trimmed = draft.trim();
@@ -403,6 +457,7 @@ export default function ChatScreen() {
 
   const renderMessage = (message: ChatMessageDto & { imageUrl?: string }) => {
     const orderDetail = orderDetailsByMessageId[message.id];
+    const isMe = message.author === 'me';
 
     if (message.chatType === 'ORDER' && orderDetail) {
       const gallery = Array.isArray(orderDetail.uploadedDesigns)
@@ -410,8 +465,19 @@ export default function ChatScreen() {
         : [];
 
       return (
-        <View key={message.id} className={`w-full my-1 flex-row ${message.author === 'me' ? 'justify-end' : 'justify-start'}`}>
-          <View className={`max-w-[82%] rounded-2xl overflow-hidden ${message.author === 'me' ? 'bg-indigo-600 dark:bg-indigo-700' : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700'}`}>
+        <View key={message.id} className={`w-full my-1 flex-row ${isMe ? 'justify-end' : 'justify-start'}`}>
+          {!isMe && (
+            <View className="mr-2 self-end mb-1">
+              <AvatarBadge
+                color={conversation.avatarColor}
+                emoji={conversation.avatarEmoji}
+                imageUrl={conversation.avatarThumbnailUrl || conversation.avatarPreviewUrl || conversation.avatarImageUrl}
+                label={conversation.avatarInitials}
+                size={32}
+              />
+            </View>
+          )}
+          <View className={`max-w-[82%] rounded-2xl overflow-hidden ${isMe ? 'bg-indigo-600 dark:bg-indigo-700' : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700'}`}>
             {gallery.length ? (
               <View className="flex-row flex-wrap">
                 {gallery.slice(0, 4).map((uri: string, index: number) => (
@@ -422,16 +488,22 @@ export default function ChatScreen() {
               </View>
             ) : null}
             <View className="px-4 py-3">
-              <Text className={`${message.author === 'me' ? 'text-white' : 'text-slate-900 dark:text-slate-100'} text-[15px] font-semibold`}>
+              <Text className={`${isMe ? 'text-white' : 'text-slate-900 dark:text-slate-100'} text-[15px] font-semibold`}>
                 {orderDetail.title}
               </Text>
-              <Text className={`${message.author === 'me' ? 'text-indigo-100' : 'text-slate-500 dark:text-slate-400'} mt-1 text-[13px]`}>
-                {orderDetail.code} • {orderDetail.status}
+              <Text className={`${isMe ? 'text-indigo-100' : 'text-slate-500 dark:text-slate-400'} mt-1 text-[13px]`}>
+                {orderDetail.status} • {orderDetail.designer}
               </Text>
-              <Text className={`${message.author === 'me' ? 'text-indigo-50' : 'text-slate-700 dark:text-slate-200'} mt-2 text-[13px]`}>
+              <Text className={`${isMe ? 'text-indigo-50' : 'text-slate-700 dark:text-slate-200'} mt-2 text-[13px]`}>
                 {orderDetail.description}
               </Text>
-              <Text className={`${message.author === 'me' ? 'text-white' : 'text-slate-900 dark:text-slate-100'} mt-3 text-[14px] font-bold`}>
+              <Text className={`${isMe ? 'text-indigo-50' : 'text-slate-700 dark:text-slate-200'} mt-2 text-[13px]`}>
+                Items: {Array.isArray(orderDetail.itemsToPrint) && orderDetail.itemsToPrint.length ? orderDetail.itemsToPrint.join(', ') : 'Not specified'}
+              </Text>
+              <Text className={`${isMe ? 'text-indigo-100' : 'text-slate-500 dark:text-slate-400'} mt-1 text-[12px]`}>
+                Created {orderDetail.createdAt} {orderDetail.dueOn !== 'N/A' ? `• Due ${orderDetail.dueOn}` : ''}
+              </Text>
+              <Text className={`${isMe ? 'text-white' : 'text-slate-900 dark:text-slate-100'} mt-3 text-[14px] font-bold`}>
                 ₦{Number(orderDetail.amount || 0).toLocaleString()}
               </Text>
             </View>
@@ -441,44 +513,73 @@ export default function ChatScreen() {
     }
 
     if (message.type === 'bundle' && message.bundle) {
+      const bundleItems = message.bundle.items;
+      const hiddenBundleCount = Math.max(bundleItems.length - 3, 0);
+
       return (
-        <View key={message.id} className="w-full items-end my-1">
-          <View className="w-[78%] rounded-3xl border border-slate-200 dark:border-slate-700 overflow-hidden bg-white dark:bg-slate-800">
-            <View className="flex-row flex-wrap">
-              {message.bundle.items.map((item) => (
-                <View key={item.id} className="w-1/2 aspect-square border-[0.5px] border-slate-100 dark:border-slate-700">
-                  {item.imageUrl || item.image ? (
-                    <Image source={item.imageUrl ? { uri: item.imageUrl } : item.image} style={{ width: '100%', height: '100%' }} contentFit="cover" />
-                  ) : (
-                    <View className="flex-1 items-center justify-center bg-slate-100 dark:bg-slate-900">
-                      <Ionicons name="image-outline" size={28} color={isDark ? '#94a3b8' : '#64748b'} />
-                    </View>
-                  )}
-                  {item.overlayText && (
-                    <View className="absolute inset-0 bg-black/40 items-center justify-center">
-                      <Text className="text-white text-xl font-bold">{item.overlayText}</Text>
-                    </View>
-                  )}
-                </View>
-              ))}
+        <View key={message.id} className={`w-full my-1 flex-row ${isMe ? 'justify-end' : 'justify-start'}`}>
+          {!isMe && (
+            <View className="mr-2 self-end mb-1">
+              <AvatarBadge
+                color={conversation.avatarColor}
+                emoji={conversation.avatarEmoji}
+                imageUrl={conversation.avatarThumbnailUrl || conversation.avatarPreviewUrl || conversation.avatarImageUrl}
+                label={conversation.avatarInitials}
+                size={32}
+              />
             </View>
-            <TouchableOpacity className="border-t border-slate-100 dark:border-slate-700 py-3 items-center" onPress={() => router.push('/cart')}>
-              <Text className="text-indigo-600 dark:text-indigo-400 text-lg font-semibold">{message.bundle.footerLabel}</Text>
-            </TouchableOpacity>
+          )}
+          <View className="w-[78%]">
+            <View className="rounded-3xl border border-slate-200 dark:border-slate-700 overflow-hidden bg-white dark:bg-slate-800">
+              <View className="flex-row flex-wrap">
+                {bundleItems.slice(0, 4).map((item, index) => (
+                  <View key={item.id} className="w-1/2 aspect-square border-[0.5px] border-slate-100 dark:border-slate-700">
+                    {item.imageUrl || item.image ? (
+                      <Image source={item.imageUrl ? { uri: item.imageUrl } : item.image} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+                    ) : (
+                      <View className="flex-1 items-center justify-center bg-slate-100 dark:bg-slate-900">
+                        <Ionicons name="image-outline" size={28} color={isDark ? '#94a3b8' : '#64748b'} />
+                      </View>
+                    )}
+                    {(item.overlayText || (index === 3 && hiddenBundleCount > 0 ? `+${hiddenBundleCount} Items` : '')) ? (
+                      <View className="absolute inset-0 bg-black/40 items-center justify-center">
+                        <Text className="text-white text-xl font-bold">
+                          {item.overlayText || `+${hiddenBundleCount} Items`}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+                ))}
+              </View>
+              <TouchableOpacity className="border-t border-slate-100 dark:border-slate-700 py-3 items-center" onPress={() => setSelectedProductDetail(message.bundle)}>
+                <Text className="text-indigo-600 dark:text-indigo-400 text-lg font-semibold">{message.bundle?.footerLabel}</Text>
+              </TouchableOpacity>
+            </View>
+            <Text className={`mt-2 text-[11px] text-indigo-200 ${isMe ? 'text-right' : 'text-left'}`}>
+              {message.status === 'seen' ? `Seen . ${message.createdAtLabel}` : message.createdAtLabel}
+            </Text>
           </View>
-          <Text className="mt-2 text-[11px] text-indigo-200 text-right">
-            {message.status === 'seen' ? `Seen . ${message.createdAtLabel}` : message.createdAtLabel}
-          </Text>
         </View>
       );
     }
 
     if (message.type === 'offer' && message.offer) {
       return (
-        <View key={message.id} className="w-full items-start my-1">
+        <View key={message.id} className={`w-full my-1 flex-row ${isMe ? 'justify-end' : 'justify-start'}`}>
+          {!isMe && (
+            <View className="mr-2 self-end mb-1">
+              <AvatarBadge
+                color={conversation.avatarColor}
+                emoji={conversation.avatarEmoji}
+                imageUrl={conversation.avatarThumbnailUrl || conversation.avatarPreviewUrl || conversation.avatarImageUrl}
+                label={conversation.avatarInitials}
+                size={32}
+              />
+            </View>
+          )}
           <View className="w-[82%]">
-            <Text className="text-slate-500 dark:text-slate-400 text-sm mb-2">{message.offer.description}</Text>
-            <View className="w-[192px] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl overflow-hidden">
+            <Text className={`text-slate-500 dark:text-slate-400 text-sm mb-2 ${isMe ? 'text-right' : 'text-left'}`}>{message.offer.description}</Text>
+            <View className={`w-[192px] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl overflow-hidden ${isMe ? 'self-end' : 'self-start'}`}>
               <View className="w-full bg-slate-50 dark:bg-slate-900">
                 <Image source={message.offer.image} style={{ width: '100%', height: 180 }} contentFit="contain" />
               </View>
@@ -487,7 +588,7 @@ export default function ChatScreen() {
                 <Text className="text-[14px] text-blue-600 dark:text-blue-400 font-bold">{message.offer.priceLabel}</Text>
               </View>
               <TouchableOpacity className="bg-indigo-600 dark:bg-indigo-700 py-3 items-center" onPress={() => setShowOfferDetail(true)}>
-                <Text className="text-white text-[15px] font-bold">{message.offer.ctaLabel}</Text>
+                <Text className="text-white text-[15px] font-bold">{message.offer?.ctaLabel}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -495,7 +596,6 @@ export default function ChatScreen() {
       );
     }
 
-    const isMe = message.author === 'me';
     const displayUrl = message.imageUrl || (isImageContent(message.text) ? resolveImageUri(message.text) : '');
     const isImage = Boolean(displayUrl);
     const finalImageUrl = displayUrl.replace("https://berrystamp-backend-dev-4cn29.ondigitalocean.app","https://berry-stamp-prod.s3.amazonaws.com");
@@ -504,7 +604,13 @@ export default function ChatScreen() {
       <View key={message.id} className={`w-full my-1 flex-row ${isMe ? 'justify-end' : 'justify-start'}`}>
         {!isMe && (
           <View className="mr-2 self-end mb-1">
-            <AvatarBadge color={conversation.avatarColor} emoji={conversation.avatarEmoji} size={32} />
+            <AvatarBadge
+              color={conversation.avatarColor}
+              emoji={conversation.avatarEmoji}
+              imageUrl={conversation.avatarThumbnailUrl || conversation.avatarPreviewUrl || conversation.avatarImageUrl}
+              label={conversation.avatarInitials}
+              size={32}
+            />
           </View>
         )}
         <View className={`max-w-[78%] rounded-2xl px-4 py-3 ${isMe ? 'bg-indigo-600 dark:bg-indigo-700 rounded-br-sm' : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-bl-sm'}`}>
@@ -530,16 +636,11 @@ export default function ChatScreen() {
   };
 
   return (
-    // 1. A solid background View to prevent white flashes
     <View style={{ flex: 1, backgroundColor: isDark ? '#020617' : '#f8fafc' }}>
-      
-      {/* 2. KeyboardAvoidingView on the OUTSIDE, using explicit style={{flex: 1}} */}
       <KeyboardAvoidingView 
         style={{ flex: 1 }} 
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        
-        {/* 3. SafeAreaView inside the Keyboard layout */}
         <SafeAreaView edges={['left', 'right']} style={{ flex: 1 }}>
           
           {/* Header */}
@@ -551,10 +652,18 @@ export default function ChatScreen() {
               <Ionicons name="arrow-back" size={24} color={themeIconColor} />
             </TouchableOpacity>
             <View className="flex-1 flex-row items-center gap-3 ml-2">
-              <AvatarBadge color={conversation.avatarColor} emoji={conversation.avatarEmoji} size={40} />
+              <AvatarBadge
+                color={conversation.avatarColor}
+                emoji={conversation.avatarEmoji}
+                imageUrl={conversation.avatarThumbnailUrl || conversation.avatarPreviewUrl || conversation.avatarImageUrl}
+                label={conversation.avatarInitials}
+                size={40}
+              />
               <View>
                 <Text className="text-[17px] font-bold text-slate-900 dark:text-slate-100">{conversation.name}</Text>
-                <Text className="text-[13px] text-slate-500 dark:text-slate-400 mt-0.5">Active</Text>
+                <Text className="text-[13px] text-slate-500 dark:text-slate-400 mt-0.5">
+                  {headerSubtitle}
+                </Text>
               </View>
             </View>
             <TouchableOpacity onPress={() => setShowConversationActions(true)} className="w-10 h-10 items-center justify-center">
@@ -696,6 +805,99 @@ export default function ChatScreen() {
             <TouchableOpacity className="rounded-full py-4 items-center border border-slate-200 dark:border-slate-700 mt-3" onPress={() => setShowOfferDetail(false)}>
               <Text className="text-slate-600 dark:text-slate-300 text-lg font-semibold">Not now</Text>
             </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Product Detail Modal (from the uploaded image) */}
+    {/* Product Detail Modal (from the uploaded image) */}
+      <Modal transparent visible={!!selectedProductDetail} animationType="fade" onRequestClose={() => setSelectedProductDetail(null)}>
+        <Pressable className="flex-1 bg-black/40 justify-center items-center px-4" onPress={() => setSelectedProductDetail(null)}>
+          <Pressable className="bg-white dark:bg-slate-50 rounded-3xl w-full max-w-[380px] p-6" onPress={(e) => e.stopPropagation()}>
+            {/* Modal Header */}
+            <View className="flex-row justify-between items-center mb-6">
+              <View className="w-6" /> {/* Visual spacer to strictly center the title */}
+              <Text className="text-[17px] font-semibold text-slate-900">Product Detail</Text>
+              <TouchableOpacity onPress={() => setSelectedProductDetail(null)}>
+                <Ionicons name="close" size={24} color="#1E293B" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Extract product data. Assuming 'selectedProductDetail' is the bundle, we grab the first item. */}
+            {(() => {
+              const products = Array.isArray(selectedProductDetail?.items) && selectedProductDetail.items.length
+                ? selectedProductDetail.items
+                : [selectedProductDetail || {}];
+
+              return (
+                <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 520 }}>
+                  {products.map((product: any, index: number) => {
+                    const budgetDisplay =
+                      product.budget ||
+                      ((product.minBudget || product.maxBudget)
+                        ? `${formatCurrency(product.minBudget)} - ${formatCurrency(product.maxBudget)}`
+                        : formatCurrency(product.price));
+
+                    return (
+                      <View
+                        key={String(product.id || `${index}`)}
+                        className={`${index ? 'mt-5 border-t border-slate-200 pt-5' : ''}`}
+                      >
+                        <View className="items-center mb-5">
+                          <Image
+                            source={{ uri: product.imageUrl || product.image || 'https://via.placeholder.com/150' }}
+                            style={{ width: 140, height: 140, borderRadius: 8, marginBottom: 16 }}
+                            contentFit="cover"
+                          />
+                          <Text className="text-center text-[15px] font-medium text-slate-800">
+                            {product.name || product.title || selectedProductDetail?.title || 'Product Item'}
+                          </Text>
+                        </View>
+
+                        <View className="flex-row justify-between">
+                          <View className="flex-1 pr-3">
+                            <Text className="mb-3 text-[13px] font-semibold text-slate-800">Material specification</Text>
+                            <Text className="mb-2 text-[12px] text-slate-600">Colour : {product.color || product.colour || 'N/A'}</Text>
+                            <Text className="mb-2 text-[12px] text-slate-600">Size : {product.size || 'N/A'}</Text>
+                            <Text className="mb-2 text-[12px] text-slate-600">
+                              Quantity : {product.quantity || 1} {Number(product.quantity || 1) > 1 ? 'pieces' : 'piece'}
+                            </Text>
+                            <Text className="mb-2 text-[12px] text-slate-600">Variant : {product.variantText || 'N/A'}</Text>
+                            <Text className="mb-3 mt-4 text-[13px] font-semibold text-slate-800">Item availability</Text>
+                            <Text className="text-[12px] text-slate-600">
+                              From: {product.inventorySource || product.itemAvailability || "Designer/printer inventory"}
+                            </Text>
+                            {product.deliveryAddress ? (
+                              <Text className="mt-2 text-[12px] text-slate-600">Delivery address: {product.deliveryAddress}</Text>
+                            ) : null}
+                            {product.pickupAddress ? (
+                              <Text className="mt-2 text-[12px] text-slate-600">Pickup address: {product.pickupAddress}</Text>
+                            ) : null}
+                          </View>
+
+                          <View className="flex-1 pl-3">
+                            <Text className="mb-3 text-[13px] font-semibold text-slate-800">Printing Preferences</Text>
+                            <Text className="mb-1 text-[12px] text-slate-600">Preferred printing type</Text>
+                            <Text className="mb-4 text-[12px] text-slate-600">{product.printingType || product.printType || 'N/A'}</Text>
+
+                            <Text className="mb-1 text-[12px] text-slate-600">Total Budget</Text>
+                            <Text className="mb-4 text-[13px] font-medium text-blue-600">{budgetDisplay}</Text>
+
+                            <Text className="mb-1 text-[12px] text-slate-600">Preferred delivery date</Text>
+                            <Text className="mb-4 text-[12px] text-slate-600">
+                              {formatDateLabel(product.deliveryDate || product.preferredDeliveryDate || '')}
+                            </Text>
+
+                            <Text className="mb-1 text-[12px] text-slate-600">Unit price</Text>
+                            <Text className="text-[12px] text-slate-600">{formatCurrency(product.price)}</Text>
+                          </View>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </ScrollView>
+              );
+            })()}
           </Pressable>
         </Pressable>
       </Modal>

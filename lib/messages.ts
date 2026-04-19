@@ -148,7 +148,30 @@ export interface ChatMessageDto {
   bundle?: {
     title: string;
     productCount?: number;
-    items: { id: string; image?: any; imageUrl?: string; overlayText?: string }[];
+    items: {
+      id: string;
+      image?: any;
+      imageUrl?: string;
+      overlayText?: string;
+      name?: string;
+      title?: string;
+      price?: number;
+      quantity?: number;
+      colour?: string;
+      color?: string;
+      size?: string;
+      variantText?: string;
+      designerName?: string;
+      printingType?: string;
+      budget?: string;
+      deliveryDate?: string;
+      preferredDeliveryDate?: string;
+      deliveryAddress?: string;
+      pickupAddress?: string;
+      itemAvailability?: string;
+      inventorySource?: string;
+      hasOwnItem?: boolean;
+    }[];
     footerLabel: string;
   };
   offer?: { title: string; priceLabel: string; description: string; image: any; ctaLabel: string };
@@ -179,16 +202,7 @@ const relativeTime = (dateString?: string) => {
   const date = new Date(dateString);
   if (Number.isNaN(date.getTime())) return 'Now';
 
-  const deltaMs = Date.now() - date.getTime();
-  const minutes = Math.max(1, Math.floor(deltaMs / 60000));
-
-  if (minutes < 60) return `${minutes}m`;
-
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h`;
-
-  const days = Math.floor(hours / 24);
-  return `${days}d`;
+  return date.toLocaleDateString('en-US');
 };
 
 const formatMessageTime = (value?: string) => {

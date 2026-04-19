@@ -26,7 +26,12 @@ export function ConversationRow({ conversation, onPress, onLongPress }: Conversa
         pressed && { opacity: 0.75 }
       ]}
     >
-      <AvatarBadge color={conversation.avatarColor} emoji={conversation.avatarEmoji} />
+      <AvatarBadge
+        color={conversation.avatarColor}
+        emoji={conversation.avatarEmoji}
+        imageUrl={conversation.avatarThumbnailUrl || conversation.avatarPreviewUrl || conversation.avatarImageUrl}
+        label={conversation.avatarInitials}
+      />
       
       <View className="flex-1">
         <View className="flex-row justify-between items-center mb-1.5">

@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator, Alert, RefreshControl, ScrollView,
   StyleSheet, Text, TextInput, TouchableOpacity, View, useColorScheme,
+  Dimensions // 1. Added Dimensions import
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -12,6 +13,9 @@ import { normalizeManageOrderListResponse } from '@/lib/orders';
 import ApiService from '@/services/apiClient';
 import { toProfileType, useAuthStore } from '@/store/authStore';
 import type { ManageOrderItem, ManageOrderStatus } from '@/types';
+
+// 2. Get the screen width
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 type FilterType = 'All' | ManageOrderStatus;
 const FILTERS: FilterType[] = ['All', 'Active', 'Completed', 'Canceled'];
@@ -95,7 +99,7 @@ export default function ManageOrderScreen() {
   }), [orders]);
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1, backgroundColor: theme.background }}>
       <View style={[styles.screen, { backgroundColor: theme.background }]}>
         {/* Header */}
         <View style={styles.header}>
@@ -125,33 +129,11 @@ export default function ManageOrderScreen() {
           )}
         </View>
 
-        {/* Filter Pills */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-          {FILTERS.map((filter) => {
-            const isActive = activeFilter === filter;
-            return (
-              <TouchableOpacity
-                key={filter}
-                onPress={() => setActiveFilter(filter)}
-                activeOpacity={0.8}
-                style={[
-                  styles.filterPill,
-                  { backgroundColor: isActive ? theme.pillActive : theme.pill },
-                ]}
-              >
-                <Text style={[styles.filterText, { color: isActive ? '#FFFFFF' : theme.subtext, fontWeight: isActive ? '600' : '400' }]}>
-                  {filter}
-                  {statusCount[filter] > 0 ? '  ' + statusCount[filter] : ''}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-
         {/* Orders List */}
         <ScrollView
+          style={{ flex: 1 }}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 24 }]}
+          contentContainerStyle={[styles.scrollContent]}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.pillActive} />}
         >
           {loading ? (
@@ -197,6 +179,43 @@ export default function ManageOrderScreen() {
           )}
         </ScrollView>
       </View>
+
+      {/* Fixed Bottom Filter Pills */}
+      <View style={[
+        styles.bottomFilterContainer, 
+        { 
+          backgroundColor: theme.surface, 
+          borderTopColor: theme.border,
+          paddingBottom: insets.bottom + 80 
+        }
+      ]}>
+        {/* 3. Changed ScrollView to a standard View */}
+        <View style={styles.filterRow}>
+          {FILTERS.map((filter) => {
+            const isActive = activeFilter === filter;
+            return (
+              <TouchableOpacity
+                key={filter}
+                onPress={() => setActiveFilter(filter)}
+                activeOpacity={0.8}
+                style={[
+                  styles.filterPill,
+                  { backgroundColor: isActive ? theme.pillActive : theme.pill },
+                ]}
+              >
+                <Text 
+                  numberOfLines={1} 
+                  adjustsFontSizeToFit // Allows text to slightly shrink if counts get big
+                  style={[styles.filterText, { color: isActive ? '#FFFFFF' : theme.subtext, fontWeight: isActive ? '600' : '400' }]}
+                >
+                  {filter}
+                  {statusCount[filter] > 0 ? '  ' + statusCount[filter] : ''}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
     </SafeAreaView>
   );
 }
@@ -204,16 +223,13 @@ export default function ManageOrderScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, minHeight: 44 },
-  backButton: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  backButton: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', marginLeft: -8 },
   headerTitle: { fontSize: 20, fontWeight: '700', flex: 1, marginLeft: 4 },
   countBadge: { borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 },
   countText: { fontSize: 13, fontWeight: '700' },
   searchWrap: { flexDirection: 'row', alignItems: 'center', borderRadius: 14, borderWidth: 1, height: 48, paddingHorizontal: 14, marginBottom: 14 },
   searchInput: { flex: 1, fontSize: 14, marginLeft: 8 },
-  filterRow: { paddingBottom: 14, gap: 8, paddingRight: 4 },
-  filterPill: { borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8 },
-  filterText: { fontSize: 13 },
-  scrollContent: { paddingTop: 4 },
+  scrollContent: { paddingTop: 4, paddingBottom: 16 },
   orderCard: { borderRadius: 16, marginBottom: 12, padding: 14, borderWidth: 1, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
   orderRow: { flexDirection: 'row', alignItems: 'center' },
   orderIcon: { width: 42, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
@@ -228,4 +244,27 @@ const styles = StyleSheet.create({
   emptyState: { alignItems: 'center', borderRadius: 16, borderWidth: 1, marginTop: 40, padding: 32 },
   emptyTitle: { fontSize: 16, fontWeight: '600', marginTop: 12 },
   emptyText: { fontSize: 13, marginTop: 6, textAlign: 'center' },
+  
+  bottomFilterContainer: {
+    borderTopWidth: 1,
+    width: '100%',
+  },
+  filterRow: { 
+    flexDirection: 'row',
+    paddingHorizontal: 20, 
+    paddingVertical: 12, 
+    gap: 8, // 8px gap between pills
+  },
+  filterPill: { 
+    // 4. Mathematical width logic: Total width - (horizontal padding: 40px) - (3 gaps of 8px: 24px) / 4 items
+    width: (SCREEN_WIDTH - 40 - 24) / 4, 
+    borderRadius: 20, 
+    paddingVertical: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterText: { 
+    fontSize: 12, 
+    textAlign: 'center' 
+  },
 });

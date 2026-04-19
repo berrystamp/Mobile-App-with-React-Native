@@ -45,6 +45,13 @@ type CartItemType = {
   checked: boolean;
   designerId?: number;
   designerName?: string;
+  printingType?: string;
+  budget?: string;
+  deliveryDate?: string;
+  deliveryAddress?: string;
+  pickupAddress?: string;
+  itemAvailability?: string;
+  hasOwnItem?: boolean;
 };
 
 type PreferenceErrors = {
@@ -156,6 +163,13 @@ export default function CartScreen() {
               checked: true,
               designerId: item.design?.profile?.id || item.design?.designer?.id,
               designerName: designerName,
+              printingType: item.printingType || item.printType || "",
+              budget: item.budget || "",
+              deliveryDate: item.deliveryDate || "",
+              deliveryAddress: item.deliveryAddress || "",
+              pickupAddress: item.pickupAddress || "",
+              itemAvailability: item.itemAvailability || "",
+              hasOwnItem: typeof item.hasOwnItem === "boolean" ? item.hasOwnItem : undefined,
             } satisfies CartItemType;
           }),
         );
@@ -363,19 +377,54 @@ export default function CartScreen() {
             bundle: {
               title: "Selected products",
               productCount: group.length,
-              footerLabel: `View the ${group.length} Product${group.length > 1 ? "s" : ""}`,
-              items: group.slice(0, 4).map((item, index) => ({
+              footerLabel: group.length > 1 ? "View all product details" : "View product details",
+              items: group.map((item, index) => ({
                 id: item.id,
                 imageUrl: item.imageUrl,
                 overlayText:
                   index === 3 && group.length > 4
                     ? `+${group.length - 3} Items`
                     : undefined,
+                name: item.name,
+                title: item.name,
+                price: item.price,
+                quantity: item.quantity,
+                colour: item.colour,
+                color: item.colour,
+                size: item.size,
+                variantText: item.variantText,
+                designerName: item.designerName,
+                printingType: estimatedAmount ? "Custom designer review" : "",
+                budget: estimatedAmount,
+                deliveryDate,
+                preferredDeliveryDate: deliveryDate,
+                deliveryAddress,
+                pickupAddress: hasOwnItem ? pickupAddress : "",
+                itemAvailability: hasOwnItem ? "Customer supplied item" : "Designer/printer inventory",
+                inventorySource: hasOwnItem ? "Customer supplied item" : "Designer/printer inventory",
+                hasOwnItem: Boolean(hasOwnItem),
               })),
             },
           },
         ],
       });
+    }
+
+    const selectedItemIds = new Set(selectedItems.map((item) => item.id));
+
+    try {
+      if (selectedItems.length === cartItems.length) {
+        await ApiService.clearCart();
+      } else {
+        await Promise.allSettled(
+          selectedItems.map((item) => ApiService.deleteCartItem(item.id)),
+        );
+      }
+      setCartItems((current) =>
+        current.filter((item) => !selectedItemIds.has(item.id)),
+      );
+    } catch (error) {
+      console.error("Error clearing sent cart items:", error);
     }
 
     setConfirmVisible(false);

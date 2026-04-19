@@ -1,26 +1,19 @@
-import React, { useEffect, useRef } from 'react';
+import React from 'react';
 import {
   View,
   TouchableOpacity,
   StyleSheet,
   useColorScheme,
   Platform,
-  Animated,
-  Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, usePathname, Href } from 'expo-router';
 import { useAuthStore, isCustomerRole } from '@/store/authStore';
-import Svg, { Path } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const MIDDLE_ITEM_SIZE = 64;
 const LIGHT_BACKGROUND = ['rgba(255, 255, 255, 0.95)', 'rgba(245, 245, 255, 0.85)'] as const;
 const DARK_BACKGROUND = ['rgba(20, 20, 30, 0.95)', 'rgba(30, 30, 40, 0.85)'] as const;
-const LIGHT_LIQUID = ['rgba(74, 63, 143, 0.25)', 'rgba(94, 83, 163, 0.2)'] as const;
-const DARK_LIQUID = ['rgba(110, 90, 200, 0.4)', 'rgba(74, 63, 143, 0.3)'] as const;
 
 export interface BottomNavigationProps {
   onNavigate?: (route: string) => void;
@@ -46,18 +39,14 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({ onNavigate }) => {
     background: isDark ? DARK_BACKGROUND : LIGHT_BACKGROUND,
     activeTint: '#4A3F8F',
     inactiveTint: isDark ? '#A0A0A0' : '#6C6C6C',
-    liquidColor: isDark ? DARK_LIQUID : LIGHT_LIQUID,
     borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
-    shadowColor: isDark ? '#000000' : '#4A3F8F',
-    middleBackground: isDark ? '#2A2A3A' : '#FFFFFF',
-    middleBorder: isDark ? '#4A3F8F' : '#4A3F8F',
   };
 
   const navItems: NavItem[] = isCustomer
     ? [
         { name: 'Home', link: '/', icon: 'home', iconOutline: 'home-outline' },
-        { name: 'Favorites', link: '/favorites', icon: 'heart', iconOutline: 'heart-outline' },
         { name: 'Messages', link: '/messages', icon: 'mail', iconOutline: 'mail-outline' },
+        { name: 'Favorites', link: '/favorites', icon: 'heart', iconOutline: 'heart-outline' },
         { name: 'Cart', link: '/cart', icon: 'cart', iconOutline: 'cart-outline' },
         { name: 'Profile', link: '/profile', icon: 'person', iconOutline: 'person-outline' },
       ]
@@ -67,9 +56,6 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({ onNavigate }) => {
         { name: 'Manage Order', link: '/manage-order', icon: 'document-text', iconOutline: 'document-text-outline' },
         { name: 'Profile', link: '/profile', icon: 'person', iconOutline: 'person-outline' },
       ];
-  const itemWidth = SCREEN_WIDTH / navItems.length;
-  const hasElevatedMiddleItem = navItems.length === 5;
-  const middleIndex = Math.floor(navItems.length / 2);
 
   const checkIsActive = (link: string) => {
     if (link === '/') {
@@ -80,71 +66,6 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({ onNavigate }) => {
     }
     return pathname.startsWith(link);
   };
-
-  const activeIndex = navItems.findIndex((item) => checkIsActive(item.link as string));
-  const liquidAnim = useRef(new Animated.Value(activeIndex === -1 ? middleIndex : activeIndex)).current;
-  const middlePulseAnim = useRef(new Animated.Value(1)).current;
-  const waveAnim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    const targetIndex = activeIndex === -1 ? middleIndex : activeIndex;
-    
-    Animated.parallel([
-      Animated.spring(liquidAnim, {
-        toValue: targetIndex,
-        friction: 6,
-        tension: 80,
-        useNativeDriver: true,
-      }),
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(waveAnim, {
-            toValue: 1,
-            duration: 2000,
-            useNativeDriver: true,
-          }),
-          Animated.timing(waveAnim, {
-            toValue: 0,
-            duration: 2000,
-            useNativeDriver: true,
-          }),
-        ])
-      ),
-    ]).start();
-
-    // Pulse animation for middle item when active
-    if (targetIndex === middleIndex) {
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(middlePulseAnim, {
-            toValue: 1.1,
-            duration: 1000,
-            useNativeDriver: true,
-          }),
-          Animated.timing(middlePulseAnim, {
-            toValue: 1,
-            duration: 1000,
-            useNativeDriver: true,
-          }),
-        ])
-      ).start();
-    } else {
-      middlePulseAnim.setValue(1);
-    }
-  }, [activeIndex, liquidAnim, middleIndex, middlePulseAnim, waveAnim]);
-
-  const waveTranslateX = waveAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [-itemWidth, itemWidth * 2],
-  });
-
-  const scaleMap = navItems.map((_, i) =>
-    liquidAnim.interpolate({
-      inputRange: [i - 0.6, i, i + 0.6],
-      outputRange: [1, hasElevatedMiddleItem && i === middleIndex ? 1.4 : 1.2, 1],
-      extrapolate: 'clamp',
-    })
-  );
 
   return (
     <View style={styles.wrapper}>
@@ -157,88 +78,15 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({ onNavigate }) => {
           styles.container,
           {
             borderTopColor: theme.borderColor,
-            height: 70 + Math.max(insets.bottom, Platform.OS === 'ios' ? 12 : 8),
+            // Adjust height dynamically based on safe area insets
+            height: 60 + Math.max(insets.bottom, Platform.OS === 'ios' ? 12 : 8),
             paddingBottom: Math.max(insets.bottom, Platform.OS === 'ios' ? 12 : 8),
           },
         ]}
       >
-        {/* Frosted overlay effect */}
-        <View style={[
-          styles.frostOverlay,
-          { backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.3)' }
-        ]} />
-
-        {/* Liquid wave effect */}
-        <Animated.View
-          style={[
-            styles.waveContainer,
-            {
-              transform: [{ translateX: waveTranslateX }],
-            },
-          ]}
-        >
-          <Svg height="70" width={itemWidth * 3}>
-            <Path
-              d={`M0,35 Q${itemWidth * 0.75},20 ${itemWidth * 1.5},35 T${itemWidth * 3},35`}
-              stroke={theme.liquidColor[0]}
-              strokeWidth="2"
-              fill="none"
-              opacity="0.3"
-            />
-          </Svg>
-        </Animated.View>
-
         {/* Navigation items */}
-        {navItems.map((item, index) => {
+        {navItems.map((item) => {
           const isActive = checkIsActive(item.link as string);
-          const isMiddle = hasElevatedMiddleItem && index === middleIndex;
-
-          if (isMiddle) {
-            return (
-              <View key={item.name} style={styles.middleWrapper}>
-                <TouchableOpacity
-                  activeOpacity={0.8}
-                  onPress={() => {
-                    if (onNavigate) onNavigate(item.name);
-                    router.replace(item.link);
-                  }}
-                >
-                  <Animated.View
-                    style={[
-                      styles.middleNavItem,
-                      {
-                        backgroundColor: theme.activeTint,
-                        borderColor: theme.middleBorder,
-                        transform: [{ scale: isActive ? middlePulseAnim : 1 }],
-                        shadowColor: theme.activeTint,
-                      },
-                    ]}
-                  >
-                    <LinearGradient
-                      colors={['rgba(255,255,255,0.3)', 'rgba(255,255,255,0)']}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.middleGradient}
-                    />
-                    <Ionicons
-                      name={isActive ? item.icon : item.iconOutline}
-                      size={32}
-                      color="#FFFFFF"
-                    />
-                  </Animated.View>
-                </TouchableOpacity>
-                
-                {/* Liquid droplets around middle item */}
-                {isActive && (
-                  <>
-                    <Animated.View style={[styles.droplet, styles.droplet1, { opacity: middlePulseAnim }]} />
-                    <Animated.View style={[styles.droplet, styles.droplet2, { opacity: middlePulseAnim }]} />
-                    <Animated.View style={[styles.droplet, styles.droplet3, { opacity: middlePulseAnim }]} />
-                  </>
-                )}
-              </View>
-            );
-          }
 
           return (
             <TouchableOpacity
@@ -250,21 +98,14 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({ onNavigate }) => {
                 router.replace(item.link);
               }}
             >
-              <Animated.View
-                style={[
-                  styles.iconContainer,
-                  {
-                    transform: [{ scale: scaleMap[index] }],
-                  },
-                ]}
-              >
+              <View style={styles.iconContainer}>
                 <Ionicons
                   name={isActive ? item.icon : item.iconOutline}
-                  size={24}
+                  size={26}
                   color={isActive ? theme.activeTint : theme.inactiveTint}
                 />
-              </Animated.View>
-              {isActive && (!hasElevatedMiddleItem || index !== middleIndex) && (
+              </View>
+              {isActive && (
                 <View style={[styles.activeDot, { backgroundColor: theme.activeTint }]} />
               )}
             </TouchableOpacity>
@@ -283,8 +124,6 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
     ...Platform.select({
       ios: {
         shadowColor: '#000',
@@ -293,7 +132,7 @@ const styles = StyleSheet.create({
         shadowRadius: 8,
       },
       android: {
-        elevation: 20,
+        elevation: 10,
       },
     }),
   },
@@ -302,98 +141,27 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
     alignItems: 'center',
     borderTopWidth: 1,
-    overflow: 'visible',
     width: '100%',
-    position: 'relative',
-  },
-  frostOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backdropFilter: Platform.OS === 'web' ? 'blur(10px)' : undefined,
-  },
-  waveContainer: {
-    position: 'absolute',
-    height: 70,
-    width: SCREEN_WIDTH,
-    left: 0,
-    top: 0,
-    zIndex: 1,
   },
   navItem: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     height: '100%',
-    zIndex: 2,
+    position: 'relative',
   },
   iconContainer: {
     alignItems: 'center',
     justifyContent: 'center',
     width: 48,
     height: 48,
-    borderRadius: 24,
-  },
-  middleWrapper: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: '100%',
-    zIndex: 10,
-  },
-  middleNavItem: {
-    width: MIDDLE_ITEM_SIZE,
-    height: MIDDLE_ITEM_SIZE,
-    borderRadius: MIDDLE_ITEM_SIZE / 2,
-    backgroundColor: '#4A3F8F',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: -MIDDLE_ITEM_SIZE / 2 - 10,
-    borderWidth: 3,
-    borderColor: '#FFFFFF',
-    ...Platform.select({
-      ios: {
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
-  },
-  middleGradient: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    borderRadius: MIDDLE_ITEM_SIZE / 2,
   },
   activeDot: {
     position: 'absolute',
-    bottom: 6,
-    width: 4,
-    height: 4,
-    borderRadius: 2,
+    bottom: 8,
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
     alignSelf: 'center',
-  },
-  droplet: {
-    position: 'absolute',
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#4A3F8F',
-    opacity: 0.3,
-  },
-  droplet1: {
-    top: -5,
-    left: 15,
-  },
-  droplet2: {
-    top: 5,
-    right: 10,
-  },
-  droplet3: {
-    bottom: 10,
-    left: 5,
   },
 });

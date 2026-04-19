@@ -131,7 +131,17 @@ export default function ProductDetailsScreen() {
       participantId: design.profile.id,
       name: artistName,
       role: 'Designer',
-      initialMessage: `Hi, I want to customize "${design.title}" for a new order. Can we discuss size, color, quantity and printing options?`,
+      initialMessages: [
+        {
+          id: `customization-${design.id}-${Date.now()}`,
+          type: 'text',
+          text: `Hi, I want to customize "${design.title}" for a new order. Can we discuss size, color, quantity and printing options?`,
+          previewText: `Customization request for "${design.title}"`,
+          author: 'me',
+          createdAt: new Date().toISOString(),
+          status: 'sent',
+        },
+      ],
     });
 
     router.push({

@@ -11,7 +11,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   login: (email: string, password: string, rememberMe?: boolean, profileType?: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
-  checkAuth: () => Promise<void>;
+  checkAuth: (skipRedirect?: boolean) => Promise<void>;
   refreshUser: () => Promise<void>;
 }
 
@@ -26,7 +26,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const needsInterestOnboarding = useAuthStore((state) => state.needsInterestOnboarding);
 
   useEffect(() => {
-    checkAuth();
+    // Pass true to skip the redirect on the initial app load
+    checkAuth(true);
   }, []);
 
   useEffect(() => {
@@ -45,7 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const checkAuth = async () => {
+  const checkAuth = async (skipRedirect = false) => {
     setIsLoading(true);
     try {
       const token = await AsyncStorage.getItem('userToken');
@@ -55,24 +56,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (token && userData) {
         setUser(JSON.parse(userData));
         setIsAuthenticated(true);
-        if (needsInterestOnboarding) {
-          if (!(segments[0] === '(auth)' && segments[1] === 'interests')) {
-            router.replace('/(auth)/interests');
+        
+        // Only redirect if we aren't skipping it (e.g., let index.tsx handle initial routing)
+        if (!skipRedirect) {
+          if (needsInterestOnboarding) {
+            if (!(segments[0] === '(auth)' && segments[1] === 'interests')) {
+              router.replace('/(auth)/interests');
+            }
+          } else if (segments[0] !== '(tabs)') {
+            router.replace('/(tabs)');
           }
-        } else if (segments[0] !== '(tabs)') {
-          router.replace('/(tabs)');
         }
       } else {
         setIsAuthenticated(false);
         setUser(null);
-        // Unauthenticated users always go to login, not choose-account
-        if (!inAuthGroup) {
+        
+        if (!skipRedirect && !inAuthGroup) {
           router.replace('/(auth)/login');
         }
       }
     } catch (error) {
       console.error('Failed to restore auth state', error);
-      router.replace('/(auth)/login');
+      if (!skipRedirect) {
+        router.replace('/(auth)/login');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -85,7 +92,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     profileType: string = 'CUSTOMER',
   ): Promise<{ success: boolean; error?: string }> => {
     try {
-      // Always login as CUSTOMER first - user can switch account type after
       const result = await ApiService.login(email, password, 'CUSTOMER');
 
       if (result.requestSuccessful && result.responseBody?.token) {

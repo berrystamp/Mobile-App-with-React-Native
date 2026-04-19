@@ -1,30 +1,38 @@
+import { useAuth } from '@/context/AuthContext'; // Import the Context
 import { useAuthStore } from '@/store/authStore';
 import { useRouter } from 'expo-router';
-import * as NativeSplashScreen from 'expo-splash-screen';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect } from 'react';
 import { Image, StatusBar, StyleSheet, useColorScheme, View } from 'react-native';
-
-NativeSplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function SplashScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
-  const { isHydrated, isLoggedIn } = useAuthStore();
+  
+  // Use Context to accurately track if the auth check is finished
+  const { isAuthenticated, isLoading } = useAuth(); 
+  const { needsInterestOnboarding } = useAuthStore();
 
   useEffect(() => {
-    if (!isHydrated) return;
-    const timer = setTimeout(async () => {
-      await NativeSplashScreen.hideAsync().catch(() => {});
-      if (isLoggedIn) {
-        router.replace('/(tabs)');
+    // Do not start the 20-second countdown until checkAuth() is completely finished
+    if (isLoading) return;
+    
+    const timer = setTimeout(() => {
+      if (isAuthenticated) {
+        // Respect your onboarding flow if they are authenticated
+        if (needsInterestOnboarding) {
+           router.replace('/(auth)/interests');
+        } else {
+           router.replace('/(tabs)');
+        }
       } else {
         router.replace('/(auth)/login');
       }
-    }, 2500);
+    }, 3000); // 20 seconds delay
+    
     return () => clearTimeout(timer);
-  }, [isHydrated, isLoggedIn, router]);
+  }, [isLoading, isAuthenticated, needsInterestOnboarding, router]);
 
   return (
     <View style={styles.container}>

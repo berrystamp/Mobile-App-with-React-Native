@@ -249,7 +249,7 @@ export default function MyShopScreen() {
               showMenu={!readOnly}
               onItemPress={(item) => {
                 if (item.type === 'design') {
-                  router.push({ pathname: '/product-details', params: { designId: String(item.id) } });
+                  router.push({ pathname: '/product', params: { designId: String(item.id) } });
                   return;
                 }
                 router.push({ pathname: '/products', params: { searchField: item.title } });
