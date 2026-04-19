@@ -1,17 +1,14 @@
-import { useEffect } from "react";
 import { AuthProvider } from '@/context/AuthContext';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import * as SplashScreen from 'expo-splash-screen'; // 1. Import SplashScreen
 import 'react-native-reanimated';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { getAppTheme } from '@/lib/theme/appTheme';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import "./global.css"
 
-// 2. Prevent the splash screen from auto-hiding immediately
-SplashScreen.preventAutoHideAsync();
+
 
 export const unstable_settings = {
   anchor: 'index',
@@ -34,14 +31,6 @@ export function MainApp() {
     },
   };
 
-  // 3. Hide the splash screen once this component mounts
-  useEffect(() => {
-    const hideSplash = async () => {
-      // Small delay to ensure UI is painted, or just call it immediately
-      await SplashScreen.hideAsync();
-    };
-    hideSplash();
-  }, []);
 
   return (
     <SafeAreaProvider>
