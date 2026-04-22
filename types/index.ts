@@ -71,7 +71,9 @@ export interface Mock {
   available: boolean;
   availableQty?: number;
   colours?: string[];
+  sizes?: string[];
 }
+
 
 export interface Design {
   id: number;
