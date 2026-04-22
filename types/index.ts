@@ -53,6 +53,7 @@ export interface Artist {
   firstName: string;
   lastName: string;
   username: string;
+  shopName?: string;
   profilePicturePath?: string;
   rating: number;
   totalDesigns?: number;
@@ -97,6 +98,7 @@ export interface Design {
   categories?: string[];
   designerId?: number;
   designerName?: string;
+  designerShopName?: string;
 }
 
 export interface User {

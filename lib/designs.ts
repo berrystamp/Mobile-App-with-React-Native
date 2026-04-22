@@ -79,7 +79,7 @@ function splitDisplayName(displayName?: string) {
 }
 
 export function normalizeArtist(input?: BackendDesigner | null): Artist {
-  const displayName = input?.userName || input?.name || "Berry Designer";
+  const displayName = input?.name || input?.userName || "Berry Designer";
   const { firstName, lastName } = splitDisplayName(displayName);
   const profilePicturePath =
     input?.profileImage?.url || input?.profilePic || undefined;
@@ -89,6 +89,7 @@ export function normalizeArtist(input?: BackendDesigner | null): Artist {
     firstName,
     lastName,
     username: input?.userName || displayName,
+    shopName: input?.name || input?.userName || displayName,
     profilePicturePath: profilePicturePath
       ? toAbsoluteUrl(profilePicturePath)
       : undefined,
@@ -169,8 +170,10 @@ export function normalizeDesign(input: BackendDesign): Design {
     categories: input.categories || [],
     designerId: input.designer?.id || profile.id,
     designerName:
+      input.designer?.name ||
       input.designer?.userName ||
       `${profile.firstName} ${profile.lastName}`.trim(),
+    designerShopName: input.designer?.name || input.designer?.userName,
   };
 }
 
@@ -201,6 +204,10 @@ export function extractArtistsFromDesigns(designs: Design[]): Artist[] {
         firstName: design.profile.firstName,
         lastName: design.profile.lastName,
         username: design.designerName || design.profile.username,
+        shopName:
+          design.designerShopName ||
+          design.designerName ||
+          design.profile.username,
         profilePicturePath: design.profile.profilePicturePath,
         rating: 5,
         totalDesigns: 0,
