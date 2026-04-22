@@ -106,7 +106,7 @@ export default function CustomDesignHubScreen() {
             const price = Number(item?.amount || item?.price || 0);
             return (
               <TouchableOpacity
-                onPress={() => router.push({ pathname: '/product-details', params: { designId: String(item.id) } })}
+                onPress={() => router.push({ pathname: '/product', params: { designId: String(item.id) } })}
                 style={{ flex: 1, backgroundColor: surface, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: border }}
                 activeOpacity={0.85}
               >

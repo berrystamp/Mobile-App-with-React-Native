@@ -33,7 +33,7 @@ const HIDE_NAV_ROUTES = [
   '/notification', '/payments', '/edit-profile', '/track-order',
   '/faq', '/referral', '/referral-how-it-works', '/manage-order',
   '/update-interest', '/switch-account', '/upload-design', '/create-collection',
-  '/product-details', '/product',
+  '/product',
 ];
 
 export default function TabsLayout() {
@@ -82,7 +82,6 @@ export default function TabsLayout() {
           <Stack.Screen name="order/[id]" />
           <Stack.Screen name="printers" />
           <Stack.Screen name="products" />
-          <Stack.Screen name="product-details" />
           <Stack.Screen name="product" />
           <Stack.Screen name="profile" />
           <Stack.Screen name="notification" />

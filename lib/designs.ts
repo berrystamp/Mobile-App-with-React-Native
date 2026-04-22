@@ -23,7 +23,9 @@ interface BackendMock {
   imageUrl?: string;
   availableQty?: number;
   colours?: string[];
+  sizes?: string[];
 }
+
 
 interface BackendDesign {
   id: number;
@@ -113,6 +115,7 @@ export function normalizeMock(mock: BackendMock, amount = 0): Mock {
     available: (mock.availableQty || 0) > 0,
     availableQty: mock.availableQty,
     colours: mock.colours || [],
+    sizes: mock.sizes || [],
   };
 }
 
