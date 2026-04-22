@@ -25,17 +25,50 @@ export function useHomeData(enabled: boolean = true) {
       }
       setError(null);
 
-      const [artistsRes, recentRes, featuredRes] = await Promise.all([
-        ApiService.getTopArtists(10),
+      const [artistsRes, recentRes, featuredRes, designerProfilesRes] = await Promise.all([
+        ApiService.getTopArtists(80),
         ApiService.getRecentDesigns(10),
         ApiService.getFeaturedDesigns(10),
+        ApiService.getPublicProfiles('DESIGNER', 0, 120).catch(() => null),
       ]);
-      console.log('Fetched home data:', { artistsRes, recentRes, featuredRes });
       const artistSourceDesigns = normalizeDesignListResponse(artistsRes);
       const recent = normalizeDesignListResponse(recentRes);
       const featured = normalizeDesignListResponse(featuredRes);
+      const profileList =
+        designerProfilesRes?.responseBody?.content ||
+        designerProfilesRes?.content ||
+        designerProfilesRes?.responseBody ||
+        [];
+      const profileMap = new Map<number, any>(
+        (Array.isArray(profileList) ? profileList : [])
+          .map((profile: any) => [
+            Number(profile?.id || profile?.profileId || profile?.userId),
+            profile,
+          ])
+          .filter(([id]) => Number.isFinite(id) && id > 0),
+      );
 
-      setTopArtists(extractArtistsFromDesigns(artistSourceDesigns));
+      const topArtistsByUploads = extractArtistsFromDesigns(artistSourceDesigns)
+        .map((artist) => {
+          const profile = profileMap.get(artist.id);
+          const shopName =
+            profile?.shopName ||
+            profile?.brandName ||
+            profile?.name ||
+            profile?.userName ||
+            artist.shopName ||
+            artist.username;
+
+          return {
+            ...artist,
+            shopName,
+            username: shopName || artist.username,
+          };
+        })
+        .sort((a, b) => (b.totalDesigns || 0) - (a.totalDesigns || 0))
+        .slice(0, 12);
+
+      setTopArtists(topArtistsByUploads);
       setRecentDesigns(recent);
       setFeaturedDesigns(featured);
     } catch (err: any) {

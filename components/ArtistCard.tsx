@@ -67,13 +67,9 @@ export const ArtistCard: React.FC<ArtistCardProps> = ({ artist, onPress }) => {
     }
     return null;
   };
-  console.log(artist);
   const avatarUrl = getAvatarUrl();
-  // Prefer shop/brand name over personal real name
   const fullName =
-    (artist as any).shopName ||
-    (artist as any).brandName ||
-    (artist as any).name ||
+    artist.shopName ||
     artist.username ||
     `${artist.firstName || ""} ${artist.lastName || ""}`.trim() ||
     "Unknown Artist";

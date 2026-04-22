@@ -30,7 +30,6 @@ import Svg, {
   Circle,
   Defs,
   Path,
-  Pattern,
   Polyline,
   Rect,
   LinearGradient,
@@ -373,6 +372,22 @@ export default function HomeScreen() {
         contentContainerStyle={[styles.contentContainer, { paddingBottom: 100 }]}
         showsVerticalScrollIndicator={false}
       >
+        <View style={[styles.customerHeader, { paddingTop: dashboardTopInset + 8 }]}>
+          <Image
+            source={require("../img/logo-icon.webp")}
+            style={styles.customerLogo}
+            resizeMode="contain"
+          />
+          <View style={styles.customerHeaderIcons}>
+            <TouchableOpacity onPress={() => router.push("/Search")} style={styles.headerActionButton}>
+              <Ionicons name="search-outline" size={21} color={theme.text} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push("/notification")} style={styles.headerActionButton}>
+              <Ionicons name="notifications-outline" size={20} color={theme.text} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
         <View style={styles.section}>
           <SectionHeader title="Top Artists" showViewAll={false} />
           <ScrollView
@@ -1044,6 +1059,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 8,
     paddingBottom: 120,
+  },
+  customerHeader: {
+    marginBottom: 16,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  customerLogo: {
+    width: 112,
+    height: 26,
+  },
+  customerHeaderIcons: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  headerActionButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
   },
   section: {
     marginBottom: 28,
