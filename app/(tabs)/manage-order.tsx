@@ -103,7 +103,7 @@ export default function ManageOrderScreen() {
       <View style={[styles.screen, { backgroundColor: theme.background }]}>
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <TouchableOpacity onPress={() => router.push('/(tabs)')} style={styles.backButton}>
             <Ionicons name="arrow-back" size={22} color={theme.text} />
           </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: theme.text }]}>My Orders</Text>
@@ -186,7 +186,7 @@ export default function ManageOrderScreen() {
         { 
           backgroundColor: theme.surface, 
           borderTopColor: theme.border,
-          paddingBottom: insets.bottom + 80 
+          marginBottom: insets.bottom + 80 
         }
       ]}>
         {/* 3. Changed ScrollView to a standard View */}

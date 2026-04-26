@@ -273,7 +273,6 @@ export default function UploadDesignScreen() {
       const response = isEditing
         ? await ApiService.updateCustomDesign(String(designId), designPayload)
         : await ApiService.createDesign(designPayload);
-
       const savedDesign = unwrapBody(response);
       const savedDesignId = String(savedDesign?.id || designId || '');
 

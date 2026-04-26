@@ -372,21 +372,7 @@ export default function HomeScreen() {
         contentContainerStyle={[styles.contentContainer, { paddingBottom: 100 }]}
         showsVerticalScrollIndicator={false}
       >
-        <View style={[styles.customerHeader, { paddingTop: dashboardTopInset + 8 }]}>
-          <Image
-            source={require("../img/logo-icon.webp")}
-            style={styles.customerLogo}
-            resizeMode="contain"
-          />
-          <View style={styles.customerHeaderIcons}>
-            <TouchableOpacity onPress={() => router.push("/Search")} style={styles.headerActionButton}>
-              <Ionicons name="search-outline" size={21} color={theme.text} />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => router.push("/notification")} style={styles.headerActionButton}>
-              <Ionicons name="notifications-outline" size={20} color={theme.text} />
-            </TouchableOpacity>
-          </View>
-        </View>
+  
 
         <View style={styles.section}>
           <SectionHeader title="Top Artists" showViewAll={false} />

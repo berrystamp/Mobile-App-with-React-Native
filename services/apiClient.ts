@@ -649,8 +649,7 @@ async getManageOrderById(orderId: string | number, profileType?: ProfileTypeInte
   }
 
   async createDesign(payload: CreateDesignPayload) {
-    const headers = { profileType: getProfileType() };
-    const response = await api.post('/designs', payload, { headers });
+    const response = await api.post('/designs', payload );
     return response.data;
   }
 
