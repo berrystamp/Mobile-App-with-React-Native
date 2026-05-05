@@ -1,8 +1,8 @@
+import { extractFaqFromHtml, type FaqItem } from '@/lib/faq';
+import { useAuthStore } from '@/store/authStore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AxiosRequestConfig } from 'axios';
 import api from './api';
-import { extractFaqFromHtml, type FaqItem } from '@/lib/faq';
-import { useAuthStore } from '@/store/authStore';
 
 type ProfileTypeInterface = 'CUSTOMER' | 'DESIGNER' | 'PRINTER';
 type OrderStatus = 
@@ -257,19 +257,25 @@ class ApiService {
   }
 
   async updateMyProfile(payload: Record<string, unknown>) {
+
     const profileType = getProfileType();
-    try {
-      const response = await api.put('/profile', payload, {
-        headers: {
-          profileType
-        },
-      });
-      return response.data;
-    } catch (error: any) {
-      if (error?.response?.status && error.response.status !== 404) {
-        throw error;
-      }
+    console.log(profileType)
+    const response = await api.put('/profile', payload, {
+      headers: { profileType },
+    });
+    const data = response.data;
+    // Surface backend validation errors that come back as 200 with requestSuccessful: false
+    if (data && data.requestSuccessful === false) {
+      const msg =
+        data.responseMessage ||
+        data.message ||
+        data.error ||
+        'Profile update failed';
+      const err: any = new Error(msg);
+      err.response = { data };
+      throw err;
     }
+    return data;
   }
 
   async setActiveProfileType(profileType: ProfileTypeInterface) {
@@ -1167,14 +1173,35 @@ async getManageOrderById(orderId: string | number, profileType?: ProfileTypeInte
   }
 
   async getWallet() {
-    const response = await api.get('/wallets');
+    const profileType = getProfileType();
+    const response = await api.get('/wallets', {
+      headers: { profileType },
+    });
     return response.data;
   }
 
-  async getWalletHistory(page: number = 0, size: number = 20) {
+  async getWalletHistory(
+    page: number = 0,
+    size: number = 20,
+    status?: 'SUCCESS' | 'FAILED' | 'PENDING',
+  ) {
+    const profileType = getProfileType();
+    const params: Record<string, unknown> = { page, size, sort: 'id,desc' };
+    if (status) params.status = status;
     const response = await api.get('/wallets/histories', {
-      params: { page, size, sort: 'id,desc' }
+      params,
+      headers: { profileType },
     });
+    return response.data;
+  }
+
+  async withdrawFromWallet(amount: number) {
+    const profileType = getProfileType();
+    const response = await api.post(
+      '/wallets/withdraw',
+      { amount },
+      { headers: { profileType } },
+    );
     return response.data;
   }
 
@@ -1414,6 +1441,58 @@ async getManageOrderById(orderId: string | number, profileType?: ProfileTypeInte
   // Generic request method
   async request(config: AxiosRequestConfig) {
     const response = await api.request(config);
+    return response.data;
+  }
+
+  // ─── Settings: Mail / Email notifications ──────────────────────────────────
+  async getMailSettings() {
+    const response = await api.get('/user/mail-setting');
+    return response.data;
+  }
+
+  async updateMailSettings(payload: {
+    supportEmail: boolean;
+    orderEmail: boolean;
+    newsEmail: boolean;
+    otherEmail: boolean;
+    promotionEmail: boolean;
+  }) {
+    const response = await api.put('/user/mail-setting', payload);
+    return response.data;
+  }
+
+  // ─── Settings: Change password ─────────────────────────────────────────────
+  async changePassword(payload: { oldPassword: string; newPassword: string }) {
+    const response = await api.patch('/user/password', payload);
+    return response.data;
+  }
+
+  // ─── Settings: Change email (request OTP + verify) ─────────────────────────
+  async requestEmailChange(newEmail: string) {
+    const response = await api.post('/user/change-email', { email: newEmail });
+    return response.data;
+  }
+
+  async verifyEmailChange(newEmail: string, otp: string) {
+    const response = await api.post('/user/change-email/verify', { email: newEmail, otp });
+    return response.data;
+  }
+
+  // ─── Insights ──────────────────────────────────────────────────────────────
+  async getProfileInsights(profileId: string | number) {
+    const response = await api.get(`/insights/profile/${profileId}`);
+    return response.data;
+  }
+
+  async getActivityPieChart() {
+    const response = await api.get('/insights/activity-pie-chart');
+    return response.data;
+  }
+
+  async getActivityBarGraph(interval: 'DAILY' | 'WEEKLY' | 'MONTHLY' = 'MONTHLY') {
+    const response = await api.get('/insights/activity-bar-graph', {
+      params: { interval },
+    });
     return response.data;
   }
 }

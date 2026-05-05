@@ -1,19 +1,43 @@
-import { Ionicons } from "@expo/vector-icons";
-import * as ImagePicker from "expo-image-picker";
-import { useFocusEffect, useRouter } from "expo-router";
-import React, { useCallback, useMemo, useRef, useState } from "react";
-import {
-  ActivityIndicator, Alert, Image, KeyboardAvoidingView,
-  Modal, Platform, ScrollView, StyleSheet, Text,
-  TextInput, TouchableOpacity, View,
-} from "react-native";
 import { useAuth } from "@/context/AuthContext";
 import { useFileUpload } from "@/hooks/useFileUpload";
 import { DEFAULT_DESIGN_THEMES } from "@/lib/customDesign";
 import { mergeUserAndProfile, normalizeProfileResponse } from "@/lib/profile";
-import { useAppTheme } from "@/lib/theme/appTheme";
 import ApiService from "@/services/apiClient";
 import { toProfileType, useAuthStore } from "@/store/authStore";
+import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useMemo, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  useColorScheme,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+// ─── Backend stubs — wire these up when your API is ready ───────────────────
+async function deactivateAccount(): Promise<void> {
+  // TODO: replace with real API call, e.g.:
+  // await ApiService.deactivateAccount();
+  throw new Error("deactivateAccount: not yet implemented");
+}
+
+async function deleteAccount(): Promise<void> {
+  // TODO: replace with real API call, e.g.:
+  // await ApiService.deleteAccount();
+  throw new Error("deleteAccount: not yet implemented");
+}
+// ────────────────────────────────────────────────────────────────────────────
 
 const defaultAvatar = "https://ui-avatars.com/api/?background=4B3A99&color=fff&size=128&name=U";
 
@@ -23,33 +47,229 @@ const toImage = (path?: string) => {
   return "https://backend-prod-api.berrystamp.com/" + path.replace(/^\/+/, "");
 };
 
+// Spec categories matching the design
+const SPEC_CATEGORIES = [
+  "Abstract art", "Minimalist","Illustration","Geometry art","Creative art", "Conceptual", "Fun and playful",
+  "Typographic", "Feminine", "Masculine", "Nature", "Kiddies",
+  ...DEFAULT_DESIGN_THEMES.filter(
+    (t) => !["Abstract art", "Minimalist","Illustration","Geometry art","Creative art", "Conceptual", "Fun and playful",
+  "Typographic", "Feminine", "Masculine", "Nature", "Kiddies"].includes(t)
+  ),
+];
+
+// ─── Deactivate & Delete Screen ─────────────────────────────────────────────
+function DeactivateDeleteScreen({
+  isDark, onBack, onDeactivate, onDelete, logout, insets,
+}: {
+  isDark: boolean;
+  onBack: () => void;
+  onDeactivate: () => Promise<void>;
+  onDelete: () => Promise<void>;
+  logout: () => void;
+  insets: { top: number; bottom: number };
+}) {
+  type Action = "deactivate" | "delete" | null;
+  const [selected, setSelected] = useState<Action>("deactivate");
+  const [confirmModal, setConfirmModal] = useState<Action>(null);
+  const [loading, setLoading] = useState(false);
+
+  const bg = isDark ? "#121212" : "#F0F0F0";
+  const surface = isDark ? "#1E1E1E" : "#FFFFFF";
+  const text = isDark ? "#FFFFFF" : "#1A1A1A";
+  const subtext = isDark ? "#A0A0A0" : "#666666";
+  const border = isDark ? "#333" : "#E0E0E0";
+  const primary = "#4B3A99";
+
+  const handleProceed = () => setConfirmModal(selected);
+
+  const handleConfirm = async () => {
+    try {
+      setLoading(true);
+      if (confirmModal === "deactivate") {
+        await onDeactivate();
+        logout();
+      } else {
+        await onDelete();
+        logout();
+      }
+    } catch {
+      // stub — will work once backend is wired
+      Alert.alert(
+        confirmModal === "deactivate" ? "Deactivate" : "Delete",
+        "This feature is not yet available. It will be connected to the backend soon.",
+        [{ text: "OK" }]
+      );
+    } finally {
+      setLoading(false);
+      setConfirmModal(null);
+    }
+  };
+
+  return (
+    <View style={{ flex: 1, backgroundColor: bg }}>
+      {/* Header */}
+      <View style={[{ paddingTop: insets.top + 12, paddingHorizontal: 20, paddingBottom: 16, flexDirection: "row", alignItems: "center", backgroundColor: surface }]}>
+        <TouchableOpacity onPress={onBack} style={{ marginRight: 16 }}>
+          <Ionicons name="arrow-back" size={22} color={text} />
+        </TouchableOpacity>
+        <Text style={{ fontSize: 17, fontWeight: "600", color: text }}>Deactivate and deletion</Text>
+      </View>
+
+      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 60 }}>
+        <Text style={{ fontSize: 20, fontWeight: "700", color: text, marginBottom: 12 }}>
+          Deactivating or deleting your{"\n"}Berrystamp account
+        </Text>
+        <Text style={{ fontSize: 14, color: subtext, lineHeight: 21, marginBottom: 32 }}>
+          If you want to temporarily close your account, you can deactivate it. If you want to permanently remove your data from Berrystamp, you can delete your account
+        </Text>
+
+        {/* Deactivate card */}
+        <TouchableOpacity
+          onPress={() => setSelected("deactivate")}
+          activeOpacity={0.85}
+          style={[{
+            backgroundColor: surface, borderRadius: 12, padding: 16,
+            marginBottom: 16, borderWidth: 1, borderColor: border,
+            flexDirection: "row", alignItems: "flex-start",
+          }]}
+        >
+          <View style={[{
+            width: 22, height: 22, borderRadius: 11, borderWidth: 2,
+            borderColor: selected === "deactivate" ? primary : border,
+            alignItems: "center", justifyContent: "center", marginRight: 14, marginTop: 2,
+          }]}>
+            {selected === "deactivate" && (
+              <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: primary }} />
+            )}
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 15, fontWeight: "700", color: primary, marginBottom: 6 }}>Deactivate account</Text>
+            <Text style={{ fontSize: 13, color: subtext, lineHeight: 19 }}>
+              Deactivating your account is reversible. Your works will not be shown on Berrystamp for the moment
+            </Text>
+          </View>
+        </TouchableOpacity>
+
+        {/* Delete card */}
+        <TouchableOpacity
+          onPress={() => setSelected("delete")}
+          activeOpacity={0.85}
+          style={[{
+            backgroundColor: surface, borderRadius: 12, padding: 16,
+            borderWidth: 1, borderColor: border,
+            flexDirection: "row", alignItems: "flex-start",
+          }]}
+        >
+          <View style={[{
+            width: 22, height: 22, borderRadius: 11, borderWidth: 2,
+            borderColor: selected === "delete" ? primary : border,
+            alignItems: "center", justifyContent: "center", marginRight: 14, marginTop: 2,
+          }]}>
+            {selected === "delete" && (
+              <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: primary }} />
+            )}
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 15, fontWeight: "700", color: primary, marginBottom: 6 }}>Delete account</Text>
+            <Text style={{ fontSize: 13, color: subtext, lineHeight: 19 }}>
+              Deleting your account is permanent and irreversible. You won&apos;t be able to your information after the action.
+            </Text>
+          </View>
+        </TouchableOpacity>
+      </ScrollView>
+
+      {/* Proceed button */}
+      <View style={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 16, backgroundColor: bg }}>
+        <TouchableOpacity
+          onPress={handleProceed}
+          style={{ backgroundColor: "#E53935", borderRadius: 28, paddingVertical: 16, alignItems: "center" }}
+        >
+          <Text style={{ color: "#FFFFFF", fontSize: 16, fontWeight: "700" }}>Proceed</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Confirm modal */}
+      <Modal transparent visible={confirmModal !== null} animationType="slide" onRequestClose={() => setConfirmModal(null)}>
+        <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.4)" }}>
+          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setConfirmModal(null)} />
+          <View style={{ backgroundColor: surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: insets.bottom + 24 }}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <Text style={{ fontSize: 17, fontWeight: "700", color: text }}>
+                {confirmModal === "deactivate" ? "Deactivate" : "Delete"}
+              </Text>
+              <TouchableOpacity onPress={() => setConfirmModal(null)}>
+                <Ionicons name="close" size={22} color={text} />
+              </TouchableOpacity>
+            </View>
+            <Text style={{ fontSize: 14, color: subtext, textAlign: "center", lineHeight: 21, marginBottom: 28 }}>
+              {confirmModal === "deactivate"
+                ? "Are you sure you want to deactivate this account? You will be able to retrieve the account."
+                : "Are you sure you want to logout from this account? You will have to pass through login process next time"}
+            </Text>
+            <View style={{ flexDirection: "row", gap: 12 }}>
+              <TouchableOpacity
+                onPress={() => setConfirmModal(null)}
+                style={{ flex: 1, borderRadius: 28, paddingVertical: 14, alignItems: "center", borderWidth: 1, borderColor: border }}
+              >
+                <Text style={{ color: text, fontSize: 15, fontWeight: "600" }}>Do it later</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleConfirm}
+                disabled={loading}
+                style={{ flex: 1, borderRadius: 28, paddingVertical: 14, alignItems: "center", backgroundColor: "#E53935" }}
+              >
+                {loading
+                  ? <ActivityIndicator color="#FFFFFF" size="small" />
+                  : <Text style={{ color: "#FFFFFF", fontSize: 15, fontWeight: "700" }}>
+                      {confirmModal === "deactivate" ? "Deactivate" : "Logout"}
+                    </Text>
+                }
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+}
+// ────────────────────────────────────────────────────────────────────────────
+
 export default function EditProfileScreen() {
   const router = useRouter();
   const { user, logout, refreshUser } = useAuth();
   const role = useAuthStore((state) => toProfileType(state.role));
-  const theme = useAppTheme();
+  const isDark = useColorScheme() === "dark";
+  const insets = useSafeAreaInsets();
   const { uploading, uploadFile } = useFileUpload();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [fullName, setFullName] = useState("");
   const [brandName, setBrandName] = useState("");
   const [bio, setBio] = useState("");
-  const [specifications, setSpecifications] = useState<string[]>([""]);
+  const [specifications, setSpecifications] = useState<string[]>([]);
   const [avatarUri, setAvatarUri] = useState(defaultAvatar);
   const [coverUri, setCoverUri] = useState("");
   const [showSpecs, setShowSpecs] = useState(false);
+  const [specSearch, setSpecSearch] = useState("");
+  const [showDeactivateDelete, setShowDeactivateDelete] = useState(false);
   const [storedAvatarPath, setStoredAvatarPath] = useState("");
   const [storedCoverPath, setStoredCoverPath] = useState("");
-  const initialSnapshot = useRef("");
 
-  // Customer only needs full name (no username, bio, cover, payment details)
   const isCustomer = role === "CUSTOMER";
-  const title = isCustomer ? "Edit Profile" : role === "PRINTER" ? "Printer Account" : "Designer Account";
 
-  const snapshot = useMemo(
-    () => JSON.stringify({ fullName, brandName, bio, specifications, avatarUri, coverUri }),
-    [avatarUri, bio, coverUri, fullName, brandName, specifications],
-  );
+  const bg = isDark ? "#121212" : "#F2F2F2";
+  const surface = isDark ? "#1E1E1E" : "#FFFFFF";
+  const text = isDark ? "#FFFFFF" : "#1A1A1A";
+  const textMuted = isDark ? "#A0A0A0" : "#666666";
+  const border = isDark ? "#333333" : "#E6E6E6";
+  const primary = isDark ? "#8A7AE6" : "#4B3A99";
+  const inputBorder = isDark ? "#444" : "#CCCCCC";
+
+  const filteredSpecs = useMemo(() => {
+    const all = SPEC_CATEGORIES;
+    if (!specSearch.trim()) return all;
+    return all.filter((s) => s.toLowerCase().includes(specSearch.toLowerCase()));
+  }, [specSearch]);
 
   const loadProfile = useCallback(async () => {
     try {
@@ -65,291 +285,312 @@ export default function EditProfileScreen() {
       const profilePic = currentProfile?.profileImage?.url || currentProfile?.profilePic || normalized.profilePicturePath || "";
       const coverPic = currentProfile?.coverPic || currentProfile?.coverPhotoPath || currentProfile?.coverImage?.url || normalized.coverPic || "";
 
-      setFullName(merged.fullName || merged.firstName || "");
+      setFullName(merged.fullName || "");
       setBrandName(currentProfile?.name || currentProfile?.userName || "");
       setBio(currentProfile?.bio || "");
-      setSpecifications(currentProfile?.specifications || currentProfile?.printingSpecifications || [""]);
+      // categories is the field used by the API (same as what my-shop reads)
+      setSpecifications(
+        currentProfile?.categories ||
+        currentProfile?.specifications ||
+        currentProfile?.printingSpecifications ||
+        []
+      );
       setAvatarUri(toImage(profilePic) || defaultAvatar);
       setCoverUri(toImage(coverPic));
       setStoredAvatarPath(profilePic || "");
       setStoredCoverPath(coverPic || "");
-      initialSnapshot.current = snapshot;
     } catch (error: any) {
       Alert.alert("Unable to load profile", error?.message || "Please try again.");
     } finally {
       setLoading(false);
     }
-  }, [role, user, snapshot]);
+  }, [role, user]);
 
   useFocusEffect(useCallback(() => { loadProfile(); }, [loadProfile]));
 
   const pickImage = async (setter: (uri: string) => void, aspect: [number, number]) => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") { Alert.alert("Permission required", "Allow access to your photos."); return; }
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, aspect, quality: 0.85 });
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: "images" as any, aspect, quality: 0.85 });
     if (!result.canceled && result.assets?.[0]?.uri) setter(result.assets[0].uri);
-  };
-
-  const saveChanges = async (showSuccess = false) => {
-    let avatarPath = storedAvatarPath;
-    let coverPath = storedCoverPath;
-
-    if (avatarUri && (avatarUri.startsWith("file:") || avatarUri.startsWith("content:"))) {
-      const uploaded = await uploadFile(avatarUri);
-      avatarPath = uploaded.path;
-    }
-    if (!isCustomer && coverUri && (coverUri.startsWith("file:") || coverUri.startsWith("content:"))) {
-      const uploaded = await uploadFile(coverUri);
-      coverPath = uploaded.path;
-    }
-
-    const payload: any = {
-      name: isCustomer ? fullName.trim() : brandName.trim() || fullName.trim(),
-      ...(isCustomer ? {} : { bio: bio.trim() }),
-      profilePic: avatarPath.replace("https://berry-stamp-prod.s3.amazonaws.com/", "") || undefined,
-      ...(isCustomer ? {} : { coverPic: coverPath.replace("https://berry-stamp-prod.s3.amazonaws.com/", "") || undefined }),
-      ...(role === "DESIGNER" || role === "PRINTER" ? { specifications: specifications.filter(Boolean) } : {}),
-    };
-
-    await ApiService.updateMyProfile(payload);
-    await refreshUser();
-    setStoredAvatarPath(avatarPath);
-    setStoredCoverPath(coverPath);
-    initialSnapshot.current = snapshot;
-    if (showSuccess) Alert.alert("Saved", "Profile updated successfully.");
   };
 
   const handleSave = async () => {
     try {
       setSaving(true);
-      await saveChanges(true);
+      let avatarPath = storedAvatarPath;
+      let coverPath = storedCoverPath;
+
+      if (avatarUri && (avatarUri.startsWith("file:") || avatarUri.startsWith("content:"))) {
+        const uploaded = await uploadFile(avatarUri);
+        avatarPath = uploaded.path;
+      }
+      if (!isCustomer && coverUri && (coverUri.startsWith("file:") || coverUri.startsWith("content:"))) {
+        const uploaded = await uploadFile(coverUri);
+        coverPath = uploaded.path;
+      }
+
+      const payload: any = {
+        name: isCustomer ? fullName.trim() : brandName.trim() || fullName.trim(),
+        ...(isCustomer ? {} : { bio: bio.trim() }),
+        profilePic: avatarPath.replace("https://berry-stamp-prod.s3.amazonaws.com/", "") || undefined,
+        ...(isCustomer ? {} : { coverPic: coverPath.replace("https://berry-stamp-prod.s3.amazonaws.com/", "") || undefined }),
+        // send both field names so the backend accepts whichever it expects
+        ...(role === "DESIGNER" || role === "PRINTER"
+          ? {
+              categories: specifications.filter(Boolean),
+            }
+          : {}),
+      };
+
+      await ApiService.updateMyProfile(payload);
+      await refreshUser();
+      setStoredAvatarPath(avatarPath);
+      setStoredCoverPath(coverPath);
+      Alert.alert("Saved", "Profile updated successfully.");
     } catch (error: any) {
-      Alert.alert("Save failed", error?.response?.data?.responseMessage || error?.message || "Please try again.");
+      // Extract the most descriptive message the backend returned
+      const msg =
+        error?.response?.data?.responseMessage ||
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        (typeof error?.response?.data === "string" ? error.response.data : null) ||
+        error?.message ||
+        "Please try again.";
+      Alert.alert("Save failed", msg);
     } finally {
       setSaving(false);
     }
   };
 
   if (loading) {
-    return <View style={[styles.centered, { backgroundColor: theme.background }]}><ActivityIndicator size="large" color={theme.primary} /></View>;
+    return <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: bg }}><ActivityIndicator size="large" color={primary} /></View>;
   }
 
   return (
-    <KeyboardAvoidingView style={[styles.screen, { backgroundColor: theme.background }]} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: bg }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
 
-        {/* Cover / Header area — only for designer/printer */}
-        {!isCustomer ? (
-          <View style={[styles.coverWrap, { backgroundColor: theme.surfaceMuted }]}>
-            {coverUri ? <Image source={{ uri: coverUri }} style={styles.coverImage} /> : null}
-            <View style={styles.coverOverlay} />
-            <View style={styles.coverHeader}>
-              <TouchableOpacity onPress={() => router.back()} style={styles.headerButton}>
-                <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
-              </TouchableOpacity>
-              <Text style={styles.headerTitle}>{title}</Text>
-              <TouchableOpacity onPress={handleSave} disabled={saving || uploading} style={styles.saveButton}>
-                <Text style={styles.saveText}>{saving || uploading ? "..." : "Save"}</Text>
-              </TouchableOpacity>
-            </View>
-            <TouchableOpacity activeOpacity={0.85} onPress={() => pickImage(setCoverUri, [16, 9])} style={styles.coverAction}>
-              <Ionicons name="image-outline" size={16} color="#FFFFFF" />
-              <Text style={styles.coverActionText}>{coverUri ? "Change cover" : "Add cover"}</Text>
+        {/* Cover */}
+        <View style={[styles.coverWrap]}>
+          {coverUri
+            ? <Image source={{ uri: coverUri }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
+            : <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "#1A1A2E" }]} />
+          }
+          <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "rgba(0,0,0,0.38)" }]} />
+          <View style={[styles.coverHeader, { paddingTop: insets.top + 12 }]}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.coverBtn}>
+              <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
             </TouchableOpacity>
-          </View>
-        ) : (
-          // Customer: simple header
-          <View style={[styles.simpleHeader, { borderBottomColor: theme.border }]}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-              <Ionicons name="arrow-back" size={22} color={theme.text} />
-            </TouchableOpacity>
-            <Text style={[styles.simpleHeaderTitle, { color: theme.text }]}>{title}</Text>
-            <TouchableOpacity onPress={handleSave} disabled={saving || uploading}>
-              <Text style={[styles.saveLink, saving || uploading ? { color: theme.textMuted } : { color: theme.primary }]}>
-                {saving || uploading ? "Saving..." : "Save"}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        <View style={styles.profileSection}>
-          {/* Avatar — only for designer/printer */}
-          {!isCustomer && (
-            <TouchableOpacity onPress={() => pickImage(setAvatarUri, [1, 1])} activeOpacity={0.85} style={styles.avatarWrap}>
-              <Image source={{ uri: avatarUri || defaultAvatar }} style={styles.avatar} />
-              <View style={[styles.avatarCamera, { borderColor: theme.background, backgroundColor: theme.primary }]}>
-                <Ionicons name="camera-outline" size={15} color="#FFFFFF" />
-              </View>
-            </TouchableOpacity>
-          )}
-
-          <View style={[styles.card, { backgroundColor: theme.surface }]}>
-            {/* Full name always */}
-            <View style={styles.formField}>
-              <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Full Name</Text>
-              <TextInput
-                value={fullName}
-                onChangeText={setFullName}
-                placeholder="Enter full name"
-                placeholderTextColor={theme.textMuted}
-                style={[styles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surfaceMuted }]}
-              />
-            </View>
-
-            {/* Brand name for designer/printer only */}
-            {!isCustomer && (
-              <View style={styles.formField}>
-                <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>{role === "PRINTER" ? "Print Shop Name" : "Brand / Shop Name"}</Text>
-                <TextInput
-                  value={brandName}
-                  onChangeText={setBrandName}
-                  placeholder={"Enter " + (role === "PRINTER" ? "print shop name" : "brand name")}
-                  placeholderTextColor={theme.textMuted}
-                  style={[styles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surfaceMuted }]}
-                />
-              </View>
-            )}
-
-            {/* Bio for designer/printer only */}
-            {!isCustomer && (
-              <View style={styles.formField}>
-                <Text style={[styles.fieldLabel, { color: theme.textMuted }]}>Bio</Text>
-                <TextInput
-                  value={bio}
-                  onChangeText={setBio}
-                  placeholder="Tell people about yourself"
-                  placeholderTextColor={theme.textMuted}
-                  multiline
-                  numberOfLines={3}
-                  style={[styles.input, styles.bioInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surfaceMuted }]}
-                />
-              </View>
-            )}
-
-            {/* Specifications for designer/printer */}
-            {(role === "DESIGNER" || role === "PRINTER") && (
-              <TouchableOpacity onPress={() => setShowSpecs(true)} style={[styles.specCard, { backgroundColor: theme.surfaceMuted }]}>
-                <View style={[styles.specIconWrap, { backgroundColor: theme.surface }]}>
-                  <Ionicons name="add" size={20} color={theme.primary} />
-                </View>
-                <View style={styles.specTextWrap}>
-                  <Text style={[styles.specTitle, { color: theme.text }]}>Add Specification</Text>
-                  {specifications.filter(Boolean).length > 0 && (
-                    <Text numberOfLines={1} style={[styles.specSubtitle, { color: theme.textMuted }]}>
-                      {specifications.filter(Boolean).slice(0, 3).join(", ")}
-                    </Text>
-                  )}
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />
-              </TouchableOpacity>
-            )}
-
-            {/* Account management */}
-            <Text style={[styles.sectionTitle, { color: theme.text }]}>Account Management</Text>
-
-            {/* Payment details only for designer/printer */}
-            {!isCustomer && (
-              <TouchableOpacity onPress={() => router.push("/payment-details")} style={[styles.managementCard, { backgroundColor: theme.surfaceMuted }]}>
-                <Ionicons name="card-outline" size={18} color={theme.textMuted} />
-                <Text style={[styles.managementText, { color: theme.text }]}>Payment details</Text>
-                <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />
-              </TouchableOpacity>
-            )}
-
-            <TouchableOpacity onPress={() => {}} style={[styles.managementCard, { backgroundColor: theme.surfaceMuted }]}>
-              <Ionicons name="alert-circle-outline" size={18} color={theme.textMuted} />
-              <Text style={[styles.managementText, { color: theme.text }]}>Deactivate account</Text>
-              <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />
-            </TouchableOpacity>
-
-            <TouchableOpacity onPress={() => {}} style={[styles.managementCard, { backgroundColor: theme.surfaceMuted }]}>
-              <Ionicons name="trash-outline" size={18} color={theme.textMuted} />
-              <Text style={[styles.managementText, { color: theme.text }]}>Delete account</Text>
-              <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />
-            </TouchableOpacity>
-
-            <TouchableOpacity onPress={() => Alert.alert("Log out", "Are you sure?", [{ text: "Cancel", style: "cancel" }, { text: "Log out", style: "destructive", onPress: logout }])} style={[styles.managementCard, { backgroundColor: theme.surfaceMuted }]}>
-              <Ionicons name="log-out-outline" size={18} color="#FF6B63" />
-              <Text style={[styles.managementText, { color: "#FF6B63" }]}>Log out</Text>
-              <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />
+            <Text style={styles.coverTitle}>Account</Text>
+            <TouchableOpacity onPress={() => pickImage(setCoverUri, [16, 9])} style={styles.coverBtn}>
+              <Ionicons name="camera-outline" size={20} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* Avatar */}
+        <View style={[styles.avatarRow, { backgroundColor: surface }]}>
+          <TouchableOpacity onPress={() => pickImage(setAvatarUri, [1, 1])} activeOpacity={0.85} style={styles.avatarWrap}>
+            <Image source={{ uri: avatarUri || defaultAvatar }} style={styles.avatar} />
+            <View style={[styles.avatarCam, { backgroundColor: primary, borderColor: surface }]}>
+              <Ionicons name="camera-outline" size={13} color="#FFFFFF" />
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        {/* Form card */}
+        <View style={[styles.formCard, { backgroundColor: surface }]}>
+
+          {/* Full Name */}
+          <View style={styles.fieldWrap}>
+            <Text style={[styles.fieldLabel, { color: primary }]}>Full Name</Text>
+            <TextInput
+              value={fullName} onChangeText={setFullName}
+              placeholder="Enter full name" placeholderTextColor={textMuted}
+              style={[styles.input, { color: text, borderColor: inputBorder }]}
+            />
+          </View>
+
+          {/* Brand name */}
+          {!isCustomer && (
+            <View style={styles.fieldWrap}>
+              <Text style={[styles.fieldLabel, { color: primary }]}>Brand name</Text>
+              <TextInput
+                value={brandName} onChangeText={setBrandName}
+                placeholder="Enter brand name" placeholderTextColor={textMuted}
+                style={[styles.input, { color: text, borderColor: inputBorder }]}
+              />
+            </View>
+          )}
+
+          {/* Bio */}
+          {!isCustomer && (
+            <View style={styles.fieldWrap}>
+              <Text style={[styles.fieldLabel, { color: primary }]}>Bio</Text>
+              <TextInput
+                value={bio} onChangeText={setBio}
+                placeholder="Tell people about yourself" placeholderTextColor={textMuted}
+                multiline numberOfLines={4}
+                style={[styles.input, styles.bioInput, { color: text, borderColor: inputBorder }]}
+              />
+            </View>
+          )}
+
+          {/* Add Specification */}
+          {(role === "DESIGNER" || role === "PRINTER") && (
+            <TouchableOpacity onPress={() => setShowSpecs(true)} style={[styles.specRow, { borderColor: inputBorder }]} activeOpacity={0.75}>
+              <View style={[styles.specIcon, { borderColor: primary }]}>
+                <Ionicons name="add" size={18} color={primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.specRowTitle, { color: text }]}>Add Specification</Text>
+                {specifications.filter(Boolean).length > 0 && (
+                  <Text numberOfLines={1} style={[styles.specRowSub, { color: textMuted }]}>
+                    {specifications.filter(Boolean).slice(0, 4).join(", ")}...
+                  </Text>
+                )}
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={textMuted} />
+            </TouchableOpacity>
+          )}
+
+          {/* Account Management */}
+          <Text style={[styles.sectionTitle, { color: text }]}>Account Management</Text>
+
+          {!isCustomer && (
+            <TouchableOpacity onPress={() => router.push("/payment-details")} style={[styles.mgmtRow, { borderBottomColor: border }]}>
+              <Text style={[styles.mgmtText, { color: text }]}>Edit  payment details</Text>
+              <Ionicons name="chevron-forward" size={18} color={textMuted} />
+            </TouchableOpacity>
+          )}
+
+          <TouchableOpacity onPress={() => setShowDeactivateDelete(true)} style={[styles.mgmtRow, { borderBottomColor: border }]}>
+            <Text style={[styles.mgmtText, { color: text }]}>Deactivate</Text>
+            <Ionicons name="chevron-forward" size={18} color={textMuted} />
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={() => setShowDeactivateDelete(true)} style={[styles.mgmtRow, { borderBottomColor: border }]}>
+            <Text style={[styles.mgmtText, { color: text }]}>Deletion</Text>
+            <Ionicons name="chevron-forward" size={18} color={textMuted} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => Alert.alert("Log out", "Are you sure you want to log out?", [
+              { text: "Cancel", style: "cancel" },
+              { text: "Log out", style: "destructive", onPress: logout },
+            ])}
+            style={[styles.mgmtRow, { borderBottomColor: "transparent" }]}
+          >
+            <Ionicons name="log-out-outline" size={18} color="#E53935" style={{ marginRight: 8 }} />
+            <Text style={[styles.mgmtText, { color: "#E53935" }]}>Logout</Text>
+            <Ionicons name="chevron-forward" size={18} color={textMuted} />
+          </TouchableOpacity>
+        </View>
       </ScrollView>
 
-      {/* Specs Modal */}
-      <Modal transparent visible={showSpecs} animationType="slide" onRequestClose={() => setShowSpecs(false)}>
-        <View style={[styles.modalScreen, { backgroundColor: theme.background }]}>
-          <View style={styles.modalHeader}>
+      {/* ── Save button ─────────────────────────────────────────────────── */}
+      <View style={[styles.saveBar, { backgroundColor: surface, borderTopColor: border, paddingBottom: insets.bottom > 0 ? insets.bottom : 16 }]}>
+        <TouchableOpacity
+          onPress={handleSave}
+          disabled={saving || uploading}
+          style={[styles.saveBtn, { backgroundColor: primary, opacity: saving || uploading ? 0.65 : 1 }]}
+          activeOpacity={0.85}
+        >
+          {saving || uploading
+            ? <ActivityIndicator color="#FFFFFF" size="small" />
+            : <Text style={styles.saveBtnTxt}>Save</Text>
+          }
+        </TouchableOpacity>
+      </View>
+
+      {/* ── Specs Modal ─────────────────────────────────────────────────── */}
+      <Modal transparent={false} visible={showSpecs} animationType="slide" onRequestClose={() => setShowSpecs(false)}>
+        <View style={{ flex: 1, backgroundColor: surface }}>
+          <View style={[styles.modalHdr, { paddingTop: insets.top + 12, borderBottomColor: border }]}>
             <TouchableOpacity onPress={() => setShowSpecs(false)}>
-              <Ionicons name="arrow-back" size={22} color={theme.text} />
+              <Ionicons name="arrow-back" size={22} color={text} />
             </TouchableOpacity>
-            <Text style={[styles.modalTitle, { color: theme.text }]}>Specifications</Text>
-            <TouchableOpacity onPress={() => { setSpecifications((s) => [...s, ""]); }}>
-              <Ionicons name="add" size={24} color={theme.primary} />
+            <Text style={[styles.modalHdrTitle, { color: text }]}>Add specification</Text>
+            <TouchableOpacity onPress={() => setShowSpecs(false)} style={[styles.specSaveBtn, { backgroundColor: primary }]}>
+              <Text style={styles.specSaveBtnTxt}>Save</Text>
             </TouchableOpacity>
           </View>
-          <ScrollView contentContainerStyle={{ padding: 20, gap: 12 }}>
-            {DEFAULT_DESIGN_THEMES.map((spec) => {
-              const isSelected = specifications.includes(spec);
+          <View style={[styles.specSearchWrap, { borderColor: border }]}>
+            <Ionicons name="search-outline" size={16} color={textMuted} style={{ marginRight: 8 }} />
+            <TextInput
+              value={specSearch} onChangeText={setSpecSearch}
+              placeholder="Search Category" placeholderTextColor={textMuted}
+              style={[styles.specSearchInput, { color: text }]}
+            />
+          </View>
+          <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+            {filteredSpecs.map((spec) => {
+              const isSel = specifications.includes(spec);
               return (
                 <TouchableOpacity
                   key={spec}
-                  onPress={() => setSpecifications((s) => isSelected ? s.filter((i) => i !== spec) : [...s.filter(Boolean), spec])}
-                  style={{ flexDirection: "row", alignItems: "center", backgroundColor: isSelected ? theme.primary : theme.surface, borderRadius: 12, padding: 14 }}
+                  onPress={() => setSpecifications((p) => isSel ? p.filter((s) => s !== spec) : [...p, spec])}
+                  style={[styles.specItem, { borderBottomColor: border }]}
+                  activeOpacity={0.7}
                 >
-                  <Text style={{ flex: 1, fontSize: 14, fontWeight: "500", color: isSelected ? "#FFFFFF" : theme.text }}>{spec}</Text>
-                  {isSelected && <Ionicons name="checkmark" size={18} color="#FFFFFF" />}
+                  <Text style={[styles.specItemTxt, { color: isSel ? primary : text, fontWeight: isSel ? "700" : "400" }]}>{spec}</Text>
+                  <View style={[styles.specCheckbox, { borderColor: isSel ? primary : border, backgroundColor: isSel ? primary : "transparent" }]}>
+                    {isSel && <Ionicons name="checkmark" size={13} color="#FFFFFF" />}
+                  </View>
                 </TouchableOpacity>
               );
             })}
           </ScrollView>
-          <View style={{ padding: 20 }}>
-            <TouchableOpacity onPress={() => setShowSpecs(false)} style={{ backgroundColor: theme.primary, borderRadius: 24, paddingVertical: 14, alignItems: "center" }}>
-              <Text style={{ color: "#FFFFFF", fontSize: 16, fontWeight: "700" }}>Done</Text>
-            </TouchableOpacity>
-          </View>
         </View>
+      </Modal>
+
+      {/* ── Deactivate & Delete Modal ────────────────────────────────────── */}
+      <Modal transparent={false} visible={showDeactivateDelete} animationType="slide" onRequestClose={() => setShowDeactivateDelete(false)}>
+        <DeactivateDeleteScreen
+          isDark={isDark}
+          onBack={() => setShowDeactivateDelete(false)}
+          onDeactivate={deactivateAccount}
+          onDelete={deleteAccount}
+          logout={logout}
+          insets={insets}
+        />
       </Modal>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1 },
-  centered: { flex: 1, alignItems: "center", justifyContent: "center" },
-  coverWrap: { height: 200, position: "relative" },
-  coverImage: { ...StyleSheet.absoluteFillObject },
-  coverOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.4)" },
-  coverHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingTop: 52, paddingBottom: 12 },
-  headerButton: { width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" },
-  headerTitle: { fontSize: 16, fontWeight: "600", color: "#FFFFFF" },
-  saveButton: { backgroundColor: "rgba(255,255,255,0.2)", paddingHorizontal: 14, paddingVertical: 7, borderRadius: 18 },
-  saveText: { color: "#FFFFFF", fontSize: 14, fontWeight: "600" },
-  coverAction: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "center", marginTop: 4, paddingHorizontal: 14, paddingVertical: 7, backgroundColor: "rgba(0,0,0,0.3)", borderRadius: 20 },
-  coverActionText: { color: "#FFFFFF", fontSize: 12, fontWeight: "500" },
-  simpleHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 14, paddingTop: 56, borderBottomWidth: 1 },
-  backBtn: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
-  simpleHeaderTitle: { fontSize: 17, fontWeight: "600" },
-  saveLink: { fontSize: 15, fontWeight: "600" },
-  profileSection: { padding: 16 },
-  avatarWrap: { alignSelf: "flex-start", marginBottom: 16, position: "relative" },
-  avatar: { width: 80, height: 80, borderRadius: 40 },
-  avatarCamera: { position: "absolute", bottom: 0, right: 0, width: 26, height: 26, borderRadius: 13, borderWidth: 2, alignItems: "center", justifyContent: "center" },
-  card: { borderRadius: 18, padding: 16, gap: 12 },
-  formField: { gap: 6 },
-  fieldLabel: { fontSize: 12, fontWeight: "600" },
-  input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14 },
-  bioInput: { height: 90, textAlignVertical: "top" },
-  specCard: { flexDirection: "row", alignItems: "center", borderRadius: 14, padding: 14 },
-  specIconWrap: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", marginRight: 12 },
-  specTextWrap: { flex: 1 },
-  specTitle: { fontSize: 14, fontWeight: "500" },
-  specSubtitle: { fontSize: 12, marginTop: 2 },
-  sectionTitle: { fontSize: 14, fontWeight: "700", marginTop: 8 },
-  managementCard: { flexDirection: "row", alignItems: "center", borderRadius: 14, padding: 14, gap: 12 },
-  managementText: { flex: 1, fontSize: 14, fontWeight: "500" },
-  modalScreen: { flex: 1 },
-  modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: 52, paddingBottom: 16 },
-  modalTitle: { fontSize: 17, fontWeight: "600" },
+  coverWrap: { height: 180, position: "relative" },
+  coverHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingBottom: 12 },
+  coverBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.18)", alignItems: "center", justifyContent: "center" },
+  coverTitle: { fontSize: 16, fontWeight: "600", color: "#FFFFFF" },
+  avatarRow: { paddingHorizontal: 20, paddingTop: 0, paddingBottom: 0 },
+  avatarWrap: { marginTop: -36, position: "relative", alignSelf: "flex-start" },
+  avatar: { width: 72, height: 72, borderRadius: 36, borderWidth: 3, borderColor: "#FFFFFF" },
+  avatarCam: { position: "absolute", bottom: 0, right: 0, width: 24, height: 24, borderRadius: 12, borderWidth: 2, alignItems: "center", justifyContent: "center" },
+  formCard: { marginHorizontal: 0, paddingHorizontal: 20, paddingTop: 16, paddingBottom: 24 },
+  fieldWrap: { marginBottom: 16 },
+  fieldLabel: { fontSize: 12, fontWeight: "600", marginBottom: 6 },
+  input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14 },
+  bioInput: { height: 100, textAlignVertical: "top" },
+  specRow: { flexDirection: "row", alignItems: "center", borderWidth: 1, borderRadius: 10, padding: 14, marginBottom: 16 },
+  specIcon: { width: 32, height: 32, borderRadius: 8, borderWidth: 1.5, alignItems: "center", justifyContent: "center", marginRight: 12 },
+  specRowTitle: { fontSize: 14, fontWeight: "500" },
+  specRowSub: { fontSize: 12, marginTop: 2 },
+  sectionTitle: { fontSize: 15, fontWeight: "700", marginBottom: 8, marginTop: 4 },
+  mgmtRow: { flexDirection: "row", alignItems: "center", paddingVertical: 16, borderBottomWidth: StyleSheet.hairlineWidth },
+  mgmtText: { flex: 1, fontSize: 14 },
+  modalHdr: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: StyleSheet.hairlineWidth },
+  modalHdrTitle: { fontSize: 16, fontWeight: "600" },
+  specSaveBtn: { paddingHorizontal: 18, paddingVertical: 8, borderRadius: 20 },
+  specSaveBtnTxt: { color: "#FFFFFF", fontSize: 14, fontWeight: "600" },
+  specSearchWrap: { flexDirection: "row", alignItems: "center", marginHorizontal: 20, marginVertical: 14, borderWidth: 1, borderRadius: 24, paddingHorizontal: 14, paddingVertical: 10 },
+  specSearchInput: { flex: 1, fontSize: 14 },
+  specItem: { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: StyleSheet.hairlineWidth },
+  specItemTxt: { flex: 1, fontSize: 15 },
+  specCheckbox: { width: 22, height: 22, borderRadius: 4, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
+  saveBar: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 12, paddingHorizontal: 20 },
+  saveBtn: { borderRadius: 28, paddingVertical: 15, alignItems: "center", justifyContent: "center" },
+  saveBtnTxt: { color: "#FFFFFF", fontSize: 16, fontWeight: "700" },
 });

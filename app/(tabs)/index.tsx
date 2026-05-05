@@ -10,6 +10,7 @@ import ApiService from "@/services/apiClient";
 import { toProfileType, useAuthStore } from "@/store/authStore";
 import type { Design, TProfileType, User } from "@/types";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
 import {
@@ -28,12 +29,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, {
   Circle,
-  Defs,
-  Path,
   Polyline,
-  Rect,
-  LinearGradient,
-  Stop,
 } from "react-native-svg";
 
 function HomeDesignCard({
@@ -162,13 +158,17 @@ export default function HomeScreen() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [wallet, setWallet] = useState<any>(null);
   const [walletHistory, setWalletHistory] = useState<any[]>([]);
-  const [filterStage, setFilterStage] = useState<
-    "hidden" | "range" | "calendar"
-  >("hidden");
-  const [, setRangeLabel] = useState("This Month");
+  const [filterStage, setFilterStage] = useState<"hidden" | "range" | "calendar">("hidden");
+  const [rangeLabel, setRangeLabel] = useState("This Month");
   
   // NEW: State for toggling balance visibility
   const [showBalance, setShowBalance] = useState(true);
+
+  // ── Real insight state ──────────────────────────────────────────────────────
+  const [profileInsight, setProfileInsight] = useState<any>(null);
+  const [barInterval, setBarInterval] = useState<"DAILY" | "WEEKLY" | "MONTHLY">("MONTHLY");
+  const [barData, setBarData] = useState<{ key: string; data: { type: string; count: number }[] }[]>([]);
+  const [pieData, setPieData] = useState<{ type: string; count: number }[]>([]);
 
   const role = useAuthStore((state) => state.role);
   const activeRole = toProfileType(role) as TProfileType;
@@ -196,13 +196,11 @@ export default function HomeScreen() {
       const current = (await ApiService.getCurrentUser()) as User | null;
       const normalized = normalizeProfileResponse(profileResponse);
 
-      // Preserve nested profile objects with their insight data intact
       const rawBody = profileResponse?.responseBody || profileResponse?.data || profileResponse || {};
       const merged = {
         ...(current || {}),
         ...normalized,
         profileType: activeRole,
-        // Preserve nested profiles from raw response so insight data is not lost
         designerProfile: rawBody.designerProfile || normalized.designerProfile || (current as any)?.designerProfile,
         printerProfile: rawBody.printerProfile || normalized.printerProfile || (current as any)?.printerProfile,
         customerProfile: rawBody.customerProfile || normalized.customerProfile || (current as any)?.customerProfile,
@@ -216,11 +214,30 @@ export default function HomeScreen() {
           walletHistoryResponse?.content ||
           [],
       );
+
+      // ── Fetch real insights once we have the profile id ──────────────────
+      const profileId =
+        rawBody.designerProfile?.id ||
+        rawBody.printerProfile?.id ||
+        rawBody.customerProfile?.id ||
+        rawBody.id ||
+        (current as any)?.id;
+
+      if (profileId) {
+        const [insightRes, pieRes, barRes] = await Promise.all([
+          ApiService.getProfileInsights(profileId).catch(() => null),
+          ApiService.getActivityPieChart().catch(() => null),
+          ApiService.getActivityBarGraph(barInterval).catch(() => null),
+        ]);
+        setProfileInsight(insightRes?.responseBody || insightRes || null);
+        setPieData(pieRes?.responseBody?.data || pieRes?.data || []);
+        setBarData(barRes?.responseBody || barRes || []);
+      }
     } finally {
       setProfileLoading(false);
       setDashboardRefreshing(false);
     }
-  }, [activeRole]);
+  }, [activeRole, barInterval]);
 
   useFocusEffect(
     useCallback(() => {
@@ -263,46 +280,59 @@ export default function HomeScreen() {
     return currentUser.customerProfile;
   }, [activeRole, currentUser]);
 
-  const insight = activeProfile?.insight || activeProfile?.insights || {};
-  const totalEarnings = insight.totalEarnings || insight.earnings || wallet?.balance || 0;
-  const rating = insight.rating?.avgStars || insight.avgRating || insight.averageRating || insight.rating || 0;
-  const followers = insight.totalFollowers || insight.followers || 0;
-  const following = insight.totalFollowing || insight.following || 0;
-  const completedOrders = insight.totalCompletedOrders || insight.completedOrders || insight.totalOrders || 0;
-  const cancelledOrders = insight.totalCancelledOrders || insight.cancelledOrders || 0;
+  // ── Insight values — prefer real API data, fall back to profile nested data ─
+  const insight = profileInsight || activeProfile?.insight || {};
+  const totalEarnings = insight.totalEarnings ?? wallet?.balance ?? 0;
+  const rating = insight.rating?.avgStars ?? insight.avgRating ?? 0;
+  const followers = insight.totalFollowers ?? 0;
+  const following = insight.totalFollowing ?? 0;
+  const completedOrders = insight.totalCompletedOrders ?? 0;
+  const cancelledOrders = insight.totalCancelledOrders ?? 0;
   const totalOrders = completedOrders + cancelledOrders;
-  const jobSuccess = insight.jobSuccessPercentage || insight.successRate || insight.successPercentage || 0;
+  const jobSuccess = insight.jobSuccessPercentage ?? 0;
+  const totalUploads = insight.totalUploads ?? 0;
+  const totalReviews = insight.totalReviews ?? 0;
   const activeName =
     activeProfile?.name ||
     activeProfile?.userName ||
-    activeProfile?.brandName ||
-    activeProfile?.shopName ||
     mergedProfile.username ||
     mergedProfile.fullName;
   const dashboardTopInset = Math.max(insets.top, StatusBar.currentHeight || 0);
 
   const paymentSegments = useMemo(() => {
+    // Use real pie chart data when available
+    if (pieData.length > 0) {
+      const PIE_COLORS: Record<string, string> = {
+        COMPLETED: "#322783",
+        PENDING: "#E6B800",
+        CANCELLED: "#F90A3F",
+        PAID: "#322783",
+        PROCESSING: "#2F80ED",
+      };
+      const segments = pieData
+        .filter((d) => d.count > 0)
+        .map((d) => ({
+          label: d.type,
+          value: d.count,
+          color: PIE_COLORS[d.type?.toUpperCase()] || "#9B51E0",
+        }));
+      return segments.length ? segments : [{ label: "No data", value: 1, color: "#322783" }];
+    }
+    // Fallback: derive from wallet history
     const credits = walletHistory
       .filter((item: any) => String(item.type).toUpperCase() === "CREDIT")
       .reduce((sum: number, item: any) => sum + Number(item.amount || 0), 0);
     const debits = walletHistory
       .filter((item: any) => String(item.type).toUpperCase() === "DEBIT")
-      .reduce(
-        (sum: number, item: any) => sum + Math.abs(Number(item.amount || 0)),
-        0,
-      );
+      .reduce((sum: number, item: any) => sum + Math.abs(Number(item.amount || 0)), 0);
     const balance = Number(wallet?.balance || 0);
-
     const rawSegments = [
       { label: "Paid", value: credits, color: "#322783" },
-      { label: "Pending", value: debits, color: "#0A66C2" },
+      { label: "Pending", value: debits, color: "#E6B800" },
       { label: "Canceled", value: balance, color: "#F90A3F" },
     ].filter((item) => item.value > 0);
-
-    return rawSegments.length
-      ? rawSegments
-      : [{ label: "Paid", value: 1, color: "#322783" }];
-  }, [wallet?.balance, walletHistory]);
+    return rawSegments.length ? rawSegments : [{ label: "Paid", value: 1, color: "#322783" }];
+  }, [pieData, wallet?.balance, walletHistory]);
 
   const totalSegmentValue =
     paymentSegments.reduce((sum, item) => sum + item.value, 0) || 1;
@@ -321,17 +351,50 @@ export default function HomeScreen() {
     });
   }, [paymentSegments, totalSegmentValue]);
 
+  // ── Reload bar graph when interval changes ────────────────────────────────
+  const loadBarData = useCallback(async (interval: "DAILY" | "WEEKLY" | "MONTHLY") => {
+    try {
+      const res = await ApiService.getActivityBarGraph(interval).catch(() => null);
+      setBarData(res?.responseBody || res || []);
+    } catch { /* keep existing */ }
+  }, []);
+
+  const handleIntervalChange = (interval: "DAILY" | "WEEKLY" | "MONTHLY", label: string) => {
+    setBarInterval(interval);
+    setRangeLabel(label);
+    setFilterStage("hidden");
+    loadBarData(interval);
+  };
+
+  // ── Build chart points from real bar graph API data ───────────────────────
   const chartData = useMemo(() => {
+    if (barData.length > 0) {
+      // Use real bar graph data — sum all counts per time bucket
+      return barData.map((bucket) => {
+        const total = bucket.data.reduce((sum, d) => sum + (d.count || 0), 0);
+        const date = new Date(bucket.key);
+        const label = isNaN(date.getTime())
+          ? bucket.key
+          : date.toLocaleString("en-US", { month: "short", day: barInterval === "DAILY" ? "numeric" : undefined });
+        return [label, total] as [string, number];
+      }).slice(-12);
+    }
+    // Fallback: derive from wallet history
+    const now = new Date();
+    let cutoff: Date | null = null;
+    if (rangeLabel === "Three Days") { cutoff = new Date(now); cutoff.setDate(now.getDate() - 3); }
+    else if (rangeLabel === "This Week") { cutoff = new Date(now); cutoff.setDate(now.getDate() - 7); }
+    else if (rangeLabel === "This Month") { cutoff = new Date(now.getFullYear(), now.getMonth(), 1); }
+    const filtered = cutoff
+      ? walletHistory.filter((item: any) => new Date(item.createdAt || item.date || 0) >= cutoff!)
+      : walletHistory;
     const grouped = new Map<string, number>();
-    walletHistory.forEach((item: any) => {
-      const date = new Date(item.createdAt || item.date || Date.now());
-      const key = date.toLocaleString("en-US", { month: "short" });
+    filtered.forEach((item: any) => {
+      const key = new Date(item.createdAt || item.date || Date.now()).toLocaleString("en-US", { month: "short" });
       grouped.set(key, (grouped.get(key) || 0) + Number(item.amount || 0));
     });
-
-    const entries = Array.from(grouped.entries()).slice(-6);
-    return entries.length ? entries : [];
-  }, [walletHistory]);
+    return Array.from(grouped.entries()).slice(-6) as [string, number][];
+  }, [barData, barInterval, walletHistory, rangeLabel]);
 
   const chartPoints = useMemo(() => {
     if (!chartData.length) return "";
@@ -492,7 +555,7 @@ export default function HomeScreen() {
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
-          paddingHorizontal: 20,
+          paddingHorizontal: 16,
           paddingTop: dashboardTopInset + 12,
           paddingBottom: 110,
         }}
@@ -506,46 +569,46 @@ export default function HomeScreen() {
           />
         }
       >
-        {/* Top Balance Card - Updated to Minimalist Black Aesthetic */}
-        <View style={styles.balanceCard}>
-          <Svg style={StyleSheet.absoluteFill}>
-            <Defs>
-              <LinearGradient id="premiumDark" x1="0" y1="0" x2="1" y2="1">
-                <Stop offset="0%" stopColor="#2A2A2A" stopOpacity="1" />
-                <Stop offset="100%" stopColor="#080808" stopOpacity="1" />
-              </LinearGradient>
-            </Defs>
-            <Rect width="100%" height="100%" fill="url(#premiumDark)" rx={16} />
-          </Svg>
-          <View style={styles.balanceHeader}>
-            <Text style={styles.balanceLabel}>Balance</Text>
-            <TouchableOpacity 
-              onPress={() => setShowBalance(!showBalance)}
-              hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-            >
-              <Ionicons 
-                name={showBalance ? "eye-outline" : "eye-off-outline"} 
-                size={20} 
-                color="#FFFFFF" 
-              />
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.balanceAmount}>
-            {showBalance ? formatNaira(Number(wallet?.balance || 0)) : "********"}
-          </Text>
-          <View style={styles.balanceFooter}>
-            <Text style={styles.balanceUser}>{activeName || "Account"}</Text>
-            <Text style={styles.balanceRole}>
-              {activeRole === "DESIGNER"
-                ? "Verified Account"
-                : activeRole === "PRINTER"
-                  ? "Printer Account"
-                  : "Verified Account"}
-            </Text>
-          </View>
-        </View>
+        {/* Profile Card */}
+        <LinearGradient
+          colors={["#3D2DB5", "#6B55E8"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.profileCard}
+        >
+          {/* Decorative circles */}
+          <View style={styles.profileDecorCircle1} />
+          <View style={styles.profileDecorCircle2} />
 
-        {/* Business Performance Stats Card */}
+          <View style={{ alignItems: "center", paddingTop: 20, paddingBottom: 16 }}>
+            <Text style={styles.profileUsername}>{activeName || "Account"}</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", marginTop: 4 }}>
+              <Ionicons name="checkmark-circle" size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
+              <Text style={styles.profileVerified}>Verified Account</Text>
+            </View>
+          </View>
+
+          <View style={styles.profileStatsRow}>
+            <View style={styles.profileStatItem}>
+              <Text style={styles.profileStatValue}>
+                {showBalance ? formatNaira(Number(wallet?.balance || 0)) : "****"}
+              </Text>
+              <Text style={styles.profileStatLabel}>Earnings</Text>
+            </View>
+            <View style={styles.profileStatDivider} />
+            <View style={styles.profileStatItem}>
+              <Text style={styles.profileStatValue}>{rating.toFixed(1)}</Text>
+              <Text style={styles.profileStatLabel}>Rating</Text>
+            </View>
+            <View style={styles.profileStatDivider} />
+            <View style={styles.profileStatItem}>
+              <Text style={styles.profileStatValue}>{followers}</Text>
+              <Text style={styles.profileStatLabel}>Followers</Text>
+            </View>
+          </View>
+        </LinearGradient>
+
+        {/* Designer's Statistics Card */}
         <View
           style={[
             styles.dashboardCard,
@@ -558,23 +621,56 @@ export default function HomeScreen() {
           <View style={{ alignItems: "center", paddingVertical: 10 }}>
             <View
               style={{
-                width: 44,
-                height: 44,
-                borderRadius: 22,
+                width: 48,
+                height: 48,
+                borderRadius: 12,
                 backgroundColor: "#F4F0FF",
                 alignItems: "center",
                 justifyContent: "center",
-                marginBottom: 12,
+                marginBottom: 10,
               }}
             >
-              <Ionicons name="stats-chart" size={20} color="#4A34A7" />
+              <Ionicons name="stats-chart" size={22} color="#4A34A7" />
             </View>
-            <Text style={{ fontSize: 24, fontWeight: "700", color: "#322783" }}>
-              {jobSuccess}%
-            </Text>
-            <Text style={{ fontSize: 13, color: "#8A8A8A", marginTop: 4 }}>
+            <Text style={{ fontSize: 13,width:"100%", textAlign:"center", color: "#8A8A8A", marginBottom: 4 }}>
               Business Performance
             </Text>
+            <Text style={{ fontSize: 22, fontWeight: "700", color: "#322783" }}>
+              {jobSuccess}%
+            </Text>
+          </View>
+        </View>
+
+        {/* Insights and Analytics */}
+        <View
+          style={[
+            styles.dashboardCard,
+            { backgroundColor: theme.surface, borderColor: theme.border },
+          ]}
+        >
+          <Text style={[styles.insightTitle, { color: theme.text }]}>
+            Insights and analytics
+          </Text>
+          <View style={styles.insightRow}>
+            <View style={styles.insightItem}>
+              <View style={styles.insightIconWrap}>
+                <Ionicons name="people-outline" size={20} color="#4A34A7" />
+              </View>
+              <Text style={[styles.insightCount, { color: theme.text }]}>{followers}</Text>
+              <Text style={[styles.insightLabel, { color: theme.subtext }]}>
+                Accounts{"\n"}following you
+              </Text>
+            </View>
+            <View style={styles.insightDivider} />
+            <View style={styles.insightItem}>
+              <View style={styles.insightIconWrap}>
+                <Ionicons name="person-outline" size={20} color="#4A34A7" />
+              </View>
+              <Text style={[styles.insightCount, { color: theme.text }]}>{following}</Text>
+              <Text style={[styles.insightLabel, { color: theme.subtext }]}>
+                Accounts you{"\n"}follow
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -622,64 +718,20 @@ export default function HomeScreen() {
             label="Total Order"
             theme={theme}
           />
-        </View>
-
-        {/* Column Stats Card */}
-        <View
-          style={[
-            styles.dashboardCard,
-            { backgroundColor: theme.surface, borderColor: theme.border },
-          ]}
-        >
-          <Text style={[styles.cardTitle, { color: theme.text }]}>
-            Designer&apos;s statistics
-          </Text>
-          <View
-            style={{
-              flexDirection: "row",
-              justifyContent: "space-between",
-              paddingVertical: 10,
-            }}
-          >
-            <View style={{ alignItems: "center" }}>
-              <Text
-                style={{ fontSize: 20, fontWeight: "700", color: theme.text }}
-              >
-                0%
-              </Text>
-              <Text
-                style={{ fontSize: 12, color: theme.subtext, marginTop: 4 }}
-              >
-                Customer Retent.
-              </Text>
-            </View>
-            <View style={{ alignItems: "center" }}>
-              <Text
-                style={{ fontSize: 20, fontWeight: "700", color: theme.text }}
-              >
-                {followers >= 1000
-                  ? (followers / 1000).toFixed(1) + "k"
-                  : followers}
-              </Text>
-              <Text
-                style={{ fontSize: 12, color: theme.subtext, marginTop: 4 }}
-              >
-                Followers
-              </Text>
-            </View>
-            <View style={{ alignItems: "center" }}>
-              <Text
-                style={{ fontSize: 20, fontWeight: "700", color: theme.text }}
-              >
-                {following}
-              </Text>
-              <Text
-                style={{ fontSize: 12, color: theme.subtext, marginTop: 4 }}
-              >
-                Following
-              </Text>
-            </View>
-          </View>
+          <MetricBox
+            icon="cloud-upload-outline"
+            color="#6FCF97"
+            value={totalUploads}
+            label="Total Uploads"
+            theme={theme}
+          />
+          <MetricBox
+            icon="chatbubble-outline"
+            color="#BB6BD9"
+            value={totalReviews}
+            label="Total Reviews"
+            theme={theme}
+          />
         </View>
 
         {/* Overall Payment Status */}
@@ -689,58 +741,58 @@ export default function HomeScreen() {
             { backgroundColor: theme.surface, borderColor: theme.border },
           ]}
         >
-          <Text
-            style={[styles.cardTitle, { color: theme.text, marginBottom: 20 }]}
-          >
-            Overall Payment Status
-          </Text>
-          <View style={{ alignItems: "center", paddingBottom: 20 }}>
-            <Svg width="140" height="140" viewBox="0 0 140 140">
+          <View style={styles.paymentStatusHeader}>
+            <Text style={[styles.insightTitle, { color: theme.text }]}>
+              Overall Payment Status
+            </Text>
+            <TouchableOpacity
+              style={styles.walletHistoryBtn}
+              onPress={() => router.push("/payments")}
+            >
+              <Text style={styles.walletHistoryBtnText}>Wallet history</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={{ alignItems: "center", paddingVertical: 16 }}>
+            <Svg width="160" height="160" viewBox="0 0 160 160">
               <Circle
-                cx="70"
-                cy="70"
-                r="45"
+                cx="80"
+                cy="80"
+                r="55"
                 stroke={isDark ? "#303038" : "#EFEAF8"}
-                strokeWidth="10"
+                strokeWidth="14"
                 fill="none"
               />
               {paymentArcs.map((segment) => (
                 <Circle
                   key={segment.label}
-                  cx="70"
-                  cy="70"
-                  r="45"
+                  cx="80"
+                  cy="80"
+                  r="55"
                   stroke={segment.color}
-                  strokeWidth="10"
+                  strokeWidth="14"
                   fill="none"
                   strokeDasharray={segment.dash}
-                  strokeLinecap="round"
+                  strokeLinecap="butt"
                   rotation={segment.rotation}
-                  origin="70,70"
+                  origin="80,80"
                 />
               ))}
             </Svg>
           </View>
 
-          <View style={styles.legendRow}>
-            {paymentSegments.map((item) => (
-              <View key={item.label} style={styles.legendItem}>
-                <View
-                  style={[styles.legendDot, { backgroundColor: item.color }]}
-                />
-                <Text style={{ color: theme.subtext, fontSize: 12 }}>
-                  {item.label}
-                </Text>
+          <View style={styles.legendColumn}>
+            {[
+              { label: "Paid payment status", color: "#322783" },
+              { label: "Pending payment status", color: "#E6B800" },
+              { label: "Cancelled payment status", color: "#F90A3F" },
+            ].map((item) => (
+              <View key={item.label} style={styles.legendLineItem}>
+                <View style={[styles.legendLine, { backgroundColor: item.color }]} />
+                <Text style={{ color: theme.text, fontSize: 13 }}>{item.label}</Text>
               </View>
             ))}
           </View>
-
-          <TouchableOpacity
-            style={styles.paymentButton}
-            onPress={() => router.push("/payments")}
-          >
-            <Text style={styles.paymentButtonText}>My Wallet</Text>
-          </TouchableOpacity>
         </View>
 
         {/* Account Overview */}
@@ -751,73 +803,64 @@ export default function HomeScreen() {
           ]}
         >
           <View style={styles.overviewHeader}>
-            <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <Text
-                style={[
-                  styles.cardTitle,
-                  { color: theme.text, marginBottom: 0 },
-                ]}
-              >
-                Account overview
-              </Text>
-              <Text style={styles.overviewSubtitle}> (this month)</Text>
-            </View>
-            <TouchableOpacity onPress={() => setFilterStage("range")}>
-              <Ionicons name="chevron-down" size={16} color="#8A8A8A" />
+            <Text style={[styles.insightTitle, { color: theme.text }]}>
+              Account Overview
+            </Text>
+            <TouchableOpacity
+              style={styles.monthlyDropdown}
+              onPress={() => setFilterStage("range")}
+            >
+              <Text style={styles.monthlyDropdownText}>{rangeLabel}</Text>
+              <Ionicons name="chevron-down" size={14} color="#555" />
             </TouchableOpacity>
           </View>
 
-          <Text style={[styles.overviewAmount, { color: theme.text }]}>
-            {showBalance ? (topChartValue ? formatNaira(topChartValue) : formatNaira(0)) : "********"}
-          </Text>
-
           {chartData.length > 0 ? (
-            <View
-              style={{
-                alignItems: "center",
-                position: "relative",
-                marginTop: 30,
-              }}
-            >
-              <View style={[styles.chartTooltip, { top: -15, left: "35%" }]}>
-                <Text style={styles.tooltipAmount}>
-                  {showBalance ? formatNaira(chartData[chartData.length - 1][1]) : "****"}
-                </Text>
-                <Text style={styles.tooltipMonth}>
-                  {chartData[chartData.length - 1][0]}
-                </Text>
+            <View style={{ position: "relative", marginTop: 16 }}>
+              {/* Y-axis labels */}
+              <View style={{ flexDirection: "row" }}>
+                <View style={{ width: 36, justifyContent: "space-between", height: 160, paddingBottom: 20 }}>
+                  {["500k", "400k", "300k", "200k"].map((label) => (
+                    <Text key={label} style={{ color: theme.subtext, fontSize: 10, textAlign: "right" }}>
+                      {label}
+                    </Text>
+                  ))}
+                  <Text style={{ color: theme.subtext, fontSize: 10, textAlign: "right" }}>$0</Text>
+                </View>
+                <View style={{ flex: 1, position: "relative" }}>
+                  {/* Tooltip */}
+                  <View style={[styles.chartTooltip, { top: 0, alignSelf: "center" }]}>
+                    <Text style={styles.tooltipAmount}>
+                      {showBalance ? formatNaira(chartData[Math.floor(chartData.length / 2)]?.[1] || 0) : "****"}
+                    </Text>
+                    <Text style={styles.tooltipMonth}>
+                      {chartData[Math.floor(chartData.length / 2)]?.[0] || ""}
+                    </Text>
+                  </View>
+                  <Svg width="100%" height="160" viewBox="0 0 280 140">
+                    <Polyline
+                      points={chartPoints}
+                      fill="none"
+                      stroke="#2970FF"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    {/* Peak dot */}
+                    {chartData.length > 0 && (() => {
+                      const maxIdx = chartData.reduce((best, cur, i) => cur[1] > chartData[best][1] ? i : best, 0);
+                      const maxVal = Math.max(...chartData.map(d => d[1]), 1);
+                      const x = 20 + maxIdx * (260 / Math.max(chartData.length - 1, 1));
+                      const y = 110 - (chartData[maxIdx][1] / maxVal) * 70;
+                      return <Circle key="peak" cx={x} cy={y} r={5} fill="#2970FF" />;
+                    })()}
+                  </Svg>
+                </View>
               </View>
-              <Svg width="100%" height="150" viewBox="0 0 345 150">
-                <Path
-                  d="M15 110 H330"
-                  stroke={isDark ? "#303038" : "#F0EDF6"}
-                  strokeWidth="1"
-                />
-                <Polyline
-                  points={chartPoints}
-                  fill="none"
-                  stroke="#2970FF"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </Svg>
-              <View
-                style={{
-                  flexDirection: "row",
-                  justifyContent: "space-between",
-                  paddingHorizontal: 8,
-                  width: "100%",
-                  marginTop: -20,
-                }}
-              >
-                {chartData.map(([month]) => (
-                  <Text
-                    key={month}
-                    style={{ color: theme.subtext, fontSize: 11 }}
-                  >
-                    {month}
-                  </Text>
+              {/* X-axis labels */}
+              <View style={{ flexDirection: "row", justifyContent: "space-around", paddingLeft: 36, marginTop: 4 }}>
+                {["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"].map((m) => (
+                  <Text key={m} style={{ color: theme.subtext, fontSize: 9 }}>{m}</Text>
                 ))}
               </View>
             </View>
@@ -881,22 +924,27 @@ export default function HomeScreen() {
                   <Ionicons name="close" size={18} color={theme.text} />
                 </TouchableOpacity>
               </View>
-              {["Three Days", "This Week", "This Month"].map((label) => (
+              {([
+                { label: "Daily", interval: "DAILY" as const },
+                { label: "Weekly", interval: "WEEKLY" as const },
+                { label: "Monthly", interval: "MONTHLY" as const },
+              ]).map(({ label, interval }) => (
                 <TouchableOpacity
                   key={label}
-                  onPress={() => {
-                    setRangeLabel(label);
-                    setFilterStage("hidden");
-                  }}
+                  onPress={() => handleIntervalChange(interval, label)}
                   style={{
                     borderBottomWidth: 1,
                     borderBottomColor: theme.border,
                     paddingVertical: 16,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
                   }}
                 >
-                  <Text style={{ color: theme.text, fontSize: 14 }}>
-                    {label}
-                  </Text>
+                  <Text style={{ color: theme.text, fontSize: 14 }}>{label}</Text>
+                  {barInterval === interval && (
+                    <Ionicons name="checkmark" size={16} color="#4A34A7" />
+                  )}
                 </TouchableOpacity>
               ))}
               <TouchableOpacity
@@ -1134,44 +1182,149 @@ const styles = StyleSheet.create({
   },
 
   // Dashboard Refined UI Styles
-  balanceCard: {
+  profileCard: {
     borderRadius: 16,
-    backgroundColor: "#080808",
-    padding: 24,
     overflow: "hidden",
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: "#333333",
+    marginBottom: 16,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
   },
-  balanceHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
+  profileDecorCircle1: {
+    position: "absolute",
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: "rgba(255,255,255,0.07)",
+    top: -20,
+    left: -20,
   },
-  balanceLabel: {
-    color: "#B3B3B3",
-    fontSize: 13,
-    fontWeight: "500",
+  profileDecorCircle2: {
+    position: "absolute",
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    bottom: -10,
+    right: 20,
   },
-  balanceAmount: {
+  profileUsername: {
     color: "#FFFFFF",
-    fontSize: 34,
+    fontSize: 20,
     fontWeight: "700",
-    marginBottom: 28,
   },
-  balanceFooter: {
+  profileVerified: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    opacity: 0.9,
+  },
+  profileStatsRow: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    alignItems: "center",
+    paddingTop: 8,
+  },
+  profileStatItem: {
+    alignItems: "flex-start",
+    flex: 1,
+    paddingHorizontal: 8,
+  },
+  profileStatValue: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  profileStatLabel: {
+    color: "rgba(255,255,255,0.7)",
+    fontSize: 12,
+    marginTop: 2,
+  },
+  profileStatDivider: {
+    width: 1,
+    height: 32,
+    backgroundColor: "rgba(255,255,255,0.2)",
+  },
+  insightTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    marginBottom: 14,
+  },
+  insightRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  insightItem: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 8,
+  },
+  insightIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#F0EEFF",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
+  },
+  insightCount: {
+    fontSize: 20,
+    fontWeight: "700",
+    marginBottom: 4,
+  },
+  insightLabel: {
+    fontSize: 12,
+    textAlign: "center",
+    lineHeight: 16,
+  },
+  insightDivider: {
+    width: 1,
+    height: 60,
+    backgroundColor: "#E8E8E8",
+  },
+  paymentStatusHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    marginBottom: 4,
   },
-  balanceUser: {
-    color: "#B3B3B3",
-    fontSize: 13,
+  walletHistoryBtn: {
+    backgroundColor: "#322783",
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
   },
-  balanceRole: {
-    color: "#8A8A8A",
+  walletHistoryBtnText: {
+    color: "#FFFFFF",
     fontSize: 13,
+    fontWeight: "600",
+  },
+  legendColumn: {
+    marginTop: 8,
+    gap: 10,
+  },
+  legendLineItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  legendLine: {
+    width: 24,
+    height: 3,
+    borderRadius: 2,
+  },
+  monthlyDropdown: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#E8E8EE",
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    gap: 4,
+  },
+  monthlyDropdownText: {
+    fontSize: 13,
+    color: "#333",
+    fontWeight: "500",
   },
   dashboardCard: {
     borderRadius: 12,
@@ -1185,6 +1338,7 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   cardTitle: {
+    textAlign: "center",
     fontSize: 14,
     fontWeight: "600",
     marginBottom: 12,

@@ -1,11 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
 import {
-  ActivityIndicator, Alert, Linking, ScrollView,
-  Text, TouchableOpacity, View, useColorScheme,
+    ActivityIndicator, Alert, Linking, ScrollView,
+    Text, TouchableOpacity, View, useColorScheme,
 } from "react-native";
-import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { getAvailableProfileTypes, mergeUserAndProfile, normalizeProfileResponse } from "@/lib/profile";
@@ -99,16 +99,17 @@ export default function ProfileScreen() {
   const accountItems = useMemo(() => {
     if (activeRole === "DESIGNER") {
       return [
-        { icon: "document-text-outline" as const, label: "Manage Orders", onPress: () => router.push("/manage-order") },
+        // { icon: "storefront-outline" as const, label: "My Shop", onPress: () => router.push("/my-shop") },
         { icon: "storefront-outline" as const, label: "My Shop", onPress: () => router.push("/my-shop") },
-        { icon: "wallet-outline" as const, label: "Wallet", onPress: () => router.push("/payments") },
+        { icon: "document-text-outline" as const, label: "Orders", onPress: () => router.push("/manage-order") },
+        { icon: "wallet-outline" as const, label: "Wallet", onPress: () => router.push("/wallet") },
       ];
     }
     if (activeRole === "PRINTER") {
       return [
         { icon: "document-text-outline" as const, label: "Manage Orders", onPress: () => router.push("/manage-order") },
         { icon: "print-outline" as const, label: "Print Jobs", onPress: () => router.push("/printers") },
-        { icon: "wallet-outline" as const, label: "Wallet", onPress: () => router.push("/payments") },
+        { icon: "wallet-outline" as const, label: "Wallet", onPress: () => router.push("/wallet") },
       ];
     }
     // CUSTOMER
@@ -123,7 +124,7 @@ export default function ProfileScreen() {
   }, [activeRole, router]);
 
   const supportItems = useMemo(() => [
-    { icon: "settings-outline" as const, label: "Settings", onPress: () => router.push("/edit-profile") },
+    { icon: "settings-outline" as const, label: "Settings", onPress: () => router.push("/settings") },
     { icon: "help-circle-outline" as const, label: "FAQ", onPress: () => router.push("/faq") },
     {
       icon: "document-text-outline" as const, label: "Terms & Conditions",
@@ -132,7 +133,7 @@ export default function ProfileScreen() {
     {
       icon: "flag-outline" as const,
       label: activeRole === "DESIGNER" ? "Make suggestion / Report" : "Report a problem",
-      onPress: () => Linking.openURL("mailto:support@berrystamp.com"),
+      onPress: () => router.push("/suggestion"),
     },
   ], [activeRole, router]);
 

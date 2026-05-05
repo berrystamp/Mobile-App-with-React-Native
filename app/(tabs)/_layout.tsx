@@ -1,7 +1,7 @@
 import BottomNavigation from '@/components/common/BottomNavigation';
 import Header from '@/components/common/Header';
 import { AuthProvider } from '@/context/AuthContext';
-import { useAuthStore, isCustomerRole } from '@/store/authStore';
+import { isCustomerRole, useAuthStore } from '@/store/authStore';
 import { Stack, usePathname, useRouter } from 'expo-router';
 import React, { useMemo } from 'react';
 import { View } from 'react-native';
@@ -19,6 +19,8 @@ const HIDE_HEADER_ROUTES = [
   '/payments', '/edit-profile', '/track-order', '/faq',
   '/referral', '/referral-how-it-works', '/manage-order',
   '/update-interest', '/switch-account', '/upload-design', '/create-collection',
+  '/settings',
+  '/suggestion',
 ];
 
 const HIDE_NAV_ROUTES = [
@@ -33,7 +35,7 @@ const HIDE_NAV_ROUTES = [
   '/notification', '/payments', '/edit-profile', '/track-order',
   '/faq', '/referral', '/referral-how-it-works', '/manage-order',
   '/update-interest', '/switch-account', '/upload-design', '/create-collection',
-  '/product',
+  '/product', '/settings', '/suggestion',
 ];
 
 export default function TabsLayout() {
@@ -86,6 +88,8 @@ export default function TabsLayout() {
           <Stack.Screen name="profile" />
           <Stack.Screen name="notification" />
           <Stack.Screen name="edit-profile" />
+          <Stack.Screen name="settings" />
+          <Stack.Screen name="suggestion" />
           <Stack.Screen name="payment-details" />
           <Stack.Screen name="payments" />
           <Stack.Screen name="track-order" />

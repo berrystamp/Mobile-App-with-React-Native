@@ -1,10 +1,10 @@
 module.exports = {
-  // Update this to match exactly where your files live!
+  darkMode: 'class',
   content: [
     "./App.{js,jsx,ts,tsx}", 
     "./components/**/*.{js,jsx,ts,tsx}",
-    "./screens/**/*.{js,jsx,ts,tsx}", // Add this if you have a screens folder
-    "./app/**/*.{js,jsx,ts,tsx}"      // Add this if using Expo Router
+    "./screens/**/*.{js,jsx,ts,tsx}",
+    "./app/**/*.{js,jsx,ts,tsx}"
   ],
   presets: [require("nativewind/preset")],
   theme: {
