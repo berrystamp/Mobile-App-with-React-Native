@@ -2,8 +2,8 @@ import React from 'react';
 import { Pressable, Text, View, useColorScheme } from 'react-native';
 
 import type { ConversationSummaryDto } from '@/lib/messages';
-import { AvatarBadge } from './AvatarBadge';
 import { Ionicons } from '@expo/vector-icons';
+import { AvatarBadge } from './AvatarBadge';
 
 interface ConversationRowProps {
   conversation: ConversationSummaryDto;
@@ -14,6 +14,16 @@ interface ConversationRowProps {
 export function ConversationRow({ conversation, onPress, onLongPress }: ConversationRowProps) {
   const isDark = useColorScheme() === 'dark';
   const isGalleryPreview = conversation.lastMessage === '[Product gallery]';
+  const isOrderRequest = conversation.lastMessageDetail?.chatType === 'ORDER_REQUEST';
+  const isOrder = conversation.lastMessageDetail?.chatType === 'ORDER';
+
+  const lastMessageText = isOrderRequest
+    ? 'You received an order request'
+    : isOrder
+    ? 'You have an active order'
+    : isGalleryPreview
+    ? 'Product gallery'
+    : conversation.lastMessage;
 
   return (
     <Pressable
@@ -61,7 +71,7 @@ export function ConversationRow({ conversation, onPress, onLongPress }: Conversa
               className={`flex-1 text-[14px] ${isDark ? 'text-[#B8B4C8]' : 'text-[#8A8298]'} ${isGalleryPreview ? 'ml-2' : ''}`}
               numberOfLines={1}
             >
-              {isGalleryPreview ? 'Product gallery' : conversation.lastMessage}
+              {lastMessageText}
             </Text>
           </View>
           

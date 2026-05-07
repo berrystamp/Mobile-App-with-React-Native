@@ -1,6 +1,5 @@
-import type { Message } from '@/types';
-import { getLocalConversations } from '@/lib/localConversations';
 import { useAuthStore } from '@/store/authStore';
+import type { Message } from '@/types';
 
 export interface BackendMediaAsset {
   id?: number;
@@ -335,32 +334,8 @@ export function normalizeConversationsResponse(response: any): ConversationSumma
 
 export async function getMergedConversations(response: any): Promise<ConversationSummaryDto[]> {
   const backend = normalizeConversationsResponse(response);
-  const local = await getLocalConversations();
 
-  const localMapped: ConversationSummaryDto[] = local.map((item, index) => ({
-    id: item.id,
-    source: 'local',
-    name: item.name,
-    role: item.role,
-    avatarColor: AVATAR_COLORS[index % AVATAR_COLORS.length],
-    avatarEmoji: AVATAR_EMOJIS[index % AVATAR_EMOJIS.length],
-    avatarInitials: initialsFromName(item.name),
-    lastMessage: item.lastMessage,
-    unreadCount: item.unreadCount,
-    updatedAtLabel: relativeTime(item.updatedAt),
-    timestamp: item.updatedAt,
-    participantId: item.participantId,
-    participants: [],
-  }));
-
-  const merged = [...localMapped];
-  backend.forEach((conversation) => {
-    if (!merged.some((item) => item.id === conversation.id)) {
-      merged.push(conversation);
-    }
-  });
-
-  return merged.sort((left, right) => {
+  return backend.sort((left, right) => {
     const leftTime = left.timestamp ? new Date(left.timestamp).getTime() : 0;
     const rightTime = right.timestamp ? new Date(right.timestamp).getTime() : 0;
     return rightTime - leftTime;

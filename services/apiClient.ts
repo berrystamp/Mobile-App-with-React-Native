@@ -353,6 +353,7 @@ async getManageOrderById(orderId: string | number, profileType?: ProfileTypeInte
 }
 
   async getOrderById(orderId: string | number) {
+    console.log(orderId)
     const headers = { profileType: getProfileType() };
     const response = await api.get(`/orders/${orderId}`, { headers });
     return response.data;
@@ -857,6 +858,7 @@ async getManageOrderById(orderId: string | number, profileType?: ProfileTypeInte
 
   async sendMessage(payload: { toProfileId: number; content: string; caption?: string; chatType?: string }) {
     const profileType = getProfileType();
+    console.log(payload)
     const response = await api.post(
       '/messages/send',
       payload,
@@ -877,6 +879,105 @@ async getManageOrderById(orderId: string | number, profileType?: ProfileTypeInte
       headers: { profileType },
     });
 
+    return response.data;
+  }
+
+  async getConversationMessagesByProfile(profileId: string | number, page: number = 0, size: number = 100) {
+    const profileType = getProfileType();
+    const response = await api.get(`/conversations/profiles/${profileId}/messages`, {
+      params: { page, size, sort: 'createdAt,asc' },
+      headers: { profileType },
+    });
+    return response.data;
+  }
+
+  async getOrderConversationMessages(orderId: string | number, page: number = 0, size: number = 100) {
+    const profileType = getProfileType();
+    const response = await api.get(`/conversations/order/${orderId}/messages`, {
+      params: { page, size, sort: 'createdAt,asc' },
+      headers: { profileType },
+    });
+    return response.data;
+  }
+
+  async createOrder(payload: {
+    orderRequestId: number;
+    title: string;
+    description: string;
+    amount: number;
+    deliveryAmount?: number;
+    itemPickupAmount?: number;
+    itemProvidedByCustomer?: boolean;
+    deliveryDate: string;
+  }) {
+    const profileType = getProfileType();
+    const response = await api.post('/orders', payload, {
+      headers: { profileType },
+    });
+    return response.data;
+  }
+
+  async payForOrder(orderId: string | number, payload: { callback: string; orderId: number }) {
+    const profileType = getProfileType();
+    const response = await api.post(`/orders/${orderId}`, payload, {
+      headers: { profileType },
+    });
+    return response.data;
+  }
+
+  async uploadOrderDesign(orderId: string | number, imagePath: string) {
+    const profileType = getProfileType();
+    const response = await api.post(`/orders/${orderId}/design-upload`, { imagePath }, {
+      headers: { profileType },
+    });
+    return response.data;
+  }
+
+  async deliverOrder(orderId: string | number) {
+    const profileType = getProfileType();
+    const response = await api.patch(`/orders/${orderId}/deliver`, {}, {
+      headers: { profileType },
+    });
+    return response.data;
+  }
+
+  async declineOrder(orderId: string | number) {
+    const profileType = getProfileType();
+    const response = await api.patch(`/orders/${orderId}/decline`, {}, {
+      headers: { profileType },
+    });
+    return response.data;
+  }
+
+  async cancelOrderByCustomer(orderId: string | number) {
+    const profileType = getProfileType();
+    const response = await api.patch(`/orders/${orderId}/customer/cancel`, {}, {
+      headers: { profileType },
+    });
+    return response.data;
+  }
+
+  async confirmOrder(orderId: string | number) {
+    const profileType = getProfileType();
+    const response = await api.patch(`/orders/${orderId}/confirm`, {}, {
+      headers: { profileType },
+    });
+    return response.data;
+  }
+
+  async cancelOrderByProvider(orderId: string | number) {
+    const profileType = getProfileType();
+    const response = await api.patch(`/orders/${orderId}/cancel`, {}, {
+      headers: { profileType },
+    });
+    return response.data;
+  }
+
+  async getOrderRequestById(orderRequestId: string | number) {
+    const profileType = getProfileType();
+    const response = await api.get(`/order-requests/${orderRequestId}`, {
+      headers: { profileType },
+    });
     return response.data;
   }
 

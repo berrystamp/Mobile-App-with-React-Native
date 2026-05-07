@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, Modal, Pressable, RefreshControl, SafeAreaView, Text, TextInput, TouchableOpacity, View, useColorScheme } from 'react-native';
+import { ActivityIndicator, FlatList, Modal, Pressable, SafeAreaView, Text, TextInput, TouchableOpacity, View, useColorScheme } from 'react-native';
 
 import { ConversationRow } from '@/components/messages/ConversationRow';
 import { MessageEmptyState } from '@/components/messages/MessageEmptyState';
@@ -68,9 +68,7 @@ export default function MessagesScreen() {
     router.push({
       pathname: '/chat',
       params: {
-        ...(conversation.source === 'local'
-          ? { localConversationId: conversation.id }
-          : { conversationId: conversation.id }),
+        conversationId: conversation.id,
         participantId: String(conversation.participantId || ''),
         participantName: conversation.name,
         participantRole: conversation.role,
