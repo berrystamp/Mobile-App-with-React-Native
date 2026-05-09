@@ -3,10 +3,11 @@ import { Image } from "expo-image";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
 import {
-    ActivityIndicator, Alert, Linking, ScrollView,
-    Text, TouchableOpacity, View, useColorScheme,
+    ActivityIndicator, Alert, Modal, SafeAreaView,
+    ScrollView, Text, TouchableOpacity, View, useColorScheme,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { WebView } from "react-native-webview";
 
 import { getAvailableProfileTypes, mergeUserAndProfile, normalizeProfileResponse } from "@/lib/profile";
 import ApiService from "@/services/apiClient";
@@ -29,6 +30,79 @@ const profileLabels: Record<TProfileType, string> = {
   PRINTER: "Printer",
 };
 
+// ─── In-App Browser Modal ────────────────────────────────────────────────────
+function InAppBrowser({
+  url,
+  title,
+  visible,
+  onClose,
+}: {
+  url: string;
+  title: string;
+  visible: boolean;
+  onClose: () => void;
+}) {
+  const isDark = useColorScheme() === "dark";
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="fullScreen">
+      <SafeAreaView style={{ flex: 1, backgroundColor: isDark ? "#121212" : "#FFFFFF" }}>
+        {/* Header */}
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            paddingHorizontal: 16,
+            paddingVertical: 12,
+            borderBottomWidth: 1,
+            borderBottomColor: isDark ? "#2A2A2A" : "#F0EEF7",
+            backgroundColor: isDark ? "#1E1E1E" : "#FFFFFF",
+          }}
+        >
+          <TouchableOpacity
+            onPress={onClose}
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 18,
+              backgroundColor: isDark ? "#2A2A2A" : "#F5F4F9",
+              alignItems: "center",
+              justifyContent: "center",
+              marginRight: 12,
+            }}
+          >
+            <Ionicons name="close" size={18} color={isDark ? "#FFFFFF" : "#2E2939"} />
+          </TouchableOpacity>
+          <Text
+            numberOfLines={1}
+            style={{
+              flex: 1,
+              fontSize: 15,
+              fontWeight: "600",
+              color: isDark ? "#FFFFFF" : "#2E2939",
+            }}
+          >
+            {title}
+          </Text>
+        </View>
+
+        {/* WebView */}
+        <WebView
+          source={{ uri: url }}
+          style={{ flex: 1 }}
+          startInLoadingState
+          renderLoading={() => (
+            <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+              <ActivityIndicator size="large" color="#4B3A99" />
+            </View>
+          )}
+        />
+      </SafeAreaView>
+    </Modal>
+  );
+}
+
+// ─── Profile Screen ───────────────────────────────────────────────────────────
 export default function ProfileScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -38,6 +112,17 @@ export default function ProfileScreen() {
   const [profilePayload, setProfilePayload] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [notificationCount, setNotificationCount] = useState(0);
+
+  // In-app browser state
+  const [browserVisible, setBrowserVisible] = useState(false);
+  const [browserUrl, setBrowserUrl] = useState("");
+  const [browserTitle, setBrowserTitle] = useState("");
+
+  const openInBrowser = (url: string, title: string) => {
+    setBrowserUrl(url);
+    setBrowserTitle(title);
+    setBrowserVisible(true);
+  };
 
   const activeRole = toProfileType(role) as TProfileType;
 
@@ -84,7 +169,6 @@ export default function ProfileScreen() {
   const availableProfiles = useMemo(() => getAvailableProfileTypes(user, profilePayload || {}), [profilePayload, user]);
   const switchTargets = useMemo(() => availableProfiles.filter((item) => item !== activeRole), [activeRole, availableProfiles]);
 
-  // Resolve display name: shop name for designer/printer, full name for customer
   const displayName = useMemo(() => {
     if (!user) return profile.fullName || "User";
     if (activeRole === "DESIGNER") {
@@ -99,7 +183,6 @@ export default function ProfileScreen() {
   const accountItems = useMemo(() => {
     if (activeRole === "DESIGNER") {
       return [
-        // { icon: "storefront-outline" as const, label: "My Shop", onPress: () => router.push("/my-shop") },
         { icon: "storefront-outline" as const, label: "My Shop", onPress: () => router.push("/my-shop") },
         { icon: "document-text-outline" as const, label: "Orders", onPress: () => router.push("/manage-order") },
         { icon: "wallet-outline" as const, label: "Wallet", onPress: () => router.push("/wallet") },
@@ -112,7 +195,6 @@ export default function ProfileScreen() {
         { icon: "wallet-outline" as const, label: "Wallet", onPress: () => router.push("/wallet") },
       ];
     }
-    // CUSTOMER
     return [
       { icon: "color-palette-outline" as const, label: "Custom Designs", onPress: () => router.push("/custom-design") },
       { icon: "receipt-outline" as const, label: "My Orders", onPress: () => router.push("/manage-order") },
@@ -125,10 +207,20 @@ export default function ProfileScreen() {
 
   const supportItems = useMemo(() => [
     { icon: "settings-outline" as const, label: "Settings", onPress: () => router.push("/settings") },
-    { icon: "help-circle-outline" as const, label: "FAQ", onPress: () => router.push("/faq") },
     {
-      icon: "document-text-outline" as const, label: "Terms & Conditions",
-      onPress: () => Linking.openURL("https://berrystamp.com/terms-of-service"),
+      icon: "help-circle-outline" as const,
+      label: "FAQ",
+      onPress: () => openInBrowser("https://berrystamp.com/faq", "FAQ"),
+    },
+    {
+      icon: "document-text-outline" as const,
+      label: "Terms & Conditions",
+      onPress: () => openInBrowser("https://berrystamp.com/terms-of-service", "Terms & Conditions"),
+    },
+    {
+      icon: "shield-checkmark-outline" as const,
+      label: "Privacy Policy",
+      onPress: () => openInBrowser("https://berrystamp.com/privacy-policy", "Privacy Policy"),
     },
     {
       icon: "flag-outline" as const,
@@ -154,17 +246,23 @@ export default function ProfileScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.bg }}>
+      {/* In-App Browser Modal */}
+      <InAppBrowser
+        url={browserUrl}
+        title={browserTitle}
+        visible={browserVisible}
+        onClose={() => setBrowserVisible(false)}
+      />
+
       <ScrollView
         contentContainerStyle={{ paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
       >
         {/* Purple header banner */}
         <View style={{ backgroundColor: "#4330A2", paddingTop: insets.top + 12, paddingBottom: 20, paddingHorizontal: 20, borderBottomLeftRadius: 28, borderBottomRightRadius: 28, overflow: "hidden" }}>
-          {/* Decorative circles */}
           <View style={{ position: "absolute", top: -10, left: -20, width: 120, height: 120, borderRadius: 60, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" }} />
           <View style={{ position: "absolute", top: 20, right: -10, width: 160, height: 160, borderRadius: 80, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" }} />
 
-          {/* Top row */}
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
             <TouchableOpacity onPress={() => router.back()} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.12)", alignItems: "center", justifyContent: "center" }}>
               <Ionicons name="arrow-back" size={18} color="#FFFFFF" />
@@ -180,9 +278,7 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Avatar & name */}
           <View style={{ flexDirection: "row", alignItems: "center" }}>
-            {/* Only show avatar for designer/printer; smaller placeholder for customer */}
             {activeRole !== "CUSTOMER" ? (
               <Image
                 source={{ uri: toAvatar(profile.avatar) }}
@@ -203,7 +299,6 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Stats for designer/printer */}
           {activeRole !== "CUSTOMER" && (
             <View style={{ flexDirection: "row", marginTop: 16, gap: 16 }}>
               <View style={{ alignItems: "center" }}>
