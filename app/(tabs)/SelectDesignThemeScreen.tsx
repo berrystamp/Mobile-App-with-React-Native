@@ -21,7 +21,8 @@ export default function SelectDesignThemeScreen() {
       designTheme: selected,
       items: parsed?.items || [],
     });
-    router.replace({ pathname: '/custom-design', params: { draft: nextDraft } });
+    // Replace back to the correct screen — /(tabs)/create-custom-design
+    router.replace({ pathname: '/(tabs)/create-custom-design', params: { draft: nextDraft } });
   };
 
   return (
@@ -46,8 +47,13 @@ export default function SelectDesignThemeScreen() {
                 key={item}
                 activeOpacity={0.75}
                 onPress={() => setSelected(item)}
-                style={[styles.optionRow, !isLast && { borderBottomColor: theme.border, borderBottomWidth: StyleSheet.hairlineWidth }]}>
-                <Text style={[styles.optionText, { color: isSelected ? theme.primary : theme.text }]}>{item}</Text>
+                style={[
+                  styles.optionRow,
+                  !isLast && { borderBottomColor: theme.border, borderBottomWidth: StyleSheet.hairlineWidth },
+                ]}>
+                <Text style={[styles.optionText, { color: isSelected ? theme.primary : theme.text }]}>
+                  {item}
+                </Text>
                 <View
                   style={[
                     styles.radioOuter,
