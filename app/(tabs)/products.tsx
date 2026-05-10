@@ -617,8 +617,28 @@ function ProductDetailScreen({
         size: selectedSize || undefined,
       });
       if (printNow) {
-        router.push({ pathname: '/cart', params: { openPrintPrefs: '1' } });
+        // Print Now: skip cart flow — go straight to printer selection with this item
         onClose();
+        router.push({
+          pathname: '/(tabs)/select-printer',
+          params: {
+            cartItems: JSON.stringify([
+              {
+                id: String(design.id),
+                name: design.title,
+                imageUrl: selectedMock?.imagePath || design.imagePath || '',
+                price: selectedMock?.price || design.amount || 0,
+                quantity,
+                colour: selectedColour || '',
+                size: selectedSize || '',
+                variantText: [selectedColour, selectedSize].filter(Boolean).join(' / '),
+                designerName:
+                  `${design.profile.firstName} ${design.profile.lastName}`.trim() ||
+                  design.profile.username,
+              },
+            ]),
+          },
+        });
         return;
       }
       setCartSuccess(true);
@@ -992,7 +1012,7 @@ function ProductDetailScreen({
             <Ionicons name="chevron-forward" size={18} color={isDark ? '#666' : '#AAA'} />
           </TouchableOpacity>
 
-          {/* Action buttons */}
+           {/* Action buttons */}
           <View style={{ flexDirection: 'row', gap: 12, marginBottom: 28 }}>
             <TouchableOpacity
               onPress={() => handleAddToCart(false)}
