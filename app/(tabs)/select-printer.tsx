@@ -12,6 +12,7 @@ import {
 
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { decodeDraft, encodeDraft } from "@/lib/customDesign";
+import { upsertLocalConversation } from "@/lib/localConversations";
 import ApiService from "@/services/apiClient";
 
 interface PrinterCard {
@@ -35,10 +36,24 @@ const toAbsolutePath = (path?: string) => {
 
 export default function SelectPrinterScreen() {
   const router = useRouter();
-  const { draft } = useLocalSearchParams<{ draft?: string }>();
+  const { draft, cartItems: cartItemsParam } = useLocalSearchParams<{
+    draft?: string;
+    cartItems?: string;
+  }>();
   const parsed = useMemo(() => decodeDraft(draft), [draft]);
 
+  // Parse cartItems passed from Print Now (products) or from cart print flow
+  const cartItems = useMemo(() => {
+    if (!cartItemsParam) return [];
+    try {
+      return JSON.parse(cartItemsParam);
+    } catch {
+      return [];
+    }
+  }, [cartItemsParam]);
+
   const [loading, setLoading] = useState(true);
+  const [sendingId, setSendingId] = useState<number | null>(null);
   const [printers, setPrinters] = useState<PrinterCard[]>([]);
 
   const loadPrinters = useCallback(async () => {
@@ -90,6 +105,86 @@ export default function SelectPrinterScreen() {
     loadPrinters();
   }, [loadPrinters]);
 
+  const handleMessage = async (printer: PrinterCard) => {
+    setSendingId(printer.id);
+    try {
+      // Build bundle message from cartItems if available, otherwise plain text
+      const initialMessages =
+        cartItems.length > 0
+          ? [
+              {
+                id: `print-req-${printer.id}-${Date.now()}`,
+                type: "bundle" as const,
+                text: "[Print request]",
+                previewText: "[Print request]",
+                author: "me" as const,
+                createdAt: new Date().toISOString(),
+                status: "sent" as const,
+                bundle: {
+                  title: "Print request",
+                  productCount: cartItems.length,
+                  footerLabel:
+                    cartItems.length > 1
+                      ? "View all product details"
+                      : "View product details",
+                  items: cartItems.map((item: any, index: number) => ({
+                    id: item.id,
+                    imageUrl: item.imageUrl,
+                    overlayText:
+                      index === 3 && cartItems.length > 4
+                        ? `+${cartItems.length - 3} Items`
+                        : undefined,
+                    name: item.name,
+                    title: item.name,
+                    price: item.price,
+                    quantity: item.quantity,
+                    colour: item.colour,
+                    color: item.colour,
+                    size: item.size,
+                    variantText: item.variantText,
+                    budget: item.budget,
+                    deliveryDate: item.deliveryDate,
+                    deliveryAddress: item.deliveryAddress,
+                    pickupAddress: item.pickupAddress,
+                    hasOwnItem: item.hasOwnItem,
+                  })),
+                },
+              },
+            ]
+          : [
+              {
+                id: `print-req-${printer.id}-${Date.now()}`,
+                type: "text" as const,
+                text: "Hi, I'd like to request printing services.",
+                previewText: "Hi, I'd like to request printing services.",
+                author: "me" as const,
+                createdAt: new Date().toISOString(),
+                status: "sent" as const,
+              },
+            ];
+
+      await upsertLocalConversation({
+        participantId: printer.id,
+        name: printer.name,
+        role: "Printers",
+        initialMessages,
+      });
+
+      router.push({
+        pathname: "/(tabs)/chat",
+        params: {
+          participantId: String(printer.id),
+          participantName: printer.name,
+          participantRole: "Printers",
+        },
+      });
+    } catch (err) {
+      console.error("[SelectPrinter] Failed to start conversation:", err);
+    } finally {
+      setSendingId(null);
+    }
+  };
+
   if (loading) {
     return <LoadingSpinner message="Loading printers..." />;
   }
@@ -111,7 +206,7 @@ export default function SelectPrinterScreen() {
       </View>
 
       <Text style={styles.subtitle}>
-        Select and message a printer of your choice for design preferences and
+        Select and message a printer of your choice for printing preferences and
         cost negotiation
       </Text>
 
@@ -138,19 +233,16 @@ export default function SelectPrinterScreen() {
             </Text>
 
             <TouchableOpacity
-              style={styles.messageButton}
-              onPress={() =>
-                router.push({
-                  pathname: "/chat",
-                  params: {
-                    printerId: String(item.id),
-                    participantName: item.name,
-                    draft: encodedDraft,
-                  },
-                })
-              }
+              style={[
+                styles.messageButton,
+                sendingId === item.id && { opacity: 0.6 },
+              ]}
+              disabled={sendingId === item.id}
+              onPress={() => handleMessage(item)}
             >
-              <Text style={styles.messageButtonText}>Message</Text>
+              <Text style={styles.messageButtonText}>
+                {sendingId === item.id ? "Sending…" : "Message"}
+              </Text>
             </TouchableOpacity>
           </View>
         )}
@@ -213,3 +305,23 @@ const styles = StyleSheet.create({
   messageButtonText: { color: "#3C2D90", fontWeight: "600" },
   empty: { textAlign: "center", marginTop: 40, fontSize: 15, color: "#888193" },
 });
+
+interface PrinterCard {
+  id: number;
+  name: string;
+  avatar: string;
+  cover: string;
+  role: string;
+  jobs: number;
+  rating: string;
+}
+
+const fallbackImage =
+  "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=400";
+
+const toAbsolutePath = (path?: string) => {
+  if (!path) return fallbackImage;
+  if (path.startsWith("http")) return path;
+  return `https://backend-prod-api.berrystamp.com/${path.replace(/^\/+/, "")}`;
+};
+
