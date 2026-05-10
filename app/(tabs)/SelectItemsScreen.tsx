@@ -7,6 +7,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DEFAULT_PRINT_ITEMS, decodeDraft, encodeDraft } from '@/lib/customDesign';
 import { useAppTheme } from '@/lib/theme/appTheme';
 
+const MAX_SELECTIONS = 3;
+
 export default function SelectItemsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -15,8 +17,18 @@ export default function SelectItemsScreen() {
   const parsed = useMemo(() => decodeDraft(draft), [draft]);
   const [selected, setSelected] = useState<string[]>(parsed?.items || []);
 
+  const atLimit = selected.length >= MAX_SELECTIONS;
+
   const toggle = (item: string) => {
-    setSelected((current) => (current.includes(item) ? current.filter((value) => value !== item) : [...current, item]));
+    setSelected((current) => {
+      if (current.includes(item)) {
+        // Always allow deselect
+        return current.filter((value) => value !== item);
+      }
+      // Block new selection if at limit
+      if (current.length >= MAX_SELECTIONS) return current;
+      return [...current, item];
+    });
   };
 
   const apply = () => {
@@ -25,7 +37,8 @@ export default function SelectItemsScreen() {
       designTheme: parsed?.designTheme || '',
       items: selected,
     });
-    router.replace({ pathname: '/custom-design', params: { draft: nextDraft } });
+    // Replace back to the correct screen — /(tabs)/create-custom-design
+    router.replace({ pathname: '/(tabs)/create-custom-design', params: { draft: nextDraft } });
   };
 
   return (
@@ -40,18 +53,32 @@ export default function SelectItemsScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Selection counter */}
+      <View style={[styles.counter, { backgroundColor: theme.surfaceMuted }]}>
+        <Text style={[styles.counterText, { color: atLimit ? theme.primary : theme.textMuted }]}>
+          {selected.length}/{MAX_SELECTIONS} selected{atLimit ? ' — limit reached' : ''}
+        </Text>
+      </View>
+
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           {DEFAULT_PRINT_ITEMS.map((item, index) => {
             const isChecked = selected.includes(item);
+            const isDisabled = !isChecked && atLimit;
             const isLast = index === DEFAULT_PRINT_ITEMS.length - 1;
             return (
               <TouchableOpacity
                 key={item}
-                activeOpacity={0.75}
-                onPress={() => toggle(item)}
-                style={[styles.optionRow, !isLast && { borderBottomColor: theme.border, borderBottomWidth: StyleSheet.hairlineWidth }]}>
-                <Text style={[styles.optionText, { color: isChecked ? theme.primary : theme.text }]}>{item}</Text>
+                activeOpacity={isDisabled ? 1 : 0.75}
+                onPress={() => !isDisabled && toggle(item)}
+                style={[
+                  styles.optionRow,
+                  !isLast && { borderBottomColor: theme.border, borderBottomWidth: StyleSheet.hairlineWidth },
+                  isDisabled && { opacity: 0.4 },
+                ]}>
+                <Text style={[styles.optionText, { color: isChecked ? theme.primary : theme.text }]}>
+                  {item}
+                </Text>
                 <View
                   style={[
                     styles.checkbox,
@@ -103,6 +130,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     textAlign: 'right',
+  },
+  counter: {
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+  },
+  counterText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   content: {
     padding: 16,
