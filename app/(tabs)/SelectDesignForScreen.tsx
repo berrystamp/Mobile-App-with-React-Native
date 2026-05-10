@@ -7,6 +7,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DEFAULT_DESIGN_CATEGORIES, decodeDraft, encodeDraft } from '@/lib/customDesign';
 import { useAppTheme } from '@/lib/theme/appTheme';
 
+const MAX_SELECTIONS = 3;
+
 export default function SelectDesignForScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -15,14 +17,31 @@ export default function SelectDesignForScreen() {
   const parsed = useMemo(() => decodeDraft(draft), [draft]);
 
   const initialSelections = parsed?.designFor ? parsed.designFor.split(', ').filter(Boolean) : [];
-  const standardSelected = initialSelections.filter((item) => DEFAULT_DESIGN_CATEGORIES.includes(item as (typeof DEFAULT_DESIGN_CATEGORIES)[number]));
-  const customInitial = initialSelections.filter((item) => !DEFAULT_DESIGN_CATEGORIES.includes(item as (typeof DEFAULT_DESIGN_CATEGORIES)[number])).join(', ');
+  const standardSelected = initialSelections.filter((item) =>
+    DEFAULT_DESIGN_CATEGORIES.includes(item as (typeof DEFAULT_DESIGN_CATEGORIES)[number])
+  );
+  const customInitial = initialSelections
+    .filter(
+      (item) => !DEFAULT_DESIGN_CATEGORIES.includes(item as (typeof DEFAULT_DESIGN_CATEGORIES)[number])
+    )
+    .join(', ');
 
   const [selected, setSelected] = useState<string[]>(standardSelected);
   const [custom, setCustom] = useState(customInitial);
 
+  const totalCount = selected.length + (custom.trim() ? custom.split(',').filter((s) => s.trim()).length : 0);
+  const atLimit = totalCount >= MAX_SELECTIONS;
+
   const toggle = (category: string) => {
-    setSelected((current) => (current.includes(category) ? current.filter((item) => item !== category) : [...current, category]));
+    setSelected((current) => {
+      if (current.includes(category)) {
+        // Always allow deselect
+        return current.filter((item) => item !== category);
+      }
+      // Block new selection if at limit
+      if (atLimit) return current;
+      return [...current, category];
+    });
   };
 
   const apply = () => {
@@ -30,13 +49,14 @@ export default function SelectDesignForScreen() {
       .split(',')
       .map((item) => item.trim())
       .filter(Boolean);
-    const choices = Array.from(new Set([...selected, ...customValues]));
+    const choices = Array.from(new Set([...selected, ...customValues])).slice(0, MAX_SELECTIONS);
     const nextDraft = encodeDraft({
       designFor: choices.join(', '),
       designTheme: parsed?.designTheme || '',
       items: parsed?.items || [],
     });
-    router.replace({ pathname: '/custom-design', params: { draft: nextDraft } });
+    // Replace back to the correct screen — /(tabs)/create-custom-design
+    router.replace({ pathname: '/(tabs)/create-custom-design', params: { draft: nextDraft } });
   };
 
   return (
@@ -51,18 +71,32 @@ export default function SelectDesignForScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Selection counter */}
+      <View style={[styles.counter, { backgroundColor: theme.surfaceMuted }]}>
+        <Text style={[styles.counterText, { color: atLimit ? theme.primary : theme.textMuted }]}>
+          {totalCount}/{MAX_SELECTIONS} selected{atLimit ? ' — limit reached' : ''}
+        </Text>
+      </View>
+
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           {DEFAULT_DESIGN_CATEGORIES.map((category, index) => {
             const isChecked = selected.includes(category);
+            const isDisabled = !isChecked && atLimit;
             const isLast = index === DEFAULT_DESIGN_CATEGORIES.length - 1;
             return (
               <TouchableOpacity
                 key={category}
-                activeOpacity={0.75}
-                onPress={() => toggle(category)}
-                style={[styles.optionRow, !isLast && { borderBottomColor: theme.border, borderBottomWidth: StyleSheet.hairlineWidth }]}>
-                <Text style={[styles.optionText, { color: isChecked ? theme.primary : theme.text }]}>{category}</Text>
+                activeOpacity={isDisabled ? 1 : 0.75}
+                onPress={() => !isDisabled && toggle(category)}
+                style={[
+                  styles.optionRow,
+                  !isLast && { borderBottomColor: theme.border, borderBottomWidth: StyleSheet.hairlineWidth },
+                  isDisabled && { opacity: 0.4 },
+                ]}>
+                <Text style={[styles.optionText, { color: isChecked ? theme.primary : theme.text }]}>
+                  {category}
+                </Text>
                 <View
                   style={[
                     styles.checkbox,
@@ -79,21 +113,30 @@ export default function SelectDesignForScreen() {
         </View>
 
         <View style={styles.section}>
-          <Text style={[styles.sectionLabel, { color: theme.textMuted }]}>Can&apos;t see your category? Add a custom one</Text>
+          <Text style={[styles.sectionLabel, { color: theme.textMuted }]}>
+            Can&apos;t see your category? Add a custom one
+          </Text>
           <TextInput
             value={custom}
             onChangeText={setCustom}
             placeholder="Input custom category"
             placeholderTextColor={theme.textMuted}
+            editable={!atLimit || Boolean(custom.trim())}
             style={[
               styles.input,
               {
                 backgroundColor: theme.surface,
                 borderColor: custom.trim() ? theme.primary : theme.border,
                 color: theme.text,
+                opacity: atLimit && !custom.trim() ? 0.4 : 1,
               },
             ]}
           />
+          {atLimit && (
+            <Text style={[styles.limitNote, { color: theme.primary }]}>
+              Maximum {MAX_SELECTIONS} selections reached
+            </Text>
+          )}
         </View>
       </ScrollView>
     </View>
@@ -132,6 +175,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     textAlign: 'right',
+  },
+  counter: {
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+  },
+  counterText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   content: {
     padding: 16,
@@ -179,5 +230,11 @@ const styles = StyleSheet.create({
     minHeight: 56,
     paddingHorizontal: 16,
     paddingVertical: 14,
+  },
+  limitNote: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 6,
+    marginLeft: 4,
   },
 });
