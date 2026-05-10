@@ -103,7 +103,7 @@ function DesignCard({ item, theme, username, onMenu, onPress }: { item: any; the
 }
 
 // ─── CollectionCard ───────────────────────────────────────────────────────────
-function CollectionCard({ item, theme, onMenu, onPress }: { item: CollectionItem; theme: ReturnType<typeof useTheme>; onMenu: () => void; onPress: () => void }) {
+function CollectionCard({ item, theme, onMenu, onPress,readOnly }: { item: CollectionItem; theme: ReturnType<typeof useTheme>; onMenu: () => void; onPress: () => void; readOnly: boolean }) {
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.88} style={{ width: '48.5%', borderRadius: 12, marginBottom: 12, backgroundColor: theme.surface, overflow: 'hidden' }}>
       <View style={{ position: 'relative' }}>
@@ -114,9 +114,9 @@ function CollectionCard({ item, theme, onMenu, onPress }: { item: CollectionItem
             <Ionicons name="albums-outline" size={28} color={theme.muted} />
           </View>
         )}
-        <TouchableOpacity onPress={onMenu} style={{ position: 'absolute', top: 6, right: 6, width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.85)', alignItems: 'center', justifyContent: 'center' }}>
+        {!readOnly && <TouchableOpacity onPress={onMenu} style={{ position: 'absolute', top: 6, right: 6, width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.85)', alignItems: 'center', justifyContent: 'center' }}>
           <Ionicons name="ellipsis-horizontal" size={16} color="#444" />
-        </TouchableOpacity>
+        </TouchableOpacity>}
       </View>
       <View style={{ padding: 8 }}>
         <Text style={{ fontSize: 14, fontWeight: '600', color: theme.text }} numberOfLines={1}>{item.name}</Text>
@@ -1283,6 +1283,7 @@ export default function MyShopScreen() {
                   <CollectionCard
                     key={String(item.id)}
                     item={item}
+                    readOnly={readOnly}
                     theme={theme}
                     onMenu={() => handleCollectionMenu(item)}
                     onPress={() => { setCollectionDetail(item); setShowCollectionDetail(true); }}
