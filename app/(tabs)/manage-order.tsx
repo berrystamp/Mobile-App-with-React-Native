@@ -2,9 +2,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator, Alert, RefreshControl, ScrollView,
-  StyleSheet, Text, TextInput, TouchableOpacity, View, useColorScheme,
-  Dimensions // 1. Added Dimensions import
+    ActivityIndicator,
+    Dimensions // 1. Added Dimensions import
+    ,
+
+
+
+    RefreshControl, ScrollView,
+    StyleSheet, Text, TextInput, TouchableOpacity, View, useColorScheme
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -13,6 +18,7 @@ import { normalizeManageOrderListResponse } from '@/lib/orders';
 import ApiService from '@/services/apiClient';
 import { toProfileType, useAuthStore } from '@/store/authStore';
 import type { ManageOrderItem, ManageOrderStatus } from '@/types';
+import { useAppAlert } from '@/components/common/AppAlert';
 
 // 2. Get the screen width
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -47,6 +53,7 @@ export default function ManageOrderScreen() {
   const [orders, setOrders] = useState<ManageOrderItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const { show: showAlert, element: alertElement } = useAppAlert();
 
   const theme = {
     background: isDark ? '#121212' : '#F7F6FC',
@@ -68,7 +75,7 @@ export default function ManageOrderScreen() {
       const response = await ApiService.getManageOrders({ profileType: toProfileType(role) });
       setOrders(normalizeManageOrderListResponse(response));
     } catch (error: any) {
-      Alert.alert('Unable to load orders', error?.response?.data?.responseMessage || error?.message || 'Please try again.');
+      showAlert({ type: 'error', title: 'Unable to load orders', message: error?.response?.data?.responseMessage || error?.message || 'Please try again.' });
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -216,6 +223,7 @@ export default function ManageOrderScreen() {
           })}
         </View>
       </View>
+      {alertElement}
     </SafeAreaView>
   );
 }

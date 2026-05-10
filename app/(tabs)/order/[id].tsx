@@ -2,15 +2,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-  useColorScheme,
+    ActivityIndicator,
+    Image,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+    useColorScheme,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -19,6 +18,7 @@ import { normalizeManageOrder } from '@/lib/orders';
 import ApiService from '@/services/apiClient';
 import { toProfileType, useAuthStore } from '@/store/authStore';
 import type { ManageOrderItem } from '@/types';
+import { useAppAlert } from '@/components/common/AppAlert';
 
 const countdownLabels = ['Days', 'Hours', 'Mins', 'Secs'];
 
@@ -51,6 +51,7 @@ export default function OrderDetailScreen() {
   const [order, setOrder] = useState<ManageOrderItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [count, setCount] = useState(0);
+  const { show: showAlert, element: alertElement } = useAppAlert();
 
   useEffect(() => {
     const loadOrder = async () => {
@@ -61,7 +62,7 @@ export default function OrderDetailScreen() {
         const body = response?.responseBody || response?.data || response;
         setOrder(body ? normalizeManageOrder(body) : null);
       } catch (error: any) {
-        Alert.alert('Unable to load order', error?.response?.data?.responseMessage || error?.message || 'Please try again.');
+        showAlert({ type: 'error', title: 'Unable to load order', message: error?.response?.data?.responseMessage || error?.message || 'Please try again.' });
       } finally {
         setLoading(false);
       }
@@ -178,6 +179,7 @@ export default function OrderDetailScreen() {
           </TouchableOpacity>
         </View>
       </View>
+      {alertElement}
     </SafeAreaView>
   );
 }

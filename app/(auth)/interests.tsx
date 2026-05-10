@@ -2,13 +2,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -32,6 +31,7 @@ export default function OnboardingInterestScreen() {
   const [selected, setSelected] = useState<string[]>([]);
   const [interestOptions, setInterestOptions] = useState<string[]>(FALLBACK_INTERESTS);
   const [saving, setSaving] = useState(false);
+  const { show: showAlert, element: alertElement } = useAppAlert();
 
   useEffect(() => {
     const loadInterestOptions = async () => {
@@ -67,7 +67,7 @@ export default function OnboardingInterestScreen() {
       setNeedsInterestOnboarding(false);
       router.replace('/(tabs)');
     } catch (error: any) {
-      Alert.alert('Unable to save interests', error?.response?.data?.responseMessage || error?.message || 'Please try again.');
+      showAlert({ type: 'error', title: 'Unable to save interests', message: error?.response?.data?.responseMessage || error?.message || 'Please try again.' });
     } finally {
       setSaving(false);
     }
@@ -121,6 +121,7 @@ export default function OnboardingInterestScreen() {
           {saving ? <ActivityIndicator color={theme.onPrimary} /> : <Text style={[styles.ctaText, { color: theme.onPrimary }]}>Continue</Text>}
         </TouchableOpacity>
       </View>
+      {alertElement}
     </View>
   );
 }

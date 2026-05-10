@@ -2,17 +2,17 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    Image,
-    SafeAreaView,
-    Text,
-    TouchableOpacity,
-    View,
-    useColorScheme,
+  ActivityIndicator,
+  FlatList,
+  Image,
+  SafeAreaView,
+  Text,
+  TouchableOpacity,
+  View,
+  useColorScheme,
 } from "react-native";
 
+import { useAppAlert } from "@/components/common/AppAlert";
 import { formatNaira } from "@/lib/currency";
 import { normalizeDesignListResponse } from "@/lib/designs";
 import ApiService from "@/services/apiClient";
@@ -26,6 +26,7 @@ export default function FavoritesScreen() {
   const [designs, setDesigns] = useState<Design[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const { show: showAlert, element: alertElement } = useAppAlert();
 
   const fetchData = useCallback(async (isRefresh = false) => {
     try {
@@ -41,10 +42,11 @@ export default function FavoritesScreen() {
       );
       setDesigns(favoriteDesigns);
     } catch (error: any) {
-      Alert.alert(
-        "Unable to load favorites",
-        error?.message || "Please try again later.",
-      );
+      showAlert({
+        type: 'error',
+        title: 'Unable to load favorites',
+        message: error?.message || 'Please try again later.',
+      });
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -60,64 +62,65 @@ export default function FavoritesScreen() {
   }, [fetchData, role, router]);
 
   const confirmRemoveFavorite = useCallback((design: Design) => {
-    Alert.alert(
-      "Remove item",
-      "Are you sure you want to remove this item from favorite?",
-      [
-        { text: "Cancel", style: "cancel" },
+    showAlert({
+      type: 'confirm',
+      title: 'Remove item',
+      message: 'Are you sure you want to remove this item from favorite?',
+      buttons: [
+        { text: 'Cancel', style: 'cancel' },
         {
-          text: "Remove",
-          style: "destructive",
+          text: 'Remove',
+          style: 'destructive',
           onPress: async () => {
             setDesigns((prev) => prev.filter((item) => item.id !== design.id));
             try {
               await ApiService.toggleFavorite(String(design.id));
             } catch {
               setDesigns((prev) => [design, ...prev]);
-              Alert.alert(
-                "Action failed",
-                "Could not update favorite at the moment.",
-              );
+              showAlert({
+                type: 'error',
+                title: 'Action failed',
+                message: 'Could not update favorite at the moment.',
+              });
             }
           },
         },
       ],
-    );
-  }, []);
+    });
+  }, [showAlert]);
 
   const clearFavorites = useCallback(() => {
     if (!designs.length) return;
 
-    Alert.alert(
-      "Clear favorites",
-      "This will remove all items in your favorites list.",
-      [
-        { text: "Cancel", style: "cancel" },
+    showAlert({
+      type: 'confirm',
+      title: 'Clear favorites',
+      message: 'This will remove all items in your favorites list.',
+      buttons: [
+        { text: 'Cancel', style: 'cancel' },
         {
-          text: "Clear",
-          style: "destructive",
+          text: 'Clear',
+          style: 'destructive',
           onPress: async () => {
             const current = [...designs];
             setDesigns([]);
-
             try {
               await Promise.all(
-                current.map((item) =>
-                  ApiService.toggleFavorite(String(item.id)),
-                ),
+                current.map((item) => ApiService.toggleFavorite(String(item.id))),
               );
             } catch {
               setDesigns(current);
-              Alert.alert(
-                "Action failed",
-                "Unable to clear favorites right now.",
-              );
+              showAlert({
+                type: 'error',
+                title: 'Action failed',
+                message: 'Unable to clear favorites right now.',
+              });
             }
           },
         },
       ],
-    );
-  }, [designs]);
+    });
+  }, [designs, showAlert]);
 
   return (
     <SafeAreaView className="flex-1 bg-gray-50 dark:bg-[#121212]">
@@ -213,7 +216,7 @@ export default function FavoritesScreen() {
                         <TouchableOpacity
                           onPress={() =>
                             router.push({
-                              pathname: "/product",
+                              pathname: "/products",
                               params: { designId: String(item.id) },
                             })
                           }
@@ -247,6 +250,7 @@ export default function FavoritesScreen() {
           />
         )}
       </View>
+      {alertElement}
     </SafeAreaView>
   );
 }

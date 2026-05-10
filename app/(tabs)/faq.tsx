@@ -1,9 +1,10 @@
+import { useAppAlert } from '@/components/common/AppAlert';
+import ApiService from '@/services/apiClient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, Text, TouchableOpacity, View, useColorScheme } from 'react-native';
+import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View, useColorScheme } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import ApiService from '@/services/apiClient';
 
 type FaqItem = { id: string; question: string; answer: string };
 
@@ -14,6 +15,7 @@ export default function FaqScreen() {
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<FaqItem[]>([]);
   const [openId, setOpenId] = useState<string | null>(null);
+  const { show: showAlert, element: alertElement } = useAppAlert();
 
   const bg = isDark ? '#121212' : '#F7F7FB';
   const surface = isDark ? '#1E1E1E' : '#FFFFFF';
@@ -29,7 +31,7 @@ export default function FaqScreen() {
         const response = await ApiService.getFaqItems();
         setItems(response);
       } catch (error: any) {
-        Alert.alert('Unable to load FAQs', error?.response?.data?.responseMessage || error?.message || 'Please try again later.');
+        showAlert({ type: 'error', title: 'Unable to load FAQs', message: error?.response?.data?.responseMessage || error?.message || 'Please try again later.' });
       } finally {
         setLoading(false);
       }
@@ -89,6 +91,7 @@ export default function FaqScreen() {
           )}
         </ScrollView>
       )}
+      {alertElement}
     </View>
   );
 }

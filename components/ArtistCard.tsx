@@ -55,7 +55,7 @@ export const ArtistCard: React.FC<ArtistCardProps> = ({ artist, onPress }) => {
 
     return stars;
   };
-
+  console.log(artist)
   const getAvatarUrl = () => {
     if (artist.profilePicturePath) {
       // If it's a full URL, use it directly

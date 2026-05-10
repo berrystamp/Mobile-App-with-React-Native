@@ -35,7 +35,7 @@ const HIDE_NAV_ROUTES = [
   '/notification', '/payments', '/edit-profile', '/track-order',
   '/faq', '/referral', '/referral-how-it-works', '/manage-order',
   '/update-interest', '/switch-account', '/upload-design', '/create-collection',
-  '/product', '/settings', '/suggestion',
+  '/products', '/settings', '/suggestion',
 ];
 
 export default function TabsLayout() {

@@ -4,7 +4,6 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
-    Alert,
     Image,
     KeyboardAvoidingView,
     Modal,
@@ -29,6 +28,7 @@ import {
 import ApiService from "@/services/apiClient";
 import { isCustomerRole, useAuthStore } from "@/store/authStore";
 import type { Design } from "@/types";
+import { useAppAlert } from "@/components/common/AppAlert";
 
 type CartItemType = {
   id: string;
@@ -70,6 +70,7 @@ export default function CartScreen() {
   const isDark = useColorScheme() === "dark";
   const { height: screenHeight } = useWindowDimensions();
   const role = useAuthStore((state) => state.role);
+  const { show: showAlert, element: alertElement } = useAppAlert();
 
   const [isLoading, setIsLoading] = useState(true);
   const [cartItems, setCartItems] = useState<CartItemType[]>([]);
@@ -247,7 +248,7 @@ export default function CartScreen() {
       await ApiService.deleteCartItem(itemId);
     } catch {
       setCartItems(previousItems);
-      Alert.alert("Error", "Could not remove item. Please try again.");
+      showAlert({ type: 'error', title: 'Error', message: 'Could not remove item. Please try again.' });
     }
   };
 
@@ -280,7 +281,7 @@ export default function CartScreen() {
     } catch (error) {
       console.error("Error updating quantity:", error);
       setCartItems(previousItems);
-      Alert.alert("Error", "Could not update quantity.");
+      showAlert({ type: 'error', title: 'Error', message: 'Could not update quantity.' });
     }
   };
 
@@ -324,7 +325,7 @@ export default function CartScreen() {
 
   const handleContinue = async () => {
     if (!selectedItems.length) {
-      Alert.alert("No item selected", "Select at least one item to continue.");
+      showAlert({ type: 'warning', title: 'No item selected', message: 'Select at least one item to continue.' });
       return;
     }
 
@@ -346,7 +347,7 @@ export default function CartScreen() {
 
   const sendOrderToDesigners = async () => {
     if (!selectedItems.length) {
-      Alert.alert("No item selected", "Select at least one item to continue.");
+      showAlert({ type: 'warning', title: 'No item selected', message: 'Select at least one item to continue.' });
       return;
     }
 
@@ -999,6 +1000,7 @@ export default function CartScreen() {
           </View>
         </View>
       </Modal>
+      {alertElement}
     </View>
   );
 }

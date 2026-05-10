@@ -1,10 +1,10 @@
-import { Ionicons } from '@expo/vector-icons';
 import { useAppTheme } from '@/lib/theme/appTheme';
-import { useAuthStore, isCustomerRole } from '@/store/authStore';
-import { useRouter, usePathname } from 'expo-router';
+import { isCustomerRole, useAuthStore } from '@/store/authStore';
+import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
+import { usePathname, useRouter } from 'expo-router';
 import React from 'react';
 import { Text, TouchableOpacity, View, useColorScheme } from 'react-native';
-import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface HeaderProps {
@@ -35,7 +35,7 @@ const Header: React.FC<HeaderProps> = ({
   // Use React Native's built-in hook to detect the current system/app theme
   const colorScheme = useColorScheme();
 
-  const hiddenRoutes = ['/cart', '/printers', '/product', '/chat', '/select-printer', '/checkout'];
+  const hiddenRoutes = ['/cart', '/printers', '/products', '/chat', '/select-printer', '/checkout'];
   if (type !== 'back' && !isCustomerRole(role)) {
     return null;
   }

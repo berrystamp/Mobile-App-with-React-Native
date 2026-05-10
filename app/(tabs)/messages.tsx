@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import React, { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Modal, Pressable, SafeAreaView, Text, TextInput, TouchableOpacity, View, useColorScheme } from 'react-native';
 
 import { ConversationRow } from '@/components/messages/ConversationRow';
@@ -50,9 +50,13 @@ export default function MessagesScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchConversations();
-  }, [fetchConversations]);
+  // Re-fetch whenever the screen comes back into focus so the last message
+  // sent in a chat is reflected immediately without a manual pull-to-refresh.
+  useFocusEffect(
+    useCallback(() => {
+      fetchConversations();
+    }, [fetchConversations]),
+  );
 
   const filteredThreads = useMemo(() => {
     const normalized = query.trim().toLowerCase();

@@ -46,14 +46,13 @@ function HomeDesignCard({
   imageHeight?: number;
 }) {
   const isDark = useColorScheme() === "dark";
+  console.log(design)
   const imageUrl = design.imagePath?.startsWith("http")
     ? design.imagePath
     : design.imagePath
       ? `https://backend-prod-api.berrystamp.com/${design.imagePath}`
       : "";
-  const artistName =
-    `${design.profile.firstName} ${design.profile.lastName}`.trim() ||
-    design.profile.username;
+  const artistName = design.designerName || design.designerShopName;
   const mockPrices = design.mocks
     .map((mock) => mock.price)
     .filter((price) => price > 0);
@@ -262,7 +261,7 @@ export default function HomeScreen() {
     async (design: Design) => {
       await addRecentDesign(design.id);
       router.push({
-        pathname: "/product",
+        pathname: "/products",
         params: { designId: String(design.id) },
       });
     },

@@ -1273,6 +1273,24 @@ async getManageOrderById(orderId: string | number, profileType?: ProfileTypeInte
     return { responseBody: { content: [] } };
   }
 
+  // Fetch all users filtered by profileType (PRINTER, DESIGNER, CUSTOMER)
+  async getUsers(profileType: 'PRINTER' | 'DESIGNER' | 'CUSTOMER' = 'PRINTER', page: number = 0, size: number = 60) {
+    const headers = { profileType: 'CUSTOMER' };
+    try {
+      const response = await api.get('/users', {
+        params: { profileType, page, size, sort: 'id,desc' },
+        headers,
+      });
+      return response.data;
+    } catch (error: any) {
+      if (error?.response?.status && error.response.status !== 404) {
+        throw error;
+      }
+    }
+    // Fallback to public profiles endpoint
+    return this.getPublicProfiles(profileType, page, size);
+  }
+
   async getWallet() {
     const profileType = getProfileType();
     const response = await api.get('/wallets', {

@@ -2,8 +2,9 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { Alert, Image, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Image, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
+import { useAppAlert } from '@/components/common/AppAlert';
 import ApiService from '@/services/apiClient';
 
 export default function CreateCollectionScreen() {
@@ -13,6 +14,7 @@ export default function CreateCollectionScreen() {
   const [description, setDescription] = useState('');
   const [imageUri, setImageUri] = useState('');
   const [loading, setLoading] = useState(false);
+  const { show: showAlert, element: alertElement } = useAppAlert();
 
   useEffect(() => {
     if (existingName) setName(String(existingName));
@@ -21,7 +23,7 @@ export default function CreateCollectionScreen() {
   const pickImage = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert('Permission required', 'Please allow media permissions to continue.');
+      showAlert({ type: 'warning', title: 'Permission required', message: 'Please allow media permissions to continue.' });
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.9 });
@@ -30,7 +32,7 @@ export default function CreateCollectionScreen() {
 
   const submit = async () => {
     if (!name.trim()) {
-      Alert.alert('Missing name', 'Collection name is required.');
+      showAlert({ type: 'warning', title: 'Missing name', message: 'Collection name is required.' });
       return;
     }
     setLoading(true);
@@ -46,10 +48,10 @@ export default function CreateCollectionScreen() {
       } else {
         await ApiService.createCollection(payload);
       }
-      Alert.alert('Success', `Collection ${collectionId ? 'updated' : 'created'} successfully.`);
+      showAlert({ type: 'success', title: 'Success', message: `Collection ${collectionId ? 'updated' : 'created'} successfully.` });
       router.back();
     } catch (error: any) {
-      Alert.alert('Unable to submit', error?.response?.data?.responseMessage || error?.message || 'Please try again.');
+      showAlert({ type: 'error', title: 'Unable to submit', message: error?.response?.data?.responseMessage || error?.message || 'Please try again.' });
     } finally {
       setLoading(false);
     }
@@ -69,6 +71,7 @@ export default function CreateCollectionScreen() {
         <TextInput value={description} onChangeText={setDescription} placeholder="Collection description" multiline className="mb-3 h-24 rounded-xl border border-[#E3E0EE] bg-white px-4 py-3" />
         <TouchableOpacity disabled={loading} onPress={submit} className="rounded-full bg-[#4833A3] py-4 disabled:opacity-60"><Text className="text-center text-base font-semibold text-white">{loading ? 'Saving...' : collectionId ? 'Update Collection' : 'Create Collection'}</Text></TouchableOpacity>
       </ScrollView>
+      {alertElement}
     </View>
   );
 }

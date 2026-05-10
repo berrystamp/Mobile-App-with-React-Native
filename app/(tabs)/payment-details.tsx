@@ -1,29 +1,30 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-  ScrollView,
-  Modal,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect, useRouter } from 'expo-router';
-import ApiService from '@/services/apiClient';
-import type { BankOption } from '@/services/apiClient';
+import { useAppAlert } from '@/components/common/AppAlert';
 import { normalizePaymentDetails } from '@/lib/profile';
 import { useAppTheme } from '@/lib/theme/appTheme';
+import type { BankOption } from '@/services/apiClient';
+import ApiService from '@/services/apiClient';
+import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect, useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+    ActivityIndicator,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from 'react-native';
 
 type CurrencyType = 'NGN' | 'USD';
 
 export default function PaymentDetailsScreen() {
   const router = useRouter();
   const theme = useAppTheme();
+  const { show: showAlert, element: alertElement } = useAppAlert();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -57,10 +58,7 @@ export default function PaymentDetailsScreen() {
         setAccountName(normalized.accountName || '');
       }
     } catch (error: any) {
-      Alert.alert(
-        'Unable to load payment details',
-        error?.response?.data?.responseMessage || error?.message || 'Please try again.'
-      );
+      showAlert({ type: 'error', title: 'Unable to load payment details', message: error?.response?.data?.responseMessage || error?.message || 'Please try again.' });
     } finally {
       setLoading(false);
     }
@@ -72,10 +70,7 @@ export default function PaymentDetailsScreen() {
       const bankList = await ApiService.getBanks();
       setBanks(bankList);
     } catch (error: any) {
-      Alert.alert(
-        'Unable to load banks',
-        error?.response?.data?.responseMessage || error?.message || 'Please try again.'
-      );
+      showAlert({ type: 'error', title: 'Unable to load banks', message: error?.response?.data?.responseMessage || error?.message || 'Please try again.' });
     } finally {
       setBanksLoading(false);
     }
@@ -121,10 +116,7 @@ export default function PaymentDetailsScreen() {
           }
         } catch (error: any) {
           setVerifyError(true);
-          Alert.alert(
-            'Verification Failed',
-            error?.response?.data?.responseMessage || 'Unable to verify account number'
-          );
+          showAlert({ type: 'error', title: 'Verification Failed', message: error?.response?.data?.responseMessage || 'Unable to verify account number' });
         } finally {
           setVerifying(false);
         }
@@ -169,17 +161,17 @@ export default function PaymentDetailsScreen() {
 
   const handleSave = async () => {
     if (!isValidAccountNumber) {
-      Alert.alert('Validation', 'Account number must be exactly 10 digits.');
+      showAlert({ type: 'warning', title: 'Validation', message: 'Account number must be exactly 10 digits.' });
       return;
     }
 
     if (!accountName.trim()) {
-      Alert.alert('Validation', 'Account name is required.');
+      showAlert({ type: 'warning', title: 'Validation', message: 'Account name is required.' });
       return;
     }
 
     if (!bankCode || !bankName) {
-      Alert.alert('Validation', 'Please select a bank.');
+      showAlert({ type: 'warning', title: 'Validation', message: 'Please select a bank.' });
       return;
     }
 
@@ -191,24 +183,17 @@ export default function PaymentDetailsScreen() {
         accountNumber,
         accountName: accountName.trim(),
       });
-      Alert.alert('Success', 'Payment details saved successfully.');
+      showAlert({ type: 'success', title: 'Success', message: 'Payment details saved successfully.' });
       router.back();
     } catch (error: any) {
-      Alert.alert(
-        'Save failed',
-        error?.response?.data?.responseMessage || error?.message || 'Please try again.'
-      );
+      showAlert({ type: 'error', title: 'Save failed', message: error?.response?.data?.responseMessage || error?.message || 'Please try again.' });
     } finally {
       setSaving(false);
     }
   };
 
   const handleAddUSDDetails = () => {
-    Alert.alert(
-      'USD Details',
-      'USD payment details functionality is coming soon. Please check back later.',
-      [{ text: 'OK' }]
-    );
+    showAlert({ type: 'warning', title: 'USD Details', message: 'USD payment details functionality is coming soon. Please check back later.' });
   };
 
   if (loading) {
@@ -556,6 +541,7 @@ export default function PaymentDetailsScreen() {
           </ScrollView>
         </View>
       </Modal>
+      {alertElement}
     </KeyboardAvoidingView>
   );
 }

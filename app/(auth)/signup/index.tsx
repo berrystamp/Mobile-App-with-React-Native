@@ -5,7 +5,6 @@ import { useRouter } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
     ActivityIndicator,
-    Alert,
     Animated,
     KeyboardAvoidingView,
     Platform,
@@ -137,6 +136,7 @@ export default function SignUpScreen() {
     setNeedsInterestOnboarding,
   } = useAuthStore();
   const isBusiness = selectedProfileType?.toUpperCase() !== "CUSTOMER";
+  const { show: showAlert, element: alertElement } = useAppAlert();
   // Form States
   const [isLoading, setIsLoading] = useState(false);
   const [fullName, setFullName] = useState("");
@@ -206,22 +206,19 @@ export default function SignUpScreen() {
         signUp(accountType);
         setHasSelectedInterests(accountType !== "customer");
         setNeedsInterestOnboarding(accountType === "customer");
-        Alert.alert("Success", "Account created! Please verify your email.");
+        showAlert({ type: 'success', title: 'Success', message: 'Account created! Please verify your email.' });
         router.push({
           pathname: "/(auth)/verify-account",
           params: { email: email.trim() },
         });
       } else {
         const errorData = await response.json();
-        Alert.alert(
-          "Registration Failed",
-          errorData.message || "An error occurred.",
-        );
+        showAlert({ type: 'error', title: 'Registration Failed', message: errorData.message || 'An error occurred.' });
         console.log("Registration Error:", errorData);
       }
     } catch (error) {
       console.error("Sign Up Error:", error);
-      Alert.alert("Network Error", "Unable to reach the server.");
+      showAlert({ type: 'error', title: 'Network Error', message: 'Unable to reach the server.' });
     } finally {
       setIsLoading(false);
     }
@@ -419,6 +416,7 @@ export default function SignUpScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+      {alertElement}
     </SafeAreaView>
   );
 }

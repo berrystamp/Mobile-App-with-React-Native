@@ -1,3 +1,4 @@
+import { useAppAlert } from "@/components/common/AppAlert";
 import { useAuth } from "@/context/AuthContext";
 import { useFileUpload } from "@/hooks/useFileUpload";
 import { DEFAULT_DESIGN_THEMES } from "@/lib/customDesign";
@@ -9,19 +10,18 @@ import * as ImagePicker from "expo-image-picker";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  useColorScheme,
-  View,
+    ActivityIndicator,
+    Image,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    useColorScheme,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -72,6 +72,7 @@ function DeactivateDeleteScreen({
   const [selected, setSelected] = useState<Action>("deactivate");
   const [confirmModal, setConfirmModal] = useState<Action>(null);
   const [loading, setLoading] = useState(false);
+  const { show: showAlert, element: alertElement } = useAppAlert();
 
   const bg = isDark ? "#121212" : "#F0F0F0";
   const surface = isDark ? "#1E1E1E" : "#FFFFFF";
@@ -94,11 +95,11 @@ function DeactivateDeleteScreen({
       }
     } catch {
       // stub — will work once backend is wired
-      Alert.alert(
-        confirmModal === "deactivate" ? "Deactivate" : "Delete",
-        "This feature is not yet available. It will be connected to the backend soon.",
-        [{ text: "OK" }]
-      );
+      showAlert({
+        type: 'warning',
+        title: confirmModal === "deactivate" ? "Deactivate" : "Delete",
+        message: "This feature is not yet available. It will be connected to the backend soon.",
+      });
     } finally {
       setLoading(false);
       setConfirmModal(null);
@@ -229,6 +230,7 @@ function DeactivateDeleteScreen({
           </View>
         </View>
       </Modal>
+      {alertElement}
     </View>
   );
 }
@@ -241,6 +243,7 @@ export default function EditProfileScreen() {
   const isDark = useColorScheme() === "dark";
   const insets = useSafeAreaInsets();
   const { uploading, uploadFile } = useFileUpload();
+  const { show: showAlert, element: alertElement } = useAppAlert();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [fullName, setFullName] = useState("");
@@ -300,7 +303,7 @@ export default function EditProfileScreen() {
       setStoredAvatarPath(profilePic || "");
       setStoredCoverPath(coverPic || "");
     } catch (error: any) {
-      Alert.alert("Unable to load profile", error?.message || "Please try again.");
+      showAlert({ type: 'error', title: 'Unable to load profile', message: error?.message || 'Please try again.' });
     } finally {
       setLoading(false);
     }
@@ -310,7 +313,7 @@ export default function EditProfileScreen() {
 
   const pickImage = async (setter: (uri: string) => void, aspect: [number, number]) => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") { Alert.alert("Permission required", "Allow access to your photos."); return; }
+    if (status !== "granted") { showAlert({ type: 'warning', title: 'Permission required', message: 'Allow access to your photos.' }); return; }
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: "images" as any, aspect, quality: 0.85 });
     if (!result.canceled && result.assets?.[0]?.uri) setter(result.assets[0].uri);
   };
@@ -347,7 +350,7 @@ export default function EditProfileScreen() {
       await refreshUser();
       setStoredAvatarPath(avatarPath);
       setStoredCoverPath(coverPath);
-      Alert.alert("Saved", "Profile updated successfully.");
+      showAlert({ type: 'success', title: 'Saved', message: 'Profile updated successfully.' });
     } catch (error: any) {
       // Extract the most descriptive message the backend returned
       const msg =
@@ -357,7 +360,7 @@ export default function EditProfileScreen() {
         (typeof error?.response?.data === "string" ? error.response.data : null) ||
         error?.message ||
         "Please try again.";
-      Alert.alert("Save failed", msg);
+      showAlert({ type: 'error', title: 'Save failed', message: msg });
     } finally {
       setSaving(false);
     }
@@ -476,10 +479,15 @@ export default function EditProfileScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity
-            onPress={() => Alert.alert("Log out", "Are you sure you want to log out?", [
-              { text: "Cancel", style: "cancel" },
-              { text: "Log out", style: "destructive", onPress: logout },
-            ])}
+            onPress={() => showAlert({
+              type: 'confirm',
+              title: 'Log out',
+              message: 'Are you sure you want to log out?',
+              buttons: [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Log out', style: 'destructive', onPress: logout },
+              ],
+            })}
             style={[styles.mgmtRow, { borderBottomColor: "transparent" }]}
           >
             <Ionicons name="log-out-outline" size={18} color="#E53935" style={{ marginRight: 8 }} />
@@ -556,6 +564,7 @@ export default function EditProfileScreen() {
           insets={insets}
         />
       </Modal>
+      {alertElement}
     </KeyboardAvoidingView>
   );
 }

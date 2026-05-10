@@ -86,6 +86,7 @@ export interface Design {
   likes: number;
   views: number;
   mocks: Mock[];
+ 
   profile: {
     id: number;
     firstName: string;

@@ -1,13 +1,13 @@
+import { formatNaira } from '@/lib/currency';
+import ApiService from '@/services/apiClient';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import {
-  ActivityIndicator, FlatList, Image, RefreshControl,
-  StyleSheet, Text, TouchableOpacity, View, useColorScheme,
+    ActivityIndicator, FlatList, Image, RefreshControl,
+    Text, TouchableOpacity, View, useColorScheme
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { formatNaira } from '@/lib/currency';
-import ApiService from '@/services/apiClient';
 
 const BASE_URL = 'https://backend-prod-api.berrystamp.com';
 
@@ -106,7 +106,7 @@ export default function CustomDesignHubScreen() {
             const price = Number(item?.amount || item?.price || 0);
             return (
               <TouchableOpacity
-                onPress={() => router.push({ pathname: '/product', params: { designId: String(item.id) } })}
+                onPress={() => router.push({ pathname: '/products', params: { designId: String(item.id) } })}
                 style={{ flex: 1, backgroundColor: surface, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: border }}
                 activeOpacity={0.85}
               >

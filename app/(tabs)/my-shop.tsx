@@ -1,20 +1,20 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Image,
-  Modal,
-  RefreshControl,
-  ScrollView,
-  Share,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  useColorScheme,
-  View
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Image,
+    Modal,
+    RefreshControl,
+    ScrollView,
+    Share,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    useColorScheme,
+    View
 } from 'react-native';
 
 import type { CollectionItem, TabType } from '@/components/shop/types';
@@ -1269,7 +1269,7 @@ export default function MyShopScreen() {
                     theme={theme}
                     username={profile?.username || 'designer'}
                     onMenu={() => handleDesignMenu(item)}
-                    onPress={() => router.push({ pathname: '/product', params: { designId: String(item.id) } })}
+                    onPress={() => router.push({ pathname: '/products', params: { designId: String(item.id) } })}
                   />
                 ))}
               </View>

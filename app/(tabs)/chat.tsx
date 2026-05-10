@@ -1,3 +1,4 @@
+import { useAppAlert } from '@/components/common/AppAlert';
 import { AvatarBadge } from '@/components/messages/AvatarBadge';
 import { useFileUpload } from '@/hooks/useFileUpload';
 import { ENV } from '@/lib/config/env';
@@ -131,6 +132,7 @@ export default function ChatScreen() {
   const themeSecondaryIconColor = isDark ? '#94a3b8' : '#64748b';
   const scrollViewRef = useRef<ScrollView>(null);
   const { uploadFile, uploading } = useFileUpload();
+  const { show: showAlert, element: alertElement } = useAppAlert();
 
   const {
     conversationId,
@@ -228,7 +230,6 @@ export default function ChatScreen() {
           });
 
           setMessages(normalized);
-
           // Mark unread messages as read
           const unread = normalized
             .filter((m) => m.author === 'other' && m.status !== 'seen')
@@ -275,24 +276,51 @@ export default function ChatScreen() {
   // Fetch order details for ORDER-type messages
   useEffect(() => {
     const orderMessages = messages.filter((m) => {
-      if (m.chatType !== 'ORDER') return false;
+      // Fix: was `m.chatType !== 'ORDER' || 'ORDER_REQUEST'` which is always true (JS bug)
+      if (m.chatType !== 'ORDER' && m.chatType !== 'ORDER_REQUEST') return false;
       if (orderDetailsByMessageId[m.id]) return false;
-      // orderId can be in raw.orderId, raw.id, caption, or text
-      const oid = m.raw?.orderId || m.raw?.id || Number(m.caption || m.text || 0);
-      return Number.isFinite(Number(oid)) && Number(oid) > 0;
+      // orderId lives in raw.orderId, raw.order.id, raw.id, caption, or text
+      const oid =
+        m.raw?.orderId ||
+        m.raw?.order?.id ||
+        m.raw?.id ||
+        Number(m.caption || m.text || 0);
+      const valid = Number.isFinite(Number(oid)) && Number(oid) > 0;
+      if (!valid) {
+        console.warn('[Chat] ORDER message has no resolvable orderId', {
+          messageId: m.id,
+          chatType: m.chatType,
+          rawKeys: m.raw ? Object.keys(m.raw) : [],
+          caption: m.caption,
+          text: m.text,
+        });
+      }
+      return valid;
     });
     if (!orderMessages.length) return;
 
     Promise.allSettled(
       orderMessages.map(async (m) => {
-        const oid = m.raw?.orderId || m.raw?.id || Number(m.caption || m.text || 0);
-        const res = await ApiService.getOrderById(oid);
-        return { messageId: m.id, order: normalizeOrderDetail(res) };
+        const oid =
+          m.raw?.orderId ||
+          m.raw?.order?.id ||
+          m.raw?.id ||
+          Number(m.caption || m.text || 0);
+ 
+          const res = await ApiService.getOrderById(oid);
+          const order = normalizeOrderDetail(res);
+          return { messageId: m.id, order };
+      
       }),
     ).then((results) => {
       const next: Record<string, any> = {};
       results.forEach((r) => {
-        if (r.status === 'fulfilled') next[r.value.messageId] = r.value.order;
+        if (r.status === 'fulfilled' && r.value.order) {
+          next[r.value.messageId] = r.value.order;
+        } 
+        // else if (r.status === 'rejected') {
+        //   console.error('[Chat] Order fetch settled as rejected:', r.reason);
+        // }
       });
       if (Object.keys(next).length) setOrderDetailsByMessageId((c) => ({ ...c, ...next }));
     });
@@ -351,8 +379,13 @@ export default function ChatScreen() {
 
     try {
       await dispatchMessage(buildPayload(trimmed, trimmed, false));
-    } catch (err) {
-      console.warn('Message send failed', err);
+    } catch (err: any) {
+      console.error('[Chat] Message send failed:', err?.response?.data?.responseMessage || err?.message, err);
+      showAlert({
+        type: 'error',
+        title: 'Message not sent',
+        message: err?.response?.data?.responseMessage || err?.message || 'Please check your connection and try again.',
+      });
     }
   };
 
@@ -385,7 +418,10 @@ export default function ChatScreen() {
   };
 
   const handleCreateOrder = async () => {
-    if (!orderTitle.trim() || !orderAmount.trim() || !orderDeliveryDate.trim()) return;
+    if (!orderTitle.trim() || !orderAmount.trim() || !orderDeliveryDate.trim()) {
+      showAlert({ type: 'warning', title: 'Missing fields', message: 'Please fill in title, amount, and delivery date.' });
+      return;
+    }
     if (!orderRequestDetail?.orderRequestId) return;
     setCreatingOrder(true);
     try {
@@ -401,24 +437,52 @@ export default function ChatScreen() {
       setShowCreateOrder(false);
       setShowOrderSuccess(true);
       setTimeout(() => setShowOrderSuccess(false), 3000);
-    } catch (err) {
-      console.error('Create order failed', err);
+    } catch (err: any) {
+      console.error('[Chat] Create order failed:', err?.response?.data?.responseMessage || err?.message, err);
+      showAlert({
+        type: 'error',
+        title: 'Order creation failed',
+        message: err?.response?.data?.responseMessage || err?.message || 'Please try again.',
+      });
     } finally {
       setCreatingOrder(false);
     }
   };
 
+  // ─── Resolve the other user's avatar from the message sender field ──────────
+  const resolveOtherAvatar = (message: ChatMessageDto & { imageUrl?: string }) => {
+    // The "other" sender profile comes directly from the backend message payload
+    const senderProfile = message.author === 'other' ? message.sender : message.receiver;
+    const imageUrl =
+      senderProfile?.profileImage?.thumbnailUrl ||
+      senderProfile?.profileImage?.previewUrl ||
+      senderProfile?.profileImage?.url ||
+      senderProfile?.thumbnailProfilePic ||
+      senderProfile?.previewProfilePic ||
+      senderProfile?.profilePic ||
+      conversation.avatarThumbnailUrl ||
+      conversation.avatarPreviewUrl ||
+      conversation.avatarImageUrl ||
+      undefined;
+    const initials =
+      senderProfile?.name
+        ? senderProfile.name.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]?.toUpperCase() || '').join('')
+        : conversation.avatarInitials;
+    return { imageUrl, initials };
+  };
+
   // ─── Render: ORDER message bubble (fetched order details) ───────────────────
   const renderOrderMessage = (message: ChatMessageDto & { imageUrl?: string }, orderDetail: any) => {
     const isMe = message.author === 'me';
+    const otherAvatar = resolveOtherAvatar(message);
     return (
       <View key={message.id} className={`w-full my-2 flex-row ${isMe ? 'justify-end' : 'justify-start'}`}>
         {!isMe && (
           <View className="mr-2 self-end mb-1">
             <AvatarBadge
               color={conversation.avatarColor}
-              imageUrl={conversation.avatarThumbnailUrl || conversation.avatarPreviewUrl || conversation.avatarImageUrl}
-              label={conversation.avatarInitials}
+              imageUrl={otherAvatar.imageUrl}
+              label={otherAvatar.initials}
               size={32}
             />
           </View>
@@ -528,6 +592,8 @@ export default function ChatScreen() {
       'https://berrystamp-backend-dev-4cn29.ondigitalocean.app',
       'https://berry-stamp-prod.s3.amazonaws.com',
     );
+    const otherAvatar = resolveOtherAvatar(message);
+    const isSeen = message.raw?.read === true;
 
     return (
       <View key={message.id} className={`w-full my-1 flex-row ${isMe ? 'justify-end' : 'justify-start'}`}>
@@ -535,8 +601,8 @@ export default function ChatScreen() {
           <View className="mr-2 self-end mb-1">
             <AvatarBadge
               color={conversation.avatarColor}
-              imageUrl={conversation.avatarThumbnailUrl || conversation.avatarPreviewUrl || conversation.avatarImageUrl}
-              label={conversation.avatarInitials}
+              imageUrl={otherAvatar.imageUrl}
+              label={otherAvatar.initials}
               size={32}
             />
           </View>
@@ -558,8 +624,8 @@ export default function ChatScreen() {
           )}
           <Text className={`mt-2 text-[11px] ${isMe ? 'text-indigo-200 text-right' : 'text-slate-400 dark:text-slate-500'}`}>
             {isMe
-              ? `${message.status === 'seen' ? 'Seen \u2022 ' : ''}${message.createdAtLabel}`
-              : `${message.createdAtLabel}${message.status === 'seen' ? ' \u2022 Seen' : ''}`}
+              ? `${isSeen ? 'Seen \u2022 ' : ''}${message.createdAtLabel}`
+              : `${message.createdAtLabel}${isSeen ? ' \u2022 Seen' : ''}`}
           </Text>
         </View>
       </View>
@@ -922,6 +988,9 @@ export default function ChatScreen() {
           <Text className="text-[14px] font-semibold text-slate-900">Order created successfully!</Text>
         </View>
       )}
+
+      {/* ── Alert modal ── */}
+      {alertElement}
 
     </View>
   );
