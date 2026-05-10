@@ -342,7 +342,32 @@ export default function CartScreen() {
     });
 
     setPrefModalVisible(false);
-    setTimeout(() => setConfirmVisible(true), 200);
+    // Navigate to select-printer with the selected cart items encoded as params
+    setTimeout(() => {
+      router.push({
+        pathname: '/(tabs)/select-printer',
+        params: {
+          cartItems: JSON.stringify(
+            selectedItems.map((item) => ({
+              id: item.id,
+              name: item.name,
+              imageUrl: item.imageUrl,
+              price: item.price,
+              quantity: item.quantity,
+              colour: item.colour,
+              size: item.size,
+              variantText: item.variantText,
+              designerName: item.designerName,
+              budget: estimatedAmount,
+              deliveryDate,
+              deliveryAddress,
+              pickupAddress: hasOwnItem ? pickupAddress : '',
+              hasOwnItem: Boolean(hasOwnItem),
+            }))
+          ),
+        },
+      });
+    }, 200);
   };
 
   const sendOrderToDesigners = async () => {
@@ -987,6 +1012,7 @@ export default function CartScreen() {
               Your selected order and preferences will be sent to the designer.
               The designer can then confirm the quantity with you and continue
               production with a printer.
+           
             </Text>
 
             <TouchableOpacity
@@ -1055,3 +1081,4 @@ function ErrorText({ message }: { message: string }) {
     <Text className="mt-2 text-xs font-medium text-[#EB5757]">{message}</Text>
   );
 }
+  
