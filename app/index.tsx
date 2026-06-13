@@ -7,7 +7,7 @@ import { Image, StatusBar, StyleSheet, useColorScheme, View } from 'react-native
 import * as SplashScreen from 'expo-splash-screen'; // 1. Import SplashScreen 
 
 // 2. Prevent the splash screen from auto-hiding immediately
-SplashScreen.preventAutoHideAsync();
+SplashScreen.hideAsync();
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -18,16 +18,6 @@ export default function HomeScreen() {
   const { isAuthenticated, isLoading } = useAuth(); 
   const { needsInterestOnboarding } = useAuthStore();
 
-
-    // 3. Hide the splash screen once this component mounts
-    useEffect(() => {
-      const hideSplash = async () => {
-        // Small delay to ensure UI is painted, or just call it immediately
-        await SplashScreen.hideAsync();
-      };
-      hideSplash();
-    }, []);
-  
   useEffect(() => {
     // Do not start the 20-second countdown until checkAuth() is completely finished
     if (isLoading) return;

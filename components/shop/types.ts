@@ -5,6 +5,7 @@ export type TabType = 'designs' | 'collections';
 export type CollectionItem = {
   id: number | string;
   name: string;
+  description:string
   imagePath?: string;
   designCount: number;
 };

@@ -1,24 +1,24 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    Image,
-    Modal,
-    RefreshControl,
-    ScrollView,
-    Share,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    useColorScheme,
-    View
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Image,
+  Modal,
+  RefreshControl,
+  ScrollView,
+  Share,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  useColorScheme,
+  View
 } from 'react-native';
 
 import type { CollectionItem, TabType } from '@/components/shop/types';
-import { fetchShopData, toAbsoluteImage, toCountLabel } from '@/components/shop/utils';
+import { fetchShopData, toAbsoluteImage, toCountLabel, unwrapList } from '@/components/shop/utils';
 import { formatNaira } from '@/lib/currency';
 import { upsertLocalConversation } from '@/lib/localConversations';
 import ApiService from '@/services/apiClient';
@@ -78,7 +78,7 @@ function SheetRow({ label, icon, color, onPress }: { label: string; icon?: any; 
 }
 
 // ─── DesignCard ───────────────────────────────────────────────────────────────
-function DesignCard({ item, theme, username, onMenu, onPress }: { item: any; theme: ReturnType<typeof useTheme>; username: string; onMenu: () => void; onPress: () => void }) {
+function DesignCard({ item, theme, readOnly, username, onMenu, onPress }: { item: any; theme: ReturnType<typeof useTheme>; readOnly: boolean; username: string; onMenu: () => void; onPress: () => void }) {
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.88} style={{ width: '48.5%', borderRadius: 12, marginBottom: 12, backgroundColor: theme.surface, overflow: 'hidden' }}>
       <View style={{ position: 'relative' }}>
@@ -89,9 +89,11 @@ function DesignCard({ item, theme, username, onMenu, onPress }: { item: any; the
             <Ionicons name="image-outline" size={28} color={theme.muted} />
           </View>
         )}
-        <TouchableOpacity onPress={onMenu} style={{ position: 'absolute', top: 6, right: 6, width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.85)', alignItems: 'center', justifyContent: 'center' }}>
-          <Ionicons name="ellipsis-horizontal" size={16} color="#444" />
-        </TouchableOpacity>
+        {!readOnly && (
+          <TouchableOpacity onPress={onMenu} style={{ position: 'absolute', top: 6, right: 6, width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.85)', alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name="ellipsis-horizontal" size={16} color="#444" />
+          </TouchableOpacity>
+        )}
       </View>
       <View style={{ padding: 8 }}>
         <Text style={{ fontSize: 14, fontWeight: '600', color: theme.text }} numberOfLines={1}>{item.title || 'Untitled'}</Text>
@@ -103,7 +105,7 @@ function DesignCard({ item, theme, username, onMenu, onPress }: { item: any; the
 }
 
 // ─── CollectionCard ───────────────────────────────────────────────────────────
-function CollectionCard({ item, theme, onMenu, onPress,readOnly }: { item: CollectionItem; theme: ReturnType<typeof useTheme>; onMenu: () => void; onPress: () => void; readOnly: boolean }) {
+function CollectionCard({ item, theme, onMenu, onPress, readOnly }: { item: CollectionItem; theme: ReturnType<typeof useTheme>; onMenu: () => void; onPress: () => void; readOnly: boolean }) {
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.88} style={{ width: '48.5%', borderRadius: 12, marginBottom: 12, backgroundColor: theme.surface, overflow: 'hidden' }}>
       <View style={{ position: 'relative' }}>
@@ -114,9 +116,11 @@ function CollectionCard({ item, theme, onMenu, onPress,readOnly }: { item: Colle
             <Ionicons name="albums-outline" size={28} color={theme.muted} />
           </View>
         )}
-        {!readOnly && <TouchableOpacity onPress={onMenu} style={{ position: 'absolute', top: 6, right: 6, width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.85)', alignItems: 'center', justifyContent: 'center' }}>
-          <Ionicons name="ellipsis-horizontal" size={16} color="#444" />
-        </TouchableOpacity>}
+        {!readOnly && (
+          <TouchableOpacity onPress={onMenu} style={{ position: 'absolute', top: 6, right: 6, width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.85)', alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name="ellipsis-horizontal" size={16} color="#444" />
+          </TouchableOpacity>
+        )}
       </View>
       <View style={{ padding: 8 }}>
         <Text style={{ fontSize: 14, fontWeight: '600', color: theme.text }} numberOfLines={1}>{item.name}</Text>
@@ -134,8 +138,8 @@ function QuickActionsSheet({ visible, theme, onClose, onCreateCollection, onUplo
         <View style={[S.sheet, { backgroundColor: theme.surface }]}>
           <SheetHandle />
           <Text style={[S.sheetTitle, { color: theme.text }]}>Quick Actions</Text>
-          <SheetRow label="Create Collection" icon="albums-outline" onPress={() => { onClose(); onCreateCollection(); }} />
-          <SheetRow label="Upload Design" icon="cloud-upload-outline" onPress={() => { onClose(); onUploadDesign(); }} />
+          <SheetRow color={theme.text} label="Create Collection" icon="albums-outline" onPress={() => { onClose(); onCreateCollection(); }} />
+          <SheetRow color={theme.text} label="Upload Design" icon="cloud-upload-outline" onPress={() => { onClose(); onUploadDesign(); }} />
           <View style={{ height: 16 }} />
         </View>
       </TouchableOpacity>
@@ -153,10 +157,10 @@ function DesignMenuSheet({ visible, theme, onClose, onUpdate, onAddToCollection,
       <TouchableOpacity style={S.backdrop} activeOpacity={1} onPress={onClose}>
         <View style={[S.sheet, { backgroundColor: theme.surface }]}>
           <SheetHandle />
-          <SheetRow label="Update Design" icon="create-outline" onPress={() => { onClose(); onUpdate(); }} />
-          <SheetRow label="Add to collection" icon="add-circle-outline" onPress={() => { onClose(); onAddToCollection(); }} />
-          <SheetRow label="View post insights" icon="bar-chart-outline" onPress={() => { onClose(); onInsights(); }} />
-          <SheetRow label="Share design" icon="share-social-outline" onPress={() => { onClose(); onShare(); }} />
+          <SheetRow color={theme.text} label="Update Design" icon="create-outline" onPress={() => { onClose(); onUpdate(); }} />
+          <SheetRow color={theme.text} label="Add to collection" icon="add-circle-outline" onPress={() => { onClose(); onAddToCollection(); }} />
+          <SheetRow color={theme.text} label="View post insights" icon="bar-chart-outline" onPress={() => { onClose(); onInsights(); }} />
+          <SheetRow color={theme.text} label="Share design" icon="share-social-outline" onPress={() => { onClose(); onShare(); }} />
           <SheetRow label="Delete Design" icon="trash-outline" color={theme.red} onPress={() => { onClose(); onDelete(); }} />
           <View style={{ height: 16 }} />
         </View>
@@ -175,8 +179,8 @@ function CollectionMenuSheet({ visible, theme, onClose, onUpdate, onShare, onDel
       <TouchableOpacity style={S.backdrop} activeOpacity={1} onPress={onClose}>
         <View style={[S.sheet, { backgroundColor: theme.surface }]}>
           <SheetHandle />
-          <SheetRow label="Update Collection" icon="create-outline" onPress={() => { onClose(); onUpdate(); }} />
-          <SheetRow label="Share collection" icon="share-social-outline" onPress={() => { onClose(); onShare(); }} />
+          <SheetRow color={theme.text} label="Update Collection" icon="create-outline" onPress={() => { onClose(); onUpdate(); }} />
+          <SheetRow color={theme.text} label="Share collection" icon="share-social-outline" onPress={() => { onClose(); onShare(); }} />
           <SheetRow label="Delete Collection" icon="trash-outline" color={theme.red} onPress={() => { onClose(); onDelete(); }} />
           <View style={{ height: 16 }} />
         </View>
@@ -356,30 +360,12 @@ function ShareSheet({ visible, theme, title, onClose, conversations }: { visible
 }
 
 // ─── AddToCollectionSheet ─────────────────────────────────────────────────────
-function AddToCollectionSheet({ visible, theme, designId, onClose }: { visible: boolean; theme: ReturnType<typeof useTheme>; designId: string | number | null; onClose: () => void }) {
-  const [collections, setCollections] = useState<CollectionItem[]>([]);
+function AddToCollectionSheet({ visible,collectionItems, theme, designId, onClose }: { visible: boolean; theme: ReturnType<typeof useTheme>;collectionItems:any; designId: string | number | null; onClose: () => void }) {
   const [selected, setSelected] = useState<string | number | null>(null);
   const [loading, setLoading] = useState(false);
   const [adding, setAdding] = useState(false);
   const [toast, setToast] = useState(false);
 
-  React.useEffect(() => {
-    if (!visible) { setSelected(null); setToast(false); return; }
-    setLoading(true);
-    ApiService.getMyCollections(0, 50)
-      .then((res) => {
-        const body = res?.responseBody || res || {};
-        const list = Array.isArray(body) ? body : Array.isArray(body?.content) ? body.content : [];
-        setCollections(list.map((item: any) => ({
-          id: item?.id,
-          name: item?.name || item?.title || 'Untitled',
-          imagePath: toAbsoluteImage(item?.imagePath || item?.coverPath),
-          designCount: Number(item?.designCount || 0),
-        })));
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [visible]);
 
   const handleAdd = async () => {
     if (!selected || !designId) return;
@@ -410,7 +396,7 @@ function AddToCollectionSheet({ visible, theme, designId, onClose }: { visible: 
           ) : (
             <ScrollView showsVerticalScrollIndicator={false} style={{ paddingHorizontal: 16 }}>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
-                {collections.map((col) => (
+                {collectionItems.map((col:any) => (
                   <TouchableOpacity key={String(col.id)} onPress={() => setSelected(col.id)} style={{ width: '48%', borderRadius: 10, marginBottom: 12, borderWidth: 2, borderColor: selected === col.id ? theme.primary : 'transparent', overflow: 'hidden', backgroundColor: theme.inputBg }}>
                     {col.imagePath ? (
                       <Image source={{ uri: col.imagePath }} style={{ width: '100%', height: 90 }} resizeMode="cover" />
@@ -454,9 +440,11 @@ function EditProfileSheet({ visible, theme, profile, onClose, onSaved }: { visib
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
   const [selectedSpecs, setSelectedSpecs] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  
   React.useEffect(() => {
     if (visible && profile) {
-      setShopName(profile.username || '');
+      // Use fullName for shop brand name mapping if available
+      setShopName(profile.fullName || profile.username || '');
       setBio(profile.bio || '');
       setSelectedSpecs(Array.isArray(profile.categories) ? profile.categories : []);
       setCoverUri(null);
@@ -490,11 +478,11 @@ function EditProfileSheet({ visible, theme, profile, onClose, onSaved }: { visib
         avatarPath = uploaded?.path || uploaded?.url || uploaded?.originalFilePath || avatarUri;
       }
       await ApiService.updateMyProfile({
-        username: shopName.trim(),
+        name: shopName.trim(),
         bio: bio.trim(),
         categories: selectedSpecs,
-        ...(coverPath ? { coverPic: coverPath } : {}),
-        ...(avatarPath ? { profilePic: avatarPath } : {}),
+        ...(coverPath ? { coverPic: coverPath.replace("https://berry-stamp-prod.s3.amazonaws.com/","") } : {}),
+        ...(avatarPath ? { profilePic: avatarPath.replace("https://berry-stamp-prod.s3.amazonaws.com/","") } : {}),
       });
       onSaved();
       onClose();
@@ -577,121 +565,6 @@ function EditProfileSheet({ visible, theme, profile, onClose, onSaved }: { visib
   );
 }
 
-// ─── UploadProductSheet ───────────────────────────────────────────────────────
-function UploadProductSheet({ visible, theme, onClose, onUploaded }: { visible: boolean; theme: ReturnType<typeof useTheme>; onClose: () => void; onUploaded: () => void }) {
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [artImages, setArtImages] = useState<string[]>([]);
-  const [coverImage, setCoverImage] = useState<string | null>(null);
-  const [mockImages, setMockImages] = useState<string[]>([]);
-  const [categories, setCategories] = useState<string[]>([]);
-  const [uploading, setUploading] = useState(false);
-
-  const reset = () => { setName(''); setDescription(''); setArtImages([]); setCoverImage(null); setMockImages([]); setCategories([]); };
-
-  React.useEffect(() => { if (!visible) reset(); }, [visible]);
-
-  const pickImages = async (setter: (uris: string[]) => void, multiple = true) => {
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsMultipleSelection: multiple, quality: 0.8 });
-    if (!result.canceled) setter(result.assets.map((a) => a.uri));
-  };
-
-  const toggleCat = (cat: string) => setCategories((prev) => prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]);
-
-  const handleUpload = async () => {
-    if (!name.trim()) { Alert.alert('Required', 'Please enter a product name.'); return; }
-    setUploading(true);
-    try {
-      const uploadedArt = artImages.length ? await ApiService.uploadMultipleFiles(artImages) : [];
-      const uploadedCover = coverImage ? await ApiService.uploadSingleFile(coverImage) : null;
-      const uploadedMocks = mockImages.length ? await ApiService.uploadMultipleFiles(mockImages) : [];
-      const artUrls = (Array.isArray(uploadedArt) ? uploadedArt : []).map((f: any) => f?.path || f?.url || f?.originalFilePath || '').filter(Boolean);
-      const coverUrl = uploadedCover?.path || uploadedCover?.url || uploadedCover?.originalFilePath || '';
-      await ApiService.createCustomDesign({
-        name: name.trim(),
-        description: description.trim(),
-        frontImageUrl: coverUrl || artUrls[0] || '',
-        designImages: artUrls,
-        categories,
-        openForCustomization: false,
-        amount: 0,
-        mocks: uploadedMocks.map((f: any, i: number) => ({
-          limitedStatus: false,
-          imageUrl: f?.path || f?.url || f?.originalFilePath || '',
-          availableQty: 100,
-          name: `Mock ${i + 1}`,
-          category: categories[0] || '',
-          colours: [],
-        })),
-        tags: categories,
-      });
-      onUploaded();
-      onClose();
-    } catch (e: any) {
-      Alert.alert('Upload failed', e?.response?.data?.responseMessage || e?.message || 'Please try again.');
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={[S.backdrop, { justifyContent: 'flex-end' }]}>
-        <View style={[S.sheet, { backgroundColor: theme.surface, maxHeight: '94%' }]}>
-          <SheetHandle />
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 4 }}>
-            <Text style={{ fontSize: 18, fontWeight: '700', color: theme.text }}>Upload New Product</Text>
-            <TouchableOpacity onPress={onClose}><Ionicons name="close" size={22} color={theme.muted} /></TouchableOpacity>
-          </View>
-          <Text style={{ fontSize: 13, color: theme.muted, paddingHorizontal: 20, marginBottom: 16 }}>Your design will be watermarked with the Berrystamp logo.</Text>
-          <ScrollView showsVerticalScrollIndicator={false} style={{ paddingHorizontal: 20 }}>
-            <Text style={{ fontSize: 13, color: theme.muted, marginBottom: 6 }}>Product name *</Text>
-            <TextInput value={name} onChangeText={setName} placeholder="Enter product name" placeholderTextColor={theme.muted} style={{ backgroundColor: theme.inputBg, borderRadius: 10, padding: 12, color: theme.text, fontSize: 15, marginBottom: 14 }} />
-            <Text style={{ fontSize: 13, color: theme.muted, marginBottom: 6 }}>Product description *</Text>
-            <TextInput value={description} onChangeText={setDescription} placeholder="Describe your product" placeholderTextColor={theme.muted} multiline numberOfLines={3} style={{ backgroundColor: theme.inputBg, borderRadius: 10, padding: 12, color: theme.text, fontSize: 15, minHeight: 80, textAlignVertical: 'top', marginBottom: 14 }} />
-            {/* Upload rows */}
-            {[
-              { label: 'Art Images', images: artImages, onUpload: () => pickImages(setArtImages) },
-              { label: 'Cover Image', images: coverImage ? [coverImage] : [], onUpload: () => pickImages((uris) => setCoverImage(uris[0] || null), false) },
-              { label: 'Mock Images', images: mockImages, onUpload: () => pickImages(setMockImages) },
-            ].map((row) => (
-              <View key={row.label} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: theme.inputBg, borderRadius: 10, padding: 12, marginBottom: 12 }}>
-                <Ionicons name="image-outline" size={20} color={theme.muted} style={{ marginRight: 10 }} />
-                <Text style={{ flex: 1, color: theme.text, fontSize: 14 }}>{row.label}{row.images.length > 0 ? ` (${row.images.length})` : ''}</Text>
-                <TouchableOpacity onPress={row.onUpload} style={{ backgroundColor: theme.primary, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 7 }}>
-                  <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>Upload</Text>
-                </TouchableOpacity>
-              </View>
-            ))}
-            <Text style={{ fontSize: 14, fontWeight: '700', color: theme.text, marginTop: 8, marginBottom: 12 }}>Design Category</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 24 }}>
-              {DESIGN_CATEGORIES.map((cat) => {
-                const active = categories.includes(cat);
-                return (
-                  <TouchableOpacity key={cat} onPress={() => toggleCat(cat)} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, borderWidth: 1.5, borderColor: active ? theme.primary : theme.border, backgroundColor: active ? theme.primary + '18' : 'transparent' }}>
-                    <View style={{ width: 16, height: 16, borderRadius: 4, borderWidth: 1.5, borderColor: active ? theme.primary : theme.muted, backgroundColor: active ? theme.primary : 'transparent', alignItems: 'center', justifyContent: 'center', marginRight: 8 }}>
-                      {active ? <Ionicons name="checkmark" size={10} color="#fff" /> : null}
-                    </View>
-                    <Text style={{ fontSize: 13, color: active ? theme.primary : theme.text }}>{cat}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-            <View style={{ flexDirection: 'row', gap: 12, marginBottom: 32 }}>
-              <TouchableOpacity onPress={onClose} style={[S.outlineBtn, { flex: 1, borderColor: theme.border }]}>
-                <Text style={{ color: theme.text, fontWeight: '600' }}>Cancel Upload</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={handleUpload} disabled={uploading} style={[S.filledBtn, { flex: 1, backgroundColor: theme.primary }]}>
-                {uploading ? <ActivityIndicator size="small" color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '700' }}>Upload Product</Text>}
-              </TouchableOpacity>
-            </View>
-          </ScrollView>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
 // ─── NewCollectionSheet ───────────────────────────────────────────────────────
 function NewCollectionSheet({ visible, theme, onClose, onCreated }: { visible: boolean; theme: ReturnType<typeof useTheme>; onClose: () => void; onCreated: () => void }) {
   const [colName, setColName] = useState('');
@@ -715,7 +588,7 @@ function NewCollectionSheet({ visible, theme, onClose, onCreated }: { visible: b
         const uploaded = await ApiService.uploadSingleFile(coverUri);
         imagePath = uploaded?.path || uploaded?.url || uploaded?.originalFilePath || '';
       }
-      await ApiService.createCollection({ name: colName.trim(), description: colDesc.trim(), ...(imagePath ? { imagePath } : {}) });
+      await ApiService.createCollection({ name: colName.trim(), description: colDesc.trim(),  picture: imagePath });
       onCreated();
       onClose();
     } catch (e: any) {
@@ -762,14 +635,206 @@ function NewCollectionSheet({ visible, theme, onClose, onCreated }: { visible: b
   );
 }
 
+// ─── UpdateCollectionSheet ────────────────────────────────────────────────────
+function UpdateCollectionSheet({ visible, theme, collection, onClose, onUpdated }: { visible: boolean; theme: ReturnType<typeof useTheme>; collection: CollectionItem | null; onClose: () => void; onUpdated: () => void }) {
+  const [colName, setColName] = useState('');
+  const [colDesc, setColDesc] = useState('');
+  const [coverUri, setCoverUri] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  React.useEffect(() => {
+    if (visible && collection) {
+      setColName(collection.name || '');
+      setColDesc('');
+      setCoverUri(null);
+    }
+    if (!visible) { setColName(''); setColDesc(''); setCoverUri(null); }
+  }, [visible, collection]);
+
+  const pickCover = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.8 });
+    if (!result.canceled && result.assets[0]) setCoverUri(result.assets[0].uri);
+  };
+
+  const handleSave = async () => {
+    if (!colName.trim()) { Alert.alert('Required', 'Please enter a collection name.'); return; }
+    if (!collection) return;
+    setSaving(true);
+    try {
+      let imagePath = collection.imagePath || '';
+      if (coverUri) {
+        const uploaded = await ApiService.uploadSingleFile(coverUri);
+        imagePath = uploaded?.path || uploaded?.url || uploaded?.originalFilePath || imagePath;
+      }
+      await ApiService.updateCollection(collection.id, { name: colName.trim(), description: colDesc.trim(), ...(imagePath ? { picture: imagePath } : {}) });
+      onUpdated();
+      onClose();
+    } catch (e: any) {
+      Alert.alert('Error', e?.response?.data?.responseMessage || e?.message || 'Failed to update collection.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={[S.backdrop, { justifyContent: 'flex-end' }]}>
+        <View style={[S.sheet, { backgroundColor: theme.surface, maxHeight: '85%' }]}>
+          <SheetHandle />
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 4 }}>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: theme.text }}>Update Collection</Text>
+            <TouchableOpacity onPress={onClose}><Ionicons name="close" size={22} color={theme.muted} /></TouchableOpacity>
+          </View>
+          <Text style={{ fontSize: 13, color: theme.muted, paddingHorizontal: 20, marginBottom: 16 }}>Edit your collection details.</Text>
+          <ScrollView showsVerticalScrollIndicator={false} style={{ paddingHorizontal: 20 }}>
+            <TextInput value={colName} onChangeText={setColName} placeholder="Collection name" placeholderTextColor={theme.muted} style={{ backgroundColor: theme.inputBg, borderRadius: 10, padding: 12, color: theme.text, fontSize: 15, marginBottom: 14 }} />
+            <TextInput value={colDesc} onChangeText={setColDesc} placeholder="Add description (optional)" placeholderTextColor={theme.muted} multiline numberOfLines={3} style={{ backgroundColor: theme.inputBg, borderRadius: 10, padding: 12, color: theme.text, fontSize: 15, minHeight: 80, textAlignVertical: 'top', marginBottom: 14 }} />
+            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: theme.inputBg, borderRadius: 10, padding: 12, marginBottom: 12 }}>
+              <Ionicons name="image-outline" size={20} color={theme.muted} style={{ marginRight: 10 }} />
+              <Text style={{ flex: 1, color: theme.text, fontSize: 14 }}>Collection Cover{coverUri ? ' (1)' : ''}</Text>
+              <TouchableOpacity onPress={pickCover} style={{ backgroundColor: theme.primary, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 7 }}>
+                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>Upload</Text>
+              </TouchableOpacity>
+            </View>
+            {coverUri ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: theme.inputBg, borderRadius: 10, padding: 10, marginBottom: 12 }}>
+                <Image source={{ uri: coverUri }} style={{ width: 40, height: 40, borderRadius: 6, marginRight: 10 }} />
+                <Text style={{ flex: 1, color: theme.text, fontSize: 13 }} numberOfLines={1}>{coverUri.split('/').pop()}</Text>
+                <TouchableOpacity onPress={() => setCoverUri(null)}><Ionicons name="close-circle" size={20} color={theme.muted} /></TouchableOpacity>
+              </View>
+            ) : null}
+            <TouchableOpacity onPress={handleSave} disabled={saving} style={[S.filledBtn, { backgroundColor: theme.primary, marginBottom: 32 }]}>
+              {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>Save Changes</Text>}
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+// ─── MoveToCollectionSheet ────────────────────────────────────────────────────
+function MoveToCollectionSheet({ visible, theme, designId, fromCollectionId, onClose, onMoved }: { visible: boolean; theme: ReturnType<typeof useTheme>; designId: string | number | null; fromCollectionId: string | number | null; onClose: () => void; onMoved: () => void }) {
+  const [collections, setCollections] = useState<CollectionItem[]>([]);
+  const [selected, setSelected] = useState<string | number | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [moving, setMoving] = useState(false);
+
+  React.useEffect(() => {
+    if (!visible) { setSelected(null); return; }
+    setLoading(true);
+    ApiService.getMyCollections(0, 50)
+      .then((res) => {
+        const list = unwrapList(res);
+        setCollections(list
+          .filter((item: any) => String(item?.id) !== String(fromCollectionId))
+          .map((item: any) => ({
+            id: item?.id,
+            name: item?.name || item?.title || 'Untitled',
+            description: item?.description || '',
+            imagePath: toAbsoluteImage(item?.picture || item?.imagePath || item?.coverPath || ''),
+            designCount: Number(item?.designCount || item?.designs?.length || 0),
+          })));
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [visible, fromCollectionId]);
+
+  const handleMove = async () => {
+    if (!selected || !designId || !fromCollectionId) return;
+    setMoving(true);
+    try {
+      await ApiService.moveDesignToCollection({ designIds: [designId], fromCollectionId, newCollectionId: selected });
+      onMoved();
+      onClose();
+    } catch (e: any) {
+      Alert.alert('Error', e?.response?.data?.responseMessage || e?.message || 'Failed to move design');
+    } finally {
+      setMoving(false);
+    }
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <TouchableOpacity style={S.backdrop} activeOpacity={1} onPress={onClose}>
+        <View style={[S.sheet, { backgroundColor: theme.surface, maxHeight: '80%' }]}>
+          <SheetHandle />
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 4 }}>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: theme.text }}>Move to collection</Text>
+            <TouchableOpacity onPress={onClose}><Ionicons name="close" size={22} color={theme.muted} /></TouchableOpacity>
+          </View>
+          <Text style={{ fontSize: 13, color: theme.muted, paddingHorizontal: 20, marginBottom: 16 }}>Select a different collection to move this design to</Text>
+          {loading ? (
+            <ActivityIndicator size="large" color={theme.primary} style={{ marginVertical: 32 }} />
+          ) : (
+            <ScrollView showsVerticalScrollIndicator={false} style={{ paddingHorizontal: 16 }}>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
+                {collections.length === 0 ? (
+                  <Text style={{ color: theme.muted, textAlign: 'center', width: '100%', marginTop: 16 }}>No other collections available.</Text>
+                ) : collections.map((col) => (
+                  <TouchableOpacity key={String(col.id)} onPress={() => setSelected(col.id)} style={{ width: '48%', borderRadius: 10, marginBottom: 12, borderWidth: 2, borderColor: selected === col.id ? theme.primary : 'transparent', overflow: 'hidden', backgroundColor: theme.inputBg }}>
+                    {col.imagePath ? (
+                      <Image source={{ uri: col.imagePath }} style={{ width: '100%', height: 90 }} resizeMode="cover" />
+                    ) : (
+                      <View style={{ width: '100%', height: 90, alignItems: 'center', justifyContent: 'center' }}>
+                        <Ionicons name="albums-outline" size={28} color={theme.muted} />
+                      </View>
+                    )}
+                    <View style={{ padding: 8 }}>
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: theme.text }} numberOfLines={1}>{col.name}</Text>
+                      <Text style={{ fontSize: 11, color: theme.muted }}>{toCountLabel(col.designCount, 'design')}</Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <View style={{ height: 16 }} />
+            </ScrollView>
+          )}
+          <View style={{ paddingHorizontal: 20, paddingBottom: 24, paddingTop: 8 }}>
+            <TouchableOpacity onPress={handleMove} disabled={!selected || moving} style={[S.filledBtn, { backgroundColor: selected ? theme.primary : theme.muted }]}>
+              {moving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>Move design</Text>}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </TouchableOpacity>
+    </Modal>
+  );
+}
+
+// ─── CategoriesChips ──────────────────────────────────────────────────────────
+function CategoriesChips({ categories, theme }: { categories: string[]; theme: ReturnType<typeof useTheme> }) {
+  const COLLAPSED_COUNT = 3;
+  const [expanded, setExpanded] = useState(false);
+  const visible = expanded ? categories : categories.slice(0, COLLAPSED_COUNT);
+  const hasMore = categories.length > COLLAPSED_COUNT;
+  return (
+    <View style={{ marginBottom: 12 }}>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+        {visible.map((cat) => (
+          <View key={cat} style={{ paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, backgroundColor: theme.primary + '18', borderWidth: 1, borderColor: theme.primary + '44' }}>
+            <Text style={{ fontSize: 12, fontWeight: '600', color: theme.primary }}>{cat}</Text>
+          </View>
+        ))}
+      </View>
+      {hasMore ? (
+        <TouchableOpacity onPress={() => setExpanded((v) => !v)} style={{ marginTop: 6 }}>
+          <Text style={{ color: theme.primary, fontSize: 13, fontWeight: '600' }}>
+            {expanded ? 'See Less' : `See More (${categories.length - COLLAPSED_COUNT} more)`}
+          </Text>
+        </TouchableOpacity>
+      ) : null}
+    </View>
+  );
+}
+
 // ─── FollowersScreen (modal overlay) ─────────────────────────────────────────
-function FollowersScreen({ visible, theme, profileId, initialTab, onClose }: { visible: boolean; theme: ReturnType<typeof useTheme>; profileId: number; initialTab: 'followers' | 'following'; onClose: () => void }) {
+function FollowersScreen({ visible, theme, profileId, currentProfileId, initialTab, onClose }: { visible: boolean; theme: ReturnType<typeof useTheme>; profileId: number; currentProfileId?: number; initialTab: 'followers' | 'following'; onClose: () => void }) {
   const [tab, setTab] = useState<'followers' | 'following'>(initialTab);
   const [followers, setFollowers] = useState<any[]>([]);
   const [following, setFollowing] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
-  const [removingId, setRemovingId] = useState<number | null>(null);
+  const [actionLoadingId, setActionLoadingId] = useState<number | null>(null);
 
   React.useEffect(() => {
     if (!visible) return;
@@ -790,20 +855,7 @@ function FollowersScreen({ visible, theme, profileId, initialTab, onClose }: { v
     return !search || name.includes(search.toLowerCase());
   });
 
-  const handleRemove = async (u: any) => {
-    const id = u?.id || u?.profileId || u?.followingProfileId;
-    if (!id) return;
-    setRemovingId(id);
-    try {
-      await ApiService.unfollowProfile(id);
-      if (tab === 'following') setFollowing((prev) => prev.filter((x: any) => (x?.id || x?.profileId) !== id));
-      else setFollowers((prev) => prev.filter((x: any) => (x?.id || x?.profileId) !== id));
-    } catch (e: any) {
-      Alert.alert('Error', e?.message || 'Failed');
-    } finally {
-      setRemovingId(null);
-    }
-  };
+ 
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -837,6 +889,8 @@ function FollowersScreen({ visible, theme, profileId, initialTab, onClose }: { v
               const id = item?.id || item?.profileId;
               const name = item?.username || item?.fullName || item?.name || 'User';
               const avatar = toAbsoluteImage(item?.profilePicturePath || item?.avatar || item?.profilePic);
+
+
               return (
                 <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.border }}>
                   {avatar ? (
@@ -848,11 +902,9 @@ function FollowersScreen({ visible, theme, profileId, initialTab, onClose }: { v
                   )}
                   <View style={{ flex: 1 }}>
                     <Text style={{ fontSize: 15, fontWeight: '600', color: theme.text }}>{name}</Text>
-                    <Text style={{ fontSize: 12, color: theme.muted }}>Designer account</Text>
                   </View>
-                  <TouchableOpacity onPress={() => handleRemove(item)} disabled={removingId === id} style={{ borderWidth: 1.5, borderColor: theme.primary, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 7 }}>
-                    {removingId === id ? <ActivityIndicator size="small" color={theme.primary} /> : <Text style={{ color: theme.primary, fontWeight: '600', fontSize: 13 }}>Remove</Text>}
-                  </TouchableOpacity>
+
+                 
                 </View>
               );
             }}
@@ -865,25 +917,56 @@ function FollowersScreen({ visible, theme, profileId, initialTab, onClose }: { v
 }
 
 // ─── CollectionDetailScreen (modal overlay) ───────────────────────────────────
-function CollectionDetailScreen({ visible, theme, collection, username, onClose, onRefresh }: { visible: boolean; theme: ReturnType<typeof useTheme>; collection: CollectionItem | null; username: string; onClose: () => void; onRefresh: () => void }) {
+function CollectionDetailScreen({ visible, theme, collection, username, readOnly, onClose, onRefresh }: { visible: boolean; theme: ReturnType<typeof useTheme>; collection: CollectionItem | null; username: string; readOnly: boolean; onClose: () => void; onRefresh: () => void }) {
+  const router = useRouter();
   const [designs, setDesigns] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [menuDesign, setMenuDesign] = useState<any | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [showMoveSheet, setShowMoveSheet] = useState(false);
+  const [moveDesignId, setMoveDesignId] = useState<string | number | null>(null);
+  const [showInsight, setShowInsight] = useState(false);
+  const [insightData, setInsightData] = useState<any>(null);
+  const [insightLoading, setInsightLoading] = useState(false);
+
+  const loadDesigns = () => {
+    if (!collection) return;
+    setLoading(true);
+    ApiService.getCollectionDesigns(collection.id, 0, 40)
+      .then((res: any) => {
+        const body = res?.responseBody || res?.data || res || {};
+        const list = Array.isArray(body) ? body : Array.isArray(body?.content) ? body.content : Array.isArray(body?.items) ? body.items : [];
+        setDesigns(list.map((d: any) => ({
+          ...d,
+          _imageUri: toAbsoluteImage(
+            d?.frontImageUrl || d?.imagePath || d?.imageUrl ||
+            d?.coverImageUrl || d?.mocks?.[0]?.imageUrl || d?.mocks?.[0]?.imagePath || ''
+          ),
+        })));
+      })
+      .catch(() => setDesigns([]))
+      .finally(() => setLoading(false));
+  };
 
   React.useEffect(() => {
     if (!visible || !collection) return;
-    setLoading(true);
-    ApiService.getDesigns({ page: 0, size: 40 })
-      .then((res) => {
-        const body = res?.responseBody || res || {};
-        const list = Array.isArray(body) ? body : Array.isArray(body?.content) ? body.content : [];
-        setDesigns(list);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    loadDesigns();
   }, [visible, collection]);
+
+  const handleInsights = async (design: any) => {
+    setInsightLoading(true);
+    setShowInsight(true);
+    try {
+      const data = await ApiService.getDesignInsights(design.id);
+      setInsightData(data);
+    } catch { setInsightData(null); }
+    finally { setInsightLoading(false); }
+  };
+
+  const handleShare = (design: any) => {
+    Share.share({ message: `Check out "${design.title || design.name || 'this design'}" on Berrystamp.` });
+  };
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
@@ -892,8 +975,10 @@ function CollectionDetailScreen({ visible, theme, collection, username, onClose,
       await ApiService.deleteCustomDesign(deleteTarget.id);
       setDesigns((prev) => prev.filter((d) => String(d.id) !== String(deleteTarget.id)));
       setDeleteTarget(null);
+      onRefresh();
     } catch (e: any) {
-      Alert.alert('Error', e?.message || 'Failed to delete');
+      const msg = e?.response?.data?.responseMessage || e?.response?.data?.message || e?.message || 'Failed to delete';
+      Alert.alert('Error', msg);
     } finally {
       setDeleting(false);
     }
@@ -918,6 +1003,7 @@ function CollectionDetailScreen({ visible, theme, collection, username, onClose,
           )}
           <View style={{ padding: 16 }}>
             <Text style={{ fontSize: 22, fontWeight: '800', color: theme.text, marginBottom: 4 }}>{collection.name}</Text>
+            {collection.description ? <Text style={{ fontSize: 14, fontWeight: '300', color: theme.muted, marginBottom: 4 }}>{collection.description}</Text> : null}
             <Text style={{ fontSize: 14, color: theme.muted, marginBottom: 16 }}>{toCountLabel(collection.designCount, 'design')} found in this collection</Text>
             {loading ? (
               <ActivityIndicator size="large" color={theme.primary} style={{ marginTop: 32 }} />
@@ -926,16 +1012,19 @@ function CollectionDetailScreen({ visible, theme, collection, username, onClose,
                 {designs.map((design) => (
                   <View key={String(design.id)} style={{ width: '48.5%', borderRadius: 12, marginBottom: 12, backgroundColor: theme.surface, overflow: 'hidden' }}>
                     <View style={{ position: 'relative' }}>
-                      {design.imagePath || design.frontImageUrl ? (
-                        <Image source={{ uri: toAbsoluteImage(design.imagePath || design.frontImageUrl) }} style={{ width: '100%', height: 110 }} resizeMode="cover" />
+                      {design._imageUri ? (
+                        <Image source={{ uri: design._imageUri }} style={{ width: '100%', height: 110 }} resizeMode="cover" />
                       ) : (
                         <View style={{ width: '100%', height: 110, backgroundColor: theme.inputBg, alignItems: 'center', justifyContent: 'center' }}>
                           <Ionicons name="image-outline" size={24} color={theme.muted} />
                         </View>
                       )}
-                      <TouchableOpacity onPress={() => setMenuDesign(design)} style={{ position: 'absolute', top: 6, right: 6, width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.85)', alignItems: 'center', justifyContent: 'center' }}>
-                        <Ionicons name="ellipsis-horizontal" size={16} color="#444" />
-                      </TouchableOpacity>
+                      {/* Only show menu button for owner */}
+                      {!readOnly && (
+                        <TouchableOpacity onPress={() => setMenuDesign(design)} style={{ position: 'absolute', top: 6, right: 6, width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.85)', alignItems: 'center', justifyContent: 'center' }}>
+                          <Ionicons name="ellipsis-horizontal" size={16} color="#444" />
+                        </TouchableOpacity>
+                      )}
                     </View>
                     <View style={{ padding: 8 }}>
                       <Text style={{ fontSize: 13, fontWeight: '600', color: theme.text }} numberOfLines={1}>{design.title || design.name || 'Untitled'}</Text>
@@ -949,20 +1038,27 @@ function CollectionDetailScreen({ visible, theme, collection, username, onClose,
           </View>
         </ScrollView>
 
-        {/* Design menu inside collection */}
-        <Modal visible={Boolean(menuDesign)} transparent animationType="slide" onRequestClose={() => setMenuDesign(null)}>
-          <TouchableOpacity style={S.backdrop} activeOpacity={1} onPress={() => setMenuDesign(null)}>
-            <View style={[S.sheet, { backgroundColor: theme.surface }]}>
-              <SheetHandle />
-              <SheetRow label="Update Design" icon="create-outline" onPress={() => setMenuDesign(null)} />
-              <SheetRow label="Remove from collection" icon="remove-circle-outline" onPress={() => setMenuDesign(null)} />
-              <SheetRow label="View post insights" icon="bar-chart-outline" onPress={() => setMenuDesign(null)} />
-              <SheetRow label="Share design" icon="share-social-outline" onPress={() => setMenuDesign(null)} />
-              <SheetRow label="Delete Design" icon="trash-outline" color={theme.red} onPress={() => { setDeleteTarget(menuDesign); setMenuDesign(null); }} />
-              <View style={{ height: 16 }} />
-            </View>
-          </TouchableOpacity>
-        </Modal>
+        {/* Design menu — owner only */}
+        {!readOnly && (
+          <Modal visible={Boolean(menuDesign)} transparent animationType="slide" onRequestClose={() => setMenuDesign(null)}>
+            <TouchableOpacity style={S.backdrop} activeOpacity={1} onPress={() => setMenuDesign(null)}>
+              <View style={[S.sheet, { backgroundColor: theme.surface }]}>
+                <SheetHandle />
+                <SheetRow color={theme.text} label="Update Design" icon="create-outline"
+                  onPress={() => { const d = menuDesign; setMenuDesign(null); router.push({ pathname: '/upload-design', params: { designId: String(d?.id) } }); }} />
+                <SheetRow color={theme.text} label="Move to collection" icon="albums-outline"
+                  onPress={() => { const d = menuDesign; setMenuDesign(null); setMoveDesignId(d?.id); setShowMoveSheet(true); }} />
+                <SheetRow color={theme.text} label="View post insights" icon="bar-chart-outline"
+                  onPress={() => { const d = menuDesign; setMenuDesign(null); handleInsights(d); }} />
+                <SheetRow color={theme.text} label="Share design" icon="share-social-outline"
+                  onPress={() => { const d = menuDesign; setMenuDesign(null); handleShare(d); }} />
+                <SheetRow label="Delete Design" icon="trash-outline" color={theme.red}
+                  onPress={() => { setDeleteTarget(menuDesign); setMenuDesign(null); }} />
+                <View style={{ height: 16 }} />
+              </View>
+            </TouchableOpacity>
+          </Modal>
+        )}
 
         <DeleteConfirmModal
           visible={Boolean(deleteTarget)}
@@ -971,6 +1067,23 @@ function CollectionDetailScreen({ visible, theme, collection, username, onClose,
           loading={deleting}
           onClose={() => setDeleteTarget(null)}
           onConfirm={handleDelete}
+        />
+
+        <PostInsightSheet
+          visible={showInsight}
+          theme={theme}
+          insight={insightData}
+          loading={insightLoading}
+          onClose={() => { setShowInsight(false); setInsightData(null); }}
+        />
+
+        <MoveToCollectionSheet
+          visible={showMoveSheet}
+          theme={theme}
+          designId={moveDesignId}
+          fromCollectionId={collection.id}
+          onClose={() => setShowMoveSheet(false)}
+          onMoved={() => { loadDesigns(); onRefresh(); }}
         />
       </View>
     </Modal>
@@ -1000,8 +1113,8 @@ export default function MyShopScreen() {
   const [showPaymentPrompt, setShowPaymentPrompt] = useState(false);
   const [showQuickActions, setShowQuickActions] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
-  const [showUploadProduct, setShowUploadProduct] = useState(false);
   const [showNewCollection, setShowNewCollection] = useState(false);
+  const [showUpdateCollection, setShowUpdateCollection] = useState(false);
   const [showFollowers, setShowFollowers] = useState(false);
   const [followersInitialTab, setFollowersInitialTab] = useState<'followers' | 'following'>('followers');
 
@@ -1035,6 +1148,7 @@ export default function MyShopScreen() {
     try {
       if (!isRefresh) setLoading(true);
       const data = await fetchShopData(activeRole, profileId ? Number(profileId) : undefined);
+      // console.log("The frontend Data",JSON.stringify(data))
       setShop(data);
       if (data.shouldPromptPayment && !readOnly && (activeRole === 'DESIGNER' || activeRole === 'PRINTER')) {
         setShowPaymentPrompt(true);
@@ -1156,7 +1270,6 @@ export default function MyShopScreen() {
   }
 
   const profile = shop?.profile;
-
   return (
     <View style={{ flex: 1, backgroundColor: theme.background }}>
       <ScrollView
@@ -1196,7 +1309,7 @@ export default function MyShopScreen() {
 
         {/* ── Profile info ── */}
         <View style={{ paddingHorizontal: 16, marginTop: 10 }}>
-          <Text style={{ fontSize: 22, fontWeight: '800', color: theme.text }}>{profile?.username || 'My Shop'}</Text>
+          <Text style={{ fontSize: 22, fontWeight: '800', color: theme.text }}>{profile?.fullName || 'My Shop'}</Text>
           {/* Stars */}
           <View style={{ flexDirection: 'row', marginTop: 4, marginBottom: 8 }}>
             {[1,2,3,4,5].map((s) => <Ionicons key={s} name="star-outline" size={16} color={theme.muted} style={{ marginRight: 2 }} />)}
@@ -1217,10 +1330,14 @@ export default function MyShopScreen() {
           {profile?.bio ? (
             <View style={{ marginBottom: 12 }}>
               <Text style={{ color: theme.muted, fontSize: 14, lineHeight: 20 }} numberOfLines={bioExpanded ? undefined : 2}>{profile.bio}</Text>
-              <TouchableOpacity onPress={() => setBioExpanded((v) => !v)}>
+              {/* <TouchableOpacity onPress={() => setBioExpanded((v) => !v)}>
                 <Text style={{ color: theme.primary, fontSize: 13, fontWeight: '600', marginTop: 2 }}>{bioExpanded ? 'See Less' : 'See More'}</Text>
-              </TouchableOpacity>
+              </TouchableOpacity> */}
             </View>
+          ) : null}
+          {/* Categories */}
+          {Array.isArray(profile?.categories) && profile.categories.length > 0 ? (
+            <CategoriesChips categories={profile.categories} theme={theme} />
           ) : null}
           {/* Action buttons */}
           {!readOnly ? (
@@ -1228,7 +1345,7 @@ export default function MyShopScreen() {
               <TouchableOpacity onPress={() => setShowEditProfile(true)} style={[S.outlineBtn, { flex: 1, borderColor: theme.border }]}>
                 <Text style={{ color: theme.text, fontWeight: '600', fontSize: 14 }}>Edit Shop Profile</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => handleShare(`Check out ${profile?.username || 'this'}'s shop on Berrystamp.`)} style={[S.filledBtn, { flex: 1, backgroundColor: theme.primary }]}>
+              <TouchableOpacity onPress={() => handleShare(`Check out ${profile?.fullName || profile?.username || 'this'}'s shop on Berrystamp.`)} style={[S.filledBtn, { flex: 1, backgroundColor: theme.primary }]}>
                 <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Share Profile</Text>
               </TouchableOpacity>
             </View>
@@ -1266,8 +1383,9 @@ export default function MyShopScreen() {
                   <DesignCard
                     key={String(item.id)}
                     item={item}
+                    readOnly={readOnly}
                     theme={theme}
-                    username={profile?.username || 'designer'}
+                    username={profile?.fullName || profile?.username || 'designer'}
                     onMenu={() => handleDesignMenu(item)}
                     onPress={() => router.push({ pathname: '/products', params: { designId: String(item.id) } })}
                   />
@@ -1310,7 +1428,7 @@ export default function MyShopScreen() {
         theme={theme}
         onClose={() => setShowQuickActions(false)}
         onCreateCollection={() => setShowNewCollection(true)}
-        onUploadDesign={() => setShowUploadProduct(true)}
+        onUploadDesign={() => { router.push('/upload-design' as any); }}
       />
 
       <DesignMenuSheet
@@ -1328,7 +1446,7 @@ export default function MyShopScreen() {
         visible={showCollectionMenu}
         theme={theme}
         onClose={() => setShowCollectionMenu(false)}
-        onUpdate={() => { if (collectionMenuTarget) router.push({ pathname: '/create-collection', params: { collectionId: String(collectionMenuTarget.id), name: collectionMenuTarget.name } }); }}
+        onUpdate={() => { if (collectionMenuTarget) setShowUpdateCollection(true); }}
         onShare={() => { if (collectionMenuTarget) handleShare(`Check out "${collectionMenuTarget.name}" collection on Berrystamp.`); }}
         onDelete={() => { if (collectionMenuTarget) { setDeleteTarget({ id: collectionMenuTarget.id, type: 'collection' }); setShowDeleteConfirm(true); } }}
       />
@@ -1336,6 +1454,7 @@ export default function MyShopScreen() {
       <AddToCollectionSheet
         visible={showAddToCollection}
         theme={theme}
+        collectionItems={collectionItems}
         designId={addToCollectionDesignId}
         onClose={() => setShowAddToCollection(false)}
       />
@@ -1380,13 +1499,6 @@ export default function MyShopScreen() {
         onSaved={() => loadShop()}
       />
 
-      <UploadProductSheet
-        visible={showUploadProduct}
-        theme={theme}
-        onClose={() => setShowUploadProduct(false)}
-        onUploaded={() => loadShop()}
-      />
-
       <NewCollectionSheet
         visible={showNewCollection}
         theme={theme}
@@ -1394,19 +1506,30 @@ export default function MyShopScreen() {
         onCreated={() => loadShop()}
       />
 
-      <FollowersScreen
-        visible={showFollowers}
+      <UpdateCollectionSheet
+        visible={showUpdateCollection}
         theme={theme}
-        profileId={profile?.profileId || 0}
-        initialTab={followersInitialTab}
-        onClose={() => setShowFollowers(false)}
+        collection={collectionMenuTarget}
+        onClose={() => setShowUpdateCollection(false)}
+        onUpdated={() => loadShop()}
       />
+
+    <FollowersScreen
+    visible={showFollowers}
+    theme={theme}
+    profileId={profile?.profileId || 0}
+    // Passing current user's ID to hide their own follow button
+    currentProfileId={!readOnly ? profile?.profileId : undefined} 
+    initialTab={followersInitialTab}
+    onClose={() => setShowFollowers(false)}
+    />
 
       <CollectionDetailScreen
         visible={showCollectionDetail}
         theme={theme}
         collection={collectionDetail}
-        username={profile?.username || 'designer'}
+        username={profile?.fullName || profile?.username || 'designer'}
+        readOnly={readOnly}
         onClose={() => setShowCollectionDetail(false)}
         onRefresh={() => loadShop()}
       />

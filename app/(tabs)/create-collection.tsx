@@ -42,7 +42,7 @@ export default function CreateCollectionScreen() {
         const file = await ApiService.uploadSingleFile(imageUri);
         imagePath = file?.path || file?.url || '';
       }
-      const payload = { name: name.trim(), description: description.trim(), imagePath };
+      const payload = { name: name.trim(), description: description.trim(), picture: imagePath };
       if (collectionId) {
         await ApiService.updateCollection(collectionId, payload);
       } else {

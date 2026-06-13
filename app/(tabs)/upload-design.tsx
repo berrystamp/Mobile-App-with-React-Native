@@ -204,11 +204,11 @@ export default function UploadDesignScreen() {
   };
 
   const handleSubmit = async () => {
-    const validationMessage = validate();
-    if (validationMessage) {
-      Alert.alert('Incomplete design', validationMessage);
-      return;
-    }
+    // const validationMessage = validate();
+    // if (validationMessage) {
+    //   Alert.alert('Incomplete design', validationMessage);
+    //   return;
+    // }
 
     try {
       setSubmitting(true);
@@ -257,28 +257,41 @@ export default function UploadDesignScreen() {
       }
 
       const [primaryMock, ...additionalMocks] = normalizedMocks;
-      const designPayload = {
+
+      const sharedFields = {
         name: name.trim(),
         frontImageUrl: nextFrontImagePath,
-        designImages: isEditing ? [] : uploadedDesignImagePaths,
         description: description.trim(),
-        printerId: printerId.trim() ? Number(printerId) : undefined,
         openForCustomization,
         amount: Number(amount),
-        mocks: primaryMock ? [primaryMock.payload] : [],
         tags: splitCsv(tags),
         categories: splitCsv(categories),
+        mocks: normalizedMocks.map((m) => m.payload),
+        ...(printerId.trim() ? { printerId: Number(printerId) } : {}),
       };
+
+      // Combine existing design uploads with any newly picked ones
+      const allDesignImages = [...existingDesignUploads, ...uploadedDesignImagePaths].filter(Boolean);
+
+      const designPayload = isEditing
+        ? sharedFields
+        : {
+            ...sharedFields,
+            designImages: allDesignImages,
+          };
 
       const response = isEditing
         ? await ApiService.updateCustomDesign(String(designId), designPayload)
-        : await ApiService.createDesign(designPayload);
+        : await ApiService.createCustomDesign(designPayload);
       const savedDesign = unwrapBody(response);
       const savedDesignId = String(savedDesign?.id || designId || '');
 
-      for (const item of additionalMocks) {
-        if (!item.source.id && savedDesignId) {
-          await ApiService.addDesignMock(savedDesignId, item.payload);
+      // For create: any additional mocks beyond the first are posted separately
+      if (!isEditing) {
+        for (const item of additionalMocks) {
+          if (savedDesignId) {
+            await ApiService.addDesignMock(savedDesignId, item.payload);
+          }
         }
       }
 
@@ -291,7 +304,15 @@ export default function UploadDesignScreen() {
       Alert.alert('Success', isEditing ? 'Design updated successfully.' : 'Design created successfully.');
       router.replace('/my-shop');
     } catch (error: any) {
-      Alert.alert('Unable to save design', error?.response?.data?.responseMessage || error?.message || 'Please try again.');
+      const data = error?.response?.data;
+      const message =
+        data?.responseMessage ||
+        data?.message ||
+        data?.error ||
+        (typeof data === 'string' ? data : null) ||
+        error?.message ||
+        'Please try again.';
+      Alert.alert('Unable to save design', message);
     } finally {
       setSubmitting(false);
     }

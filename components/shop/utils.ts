@@ -1,9 +1,9 @@
-import {
-    mergeUserAndProfile,
-    normalizePaymentDetails,
-    normalizeProfileResponse,
-} from "@/lib/profile";
 import { normalizeDesignListResponse } from "@/lib/designs";
+import {
+  mergeUserAndProfile,
+  normalizePaymentDetails,
+  normalizeProfileResponse,
+} from "@/lib/profile";
 import ApiService from "@/services/apiClient";
 import type { User } from "@/types";
 import type { CollectionItem, ReviewItem, ShopData } from "./types";
@@ -44,7 +44,6 @@ export async function fetchShopData(
   activeRole: "CUSTOMER" | "DESIGNER" | "PRINTER",
   targetProfileId?: number,
 ): Promise<ShopData> {
-  const currentUser = (await ApiService.getCurrentUser()) as User | null;
   const myProfileResponse = targetProfileId
     ? await ApiService.getUserProfile(targetProfileId).catch(() =>
         ApiService.getMyProfile(),
@@ -52,7 +51,9 @@ export async function fetchShopData(
     : await ApiService.getMyProfile();
 
   const normalized = normalizeProfileResponse(myProfileResponse);
-  const merged = mergeUserAndProfile(currentUser, normalized);
+  const merged = mergeUserAndProfile(normalized);
+
+  // Keep for legacy compatibility if some fields still hide in here
   const roleProfile =
     activeRole === "DESIGNER"
       ? merged.designerProfile
@@ -60,23 +61,30 @@ export async function fetchShopData(
         ? merged.printerProfile
         : merged.customerProfile;
 
-  const insight = roleProfile?.insight || {};
-  const profileId = Number(
-    targetProfileId || normalized.id || currentUser?.id || roleProfile?.id || 0,
-  );
-  const [designsResponse, collectionsResponse, paymentResponse, currentFollowingResponse] =
+  const insight = roleProfile?.insight || myProfileResponse?.responseBody?.insight || {};
+  
+  // The ID is now directly at the root in the flat payload.
+  // When viewing as owner (no targetProfileId), prefer the nested role profile's id
+  // since merged.id may be the user ID rather than the profile ID used by the API.
+  const profileId =
+    roleProfile?.profileId ||
+    roleProfile?.id ||
+    merged.id ||
+    targetProfileId;
+
+  // Use the resolved profileId for collections (owner case had undefined here before)
+  const collectionsId = targetProfileId ?? profileId;
+
+  const currentUser = (await ApiService.getCurrentUser()) as User | null;
+  const [designsResponse, collectionsResponse, paymentResponse] =
     await Promise.all([
       ApiService.getDesigns({ page: 0, size: 40, designer: profileId || undefined }),
-      ApiService.getCollections(targetProfileId, 0, 40).catch(() => ({
+      ApiService.getCollections(collectionsId, 0, 40).catch(() => ({
         responseBody: { content: [] },
       })),
       ApiService.getPaymentDetails().catch(() => null),
-      targetProfileId
-        ? ApiService.getFollowing(undefined, 0, 100).catch(() => ({
-            responseBody: { content: [] },
-          }))
-        : Promise.resolve({ responseBody: { content: [] } }),
     ]);
+
   const [followerResponse, followingResponse, reviewResponse] =
     await Promise.all([
       ApiService.getFollowers(profileId || undefined, 0, 100).catch(() => ({
@@ -96,11 +104,9 @@ export async function fetchShopData(
       id: item?.id || String(Math.random()),
       name: String(item?.name || item?.title || "Untitled collection"),
       imagePath: toAbsoluteImage(
-        item?.imagePath ||
-          item?.coverPath ||
-          item?.previewImage ||
-          item?.image?.url,
+        item?.picture,
       ),
+      description:item.description,
       designCount: Number(
         item?.designCount || item?.designsCount || item?.designs?.length || 0,
       ),
@@ -128,46 +134,51 @@ export async function fetchShopData(
 
   const followers = unwrapList(followerResponse);
   const following = unwrapList(followingResponse);
-  const currentFollowing = unwrapList(currentFollowingResponse);
   const payment = normalizePaymentDetails(paymentResponse || {});
   const isFollowing = Boolean(
     targetProfileId &&
-    currentFollowing.some(
+    followers.some(
       (item: any) =>
-        Number(
-          item?.id ||
-            item?.profileId ||
-            item?.profile?.id ||
-            item?.followingProfileId,
-        ) === profileId,
+          item?.userId === currentUser?.id,
     ),
   );
+
+  const shopName =
+    roleProfile?.name ||
+    merged.fullName ||
+    "My Shop";
 
   return {
     profile: {
       profileId,
-      fullName: merged.fullName || merged.username || "My Shop",
+      fullName: shopName,
       username: merged.username || merged.fullName || "shop",
-      bio: roleProfile?.bio || currentUser?.bio || "",
-      categories: Array.isArray(roleProfile?.categories)
+      
+      // Pull bio and categories from the merged root, fallback to roleProfile
+      bio: merged.bio || roleProfile?.bio || "",
+      categories: Array.isArray(merged.categories) && merged.categories.length > 0
+        ? merged.categories
+        : Array.isArray(roleProfile?.categories)
         ? roleProfile.categories
         : [],
+        
       cover: toAbsoluteImage(
+        merged.cover ||
         roleProfile?.coverPic ||
-          roleProfile?.coverPhotoPath ||
-          normalized.coverPic ||
-          normalized.coverImageUrl,
+        roleProfile?.coverPhotoPath
       ),
+      
       avatar: toAbsoluteImage(
-        roleProfile?.profilePic ||
-          normalized.profilePicturePath ||
-          normalized.profileImageUrl ||
-          merged.avatar,
+        merged.avatar || 
+        roleProfile?.profilePic
       ),
-      followers: Number(insight.totalFollowers || followers.length || 0),
-      following: Number(insight.totalFollowing || following.length || 0),
+      
+      // Look at the new root properties first, fallback to insight/arrays
+      followers: Number(merged.followersCount || insight.totalFollowers || followers.length || 0),
+      following: Number(merged.followingCount || insight.totalFollowing || following.length || 0),
       reviews: Number(insight.totalReviews || reviews.length || 0),
       uploads: Number(insight.totalUploads || designs.length || 0),
+      
       isFollowing,
     },
     designs,

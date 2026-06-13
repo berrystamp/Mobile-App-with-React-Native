@@ -305,23 +305,3 @@ const styles = StyleSheet.create({
   messageButtonText: { color: "#3C2D90", fontWeight: "600" },
   empty: { textAlign: "center", marginTop: 40, fontSize: 15, color: "#888193" },
 });
-
-interface PrinterCard {
-  id: number;
-  name: string;
-  avatar: string;
-  cover: string;
-  role: string;
-  jobs: number;
-  rating: string;
-}
-
-const fallbackImage =
-  "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=400";
-
-const toAbsolutePath = (path?: string) => {
-  if (!path) return fallbackImage;
-  if (path.startsWith("http")) return path;
-  return `https://backend-prod-api.berrystamp.com/${path.replace(/^\/+/, "")}`;
-};
-

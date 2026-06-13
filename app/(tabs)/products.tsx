@@ -13,6 +13,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CARD_WIDTH = (SCREEN_WIDTH - 48) / 2;
+// 4:5 Aspect ratio for professional product imagery
+const GALLERY_HEIGHT = SCREEN_WIDTH * 1.25; 
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -81,7 +83,6 @@ const normalizePrinter = (item: any, index: number): PrinterCard => ({
   successRate: Number(item.insight?.jobSuccessPercentage || 0),
 });
 
-
 // ─── Design card ──────────────────────────────────────────────────────────────
 
 function ProductCard({
@@ -107,19 +108,21 @@ function ProductCard({
   return (
     <TouchableOpacity
       onPress={onPress}
-      activeOpacity={0.88}
+      activeOpacity={0.9}
       style={{
         width: CARD_WIDTH,
-        marginBottom: 16,
-        borderRadius: 16,
-        overflow: 'hidden',
-        backgroundColor: isDark ? '#1B1B1B' : '#FFFFFF',
-        borderWidth: 1,
-        borderColor: isDark ? '#2B2B2B' : '#F0F0F0',
+        marginBottom: 24,
+        backgroundColor: 'transparent',
       }}>
-      <View style={{ height: CARD_WIDTH * 0.9, backgroundColor: isDark ? '#232323' : '#F7F7F7' }}>
+      <View style={{ 
+        height: CARD_WIDTH * 1.3, 
+        backgroundColor: isDark ? '#1C1C1E' : '#F5F5F7',
+        borderRadius: 12,
+        overflow: 'hidden',
+        marginBottom: 10
+      }}>
         {imageUrl ? (
-          <Image source={{ uri: imageUrl }} style={{ width: '100%', height: '100%' }}  />
+          <Image source={{ uri: imageUrl }} style={{ width: '100%', height: '100%' }} />
         ) : (
           <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
             <Ionicons name="image-outline" size={28} color={isDark ? '#555' : '#CCC'} />
@@ -129,41 +132,40 @@ function ProductCard({
           onPress={() => onFavorite(design.id)}
           style={{
             position: 'absolute',
-            top: 8,
-            right: 8,
-            width: 30,
-            height: 30,
-            borderRadius: 15,
-            backgroundColor: isDark ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.9)',
+            top: 10,
+            right: 10,
+            width: 32,
+            height: 32,
+            borderRadius: 16,
+            backgroundColor: isDark ? 'rgba(28,28,30,0.6)' : 'rgba(255,255,255,0.8)',
             alignItems: 'center',
             justifyContent: 'center',
           }}>
           <Ionicons
             name={design.liked ? 'heart' : 'heart-outline'}
-            size={16}
-            color={design.liked ? '#FF4D67' : '#888'}
+            size={18}
+            color={design.liked ? '#FF3B30' : (isDark ? '#FFF' : '#1C1C1E')}
           />
         </TouchableOpacity>
       </View>
-      <View style={{ padding: 10 }}>
+      <View style={{ paddingHorizontal: 4 }}>
         <Text
           numberOfLines={1}
-          style={{ fontSize: 13, fontWeight: '600', color: isDark ? '#FFF' : '#1A1A1A', marginBottom: 2 }}>
+          style={{ fontSize: 14, fontWeight: '600', color: isDark ? '#FFF' : '#1C1C1E', marginBottom: 4, letterSpacing: 0.3 }}>
           {design.title}
         </Text>
         <Text
           numberOfLines={1}
-          style={{ fontSize: 11, color: isDark ? '#AAA' : '#888', marginBottom: 4 }}>
-          By {artistName}
+          style={{ fontSize: 12, color: isDark ? '#8E8E93' : '#8E8E93', marginBottom: 6 }}>
+          Designed by {artistName}
         </Text>
-        <Text style={{ fontSize: 13, fontWeight: '700', color: isDark ? '#FFF' : '#1A1A1A' }}>
+        <Text style={{ fontSize: 14, fontWeight: '700', color: isDark ? '#FFF' : '#1C1C1E' }}>
           {formatNaira(price)}
         </Text>
       </View>
     </TouchableOpacity>
   );
 }
-
 
 // ─── Share sheet ──────────────────────────────────────────────────────────────
 
@@ -191,7 +193,7 @@ function ShareSheet({
   const handleCopy = async () => {
     try {
       await Share.share({
-        message: `Check out "${design.title}" on Berrystamp! ${design.description || ''}`,
+        message: `Discover "${design.title}" on Berrystamp. ${design.description || ''}`,
         title: design.title,
       });
     } catch {}
@@ -201,97 +203,94 @@ function ShareSheet({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable
-        style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' }}
+        style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}
         onPress={onClose}>
         <Pressable
           onPress={(e) => e.stopPropagation()}
           style={{
-            backgroundColor: isDark ? '#1E1E1E' : '#FFFFFF',
+            backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF',
             borderTopLeftRadius: 24,
             borderTopRightRadius: 24,
             padding: 24,
-            paddingBottom: 36,
+            paddingBottom: 40,
           }}>
-          {/* Header */}
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-            <Text style={{ fontSize: 18, fontWeight: '700', color: isDark ? '#FFF' : '#111' }}>Share</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: isDark ? '#FFF' : '#1C1C1E' }}>Share Product</Text>
             <TouchableOpacity
               onPress={onClose}
               style={{
-                width: 28,
-                height: 28,
-                borderRadius: 14,
-                backgroundColor: isDark ? '#333' : '#F0F0F0',
+                width: 32,
+                height: 32,
+                borderRadius: 16,
+                backgroundColor: isDark ? '#2C2C2E' : '#F5F5F7',
                 alignItems: 'center',
                 justifyContent: 'center',
               }}>
-              <Ionicons name="close" size={16} color={isDark ? '#FFF' : '#333'} />
+              <Ionicons name="close" size={18} color={isDark ? '#FFF' : '#1C1C1E'} />
             </TouchableOpacity>
           </View>
 
-          {/* Social icons */}
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 24 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 32 }}>
             {shareOptions.map((opt) => (
-              <TouchableOpacity key={opt.action} onPress={handleCopy} style={{ alignItems: 'center', width: 48 }}>
+              <TouchableOpacity key={opt.action} onPress={handleCopy} style={{ alignItems: 'center', width: 50 }}>
                 <View
                   style={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: 24,
+                    width: 50,
+                    height: 50,
+                    borderRadius: 25,
                     backgroundColor: opt.color,
                     alignItems: 'center',
                     justifyContent: 'center',
-                    marginBottom: 6,
+                    marginBottom: 8,
                   }}>
-                  <Ionicons name="share-social-outline" size={22} color="#FFF" />
+                  <Ionicons name="share-social-outline" size={24} color="#FFF" />
                 </View>
-                <Text style={{ fontSize: 10, color: isDark ? '#AAA' : '#666', textAlign: 'center' }}>
+                <Text style={{ fontSize: 11, color: isDark ? '#8E8E93' : '#8E8E93', textAlign: 'center' }}>
                   {opt.label}
                 </Text>
               </TouchableOpacity>
             ))}
           </View>
 
-          {/* Preview row */}
           <View
             style={{
               flexDirection: 'row',
               alignItems: 'center',
-              backgroundColor: isDark ? '#2A2A2A' : '#F5F5F5',
-              borderRadius: 14,
+              backgroundColor: isDark ? '#2C2C2E' : '#F5F5F7',
+              borderRadius: 16,
               padding: 12,
             }}>
             <View
               style={{
-                width: 44,
-                height: 44,
+                width: 48,
+                height: 48,
                 borderRadius: 8,
                 overflow: 'hidden',
                 backgroundColor: '#E0E0E0',
                 marginRight: 12,
               }}>
               {design.imagePath ? (
-                <Image source={{ uri: design.imagePath }} style={{ width: 44, height: 44 }}  />
+                <Image source={{ uri: design.imagePath }} style={{ width: 48, height: 48 }} />
               ) : null}
             </View>
             <View style={{ flex: 1 }}>
-              <Text numberOfLines={1} style={{ fontSize: 14, fontWeight: '600', color: isDark ? '#FFF' : '#111' }}>
+              <Text numberOfLines={1} style={{ fontSize: 15, fontWeight: '600', color: isDark ? '#FFF' : '#1C1C1E' }}>
                 {design.title}
               </Text>
-              <Text numberOfLines={1} style={{ fontSize: 12, color: isDark ? '#AAA' : '#777' }}>
-                {design.description || 'Berrystamp design'}
+              <Text numberOfLines={1} style={{ fontSize: 13, color: isDark ? '#8E8E93' : '#8E8E93', marginTop: 2 }}>
+                Berrystamp Exclusives
               </Text>
             </View>
             <TouchableOpacity
               onPress={handleCopy}
               style={{
                 backgroundColor: '#4A3298',
-                borderRadius: 10,
-                paddingHorizontal: 14,
-                paddingVertical: 8,
-                marginLeft: 10,
+                borderRadius: 12,
+                paddingHorizontal: 16,
+                paddingVertical: 10,
+                marginLeft: 12,
               }}>
-              <Text style={{ color: '#FFF', fontSize: 13, fontWeight: '600' }}>Copy</Text>
+              <Text style={{ color: '#FFF', fontSize: 14, fontWeight: '600' }}>Copy Link</Text>
             </TouchableOpacity>
           </View>
         </Pressable>
@@ -299,7 +298,6 @@ function ShareSheet({
     </Modal>
   );
 }
-
 
 // ─── Printer selection screen ─────────────────────────────────────────────────
 
@@ -325,18 +323,10 @@ function PrinterSelectionScreen({
     const load = async () => {
       try {
         setLoading(true);
-        // Use /api/v1/users filtered by PRINTER profileType
         const res = await ApiService.getUsers('PRINTER', 0, 60);
-        const content =
-          res?.responseBody?.content ||
-          res?.content ||
-          res?.responseBody ||
-          res ||
-          [];
-        const list = Array.isArray(content) ? content : [];
-        setPrinters(list.map(normalizePrinter));
+        const content = res?.responseBody?.content || res?.content || res?.responseBody || res || [];
+        setPrinters(Array.isArray(content) ? content.map(normalizePrinter) : []);
       } catch (err) {
-        console.error('[PrinterSelection] Failed to load printers:', err);
         setPrinters([]);
       } finally {
         setLoading(false);
@@ -361,7 +351,7 @@ function PrinterSelectionScreen({
           createdAt: new Date().toISOString(),
           status: 'sent' as const,
           bundle: {
-            title: 'Order request',
+            title: 'Order Specification',
             productCount: cartItems.length,
             footerLabel: 'View product details',
             items: [item],
@@ -384,12 +374,11 @@ function PrinterSelectionScreen({
         });
       }, 1200);
     } catch (err) {
-      console.error('[PrinterSelection] Failed to send order request:', err);
       setSentId(null);
     }
   };
 
-  const renderPrinter = ({ item, index }: { item: PrinterCard; index: number }) => {
+  const renderPrinter = ({ item }: { item: PrinterCard }) => {
     const isSent = sentId === item.id;
     return (
       <View
@@ -397,33 +386,28 @@ function PrinterSelectionScreen({
           width: (SCREEN_WIDTH - 48) / 2,
           marginBottom: 16,
           borderRadius: 16,
-          overflow: 'hidden',
-          backgroundColor: isDark ? '#1B1B1B' : '#FFFFFF',
+          backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF',
           borderWidth: 1,
-          borderColor: isDark ? '#2B2B2B' : '#F0F0F0',
+          borderColor: isDark ? '#2C2C2E' : '#E5E5EA',
+          overflow: 'hidden'
         }}>
-        {/* Cover */}
-        <View style={{ height: 80, backgroundColor: isDark ? '#2A2A2A' : '#E8E8E8' }}>
-          {item.cover ? (
-            <Image source={{ uri: item.cover }} style={{ width: '100%', height: '100%' }}  />
-          ) : null}
-          {/* Avatar */}
+        <View style={{ height: 80, backgroundColor: isDark ? '#2C2C2E' : '#F5F5F7' }}>
+          {item.cover ? <Image source={{ uri: item.cover }} style={{ width: '100%', height: '100%' }} /> : null}
           <View
             style={{
               position: 'absolute',
               bottom: -20,
-              left: '50%',
-              marginLeft: -22,
+              alignSelf: 'center',
               width: 44,
               height: 44,
               borderRadius: 22,
               borderWidth: 2,
-              borderColor: isDark ? '#1B1B1B' : '#FFF',
+              borderColor: isDark ? '#1C1C1E' : '#FFF',
               overflow: 'hidden',
               backgroundColor: '#4A3298',
             }}>
             {item.avatar ? (
-              <Image source={{ uri: item.avatar }} style={{ width: 44, height: 44 }}  />
+              <Image source={{ uri: item.avatar }} style={{ width: '100%', height: '100%' }} />
             ) : (
               <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
                 <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 14 }}>
@@ -434,28 +418,28 @@ function PrinterSelectionScreen({
           </View>
         </View>
 
-        <View style={{ paddingTop: 28, paddingHorizontal: 10, paddingBottom: 12, alignItems: 'center' }}>
+        <View style={{ paddingTop: 28, paddingHorizontal: 12, paddingBottom: 16, alignItems: 'center' }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
-            <Text numberOfLines={1} style={{ fontSize: 13, fontWeight: '700', color: isDark ? '#FFF' : '#111' }}>
+            <Text numberOfLines={1} style={{ fontSize: 14, fontWeight: '700', color: isDark ? '#FFF' : '#1C1C1E' }}>
               {item.name}
             </Text>
-            <Ionicons name="checkmark-circle" size={13} color="#4A3298" style={{ marginLeft: 3 }} />
+            <Ionicons name="checkmark-circle" size={14} color="#4A3298" style={{ marginLeft: 4 }} />
           </View>
-          <Text numberOfLines={1} style={{ fontSize: 11, color: isDark ? '#AAA' : '#777', marginBottom: 4 }}>
+          <Text numberOfLines={1} style={{ fontSize: 12, color: isDark ? '#8E8E93' : '#8E8E93', marginBottom: 8 }}>
             {item.role}
           </Text>
-          <Text style={{ fontSize: 10, color: isDark ? '#888' : '#999', marginBottom: 2 }}>
-            {item.distance} • {item.jobs} jobs | {item.rating} ★
+          <Text style={{ fontSize: 11, color: isDark ? '#636366' : '#AEAEB2', marginBottom: 4 }}>
+            {item.distance} • {item.jobs} orders | {item.rating} ★
           </Text>
-          <Text style={{ fontSize: 10, color: isDark ? '#888' : '#999', marginBottom: 10 }}>
+          <Text style={{ fontSize: 11, color: isDark ? '#636366' : '#AEAEB2', marginBottom: 16 }}>
             {item.location}
           </Text>
 
           {isSent ? (
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Ionicons name="checkmark-circle" size={14} color="#22C55E" />
-              <Text style={{ fontSize: 11, color: '#22C55E', marginLeft: 4, fontWeight: '600' }}>
-                Order request created
+              <Ionicons name="checkmark-circle" size={16} color="#34C759" />
+              <Text style={{ fontSize: 12, color: '#34C759', marginLeft: 6, fontWeight: '600' }}>
+                Order Sent
               </Text>
             </View>
           ) : (
@@ -463,13 +447,12 @@ function PrinterSelectionScreen({
               onPress={() => handleMessage(item)}
               style={{
                 backgroundColor: '#4A3298',
-                borderRadius: 20,
-                paddingVertical: 8,
-                paddingHorizontal: 24,
+                borderRadius: 24,
+                paddingVertical: 10,
                 width: '100%',
                 alignItems: 'center',
               }}>
-              <Text style={{ color: '#FFF', fontSize: 12, fontWeight: '600' }}>Message</Text>
+              <Text style={{ color: '#FFF', fontSize: 13, fontWeight: '600' }}>Engage Partner</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -479,27 +462,24 @@ function PrinterSelectionScreen({
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <SafeAreaView style={{ flex: 1, backgroundColor: isDark ? '#121212' : '#F8F8F8' }}>
-        {/* Header */}
+      <SafeAreaView style={{ flex: 1, backgroundColor: isDark ? '#000000' : '#F5F5F7' }}>
         <View
           style={{
             flexDirection: 'row',
             alignItems: 'center',
             paddingHorizontal: 16,
-            paddingVertical: 14,
-            borderBottomWidth: 1,
-            borderBottomColor: isDark ? '#2A2A2A' : '#ECECEC',
-            backgroundColor: isDark ? '#1A1A1A' : '#FFF',
+            paddingVertical: 16,
+            backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF',
           }}>
-          <TouchableOpacity onPress={onClose} style={{ marginRight: 12 }}>
-            <Ionicons name="arrow-back" size={22} color={isDark ? '#FFF' : '#111'} />
+          <TouchableOpacity onPress={onClose} style={{ marginRight: 16 }}>
+            <Ionicons name="arrow-back" size={24} color={isDark ? '#FFF' : '#1C1C1E'} />
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 17, fontWeight: '700', color: isDark ? '#FFF' : '#111' }}>
-              On-demand Printer
+            <Text style={{ fontSize: 18, fontWeight: '700', color: isDark ? '#FFF' : '#1C1C1E' }}>
+              Select Print Partner
             </Text>
-            <Text style={{ fontSize: 12, color: isDark ? '#AAA' : '#777', marginTop: 2 }}>
-              Select and message a printer of your choice for printing preferences and printing cost negotiation
+            <Text style={{ fontSize: 13, color: isDark ? '#8E8E93' : '#8E8E93', marginTop: 2 }}>
+              Choose a verified partner for production and fulfillment.
             </Text>
           </View>
         </View>
@@ -507,13 +487,12 @@ function PrinterSelectionScreen({
         {loading ? (
           <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
             <ActivityIndicator size="large" color="#4A3298" />
-            <Text style={{ marginTop: 12, color: isDark ? '#AAA' : '#777' }}>Loading printers...</Text>
           </View>
         ) : printers.length === 0 ? (
           <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 }}>
-            <Ionicons name="print-outline" size={48} color={isDark ? '#444' : '#CCC'} />
-            <Text style={{ marginTop: 12, color: isDark ? '#AAA' : '#777', textAlign: 'center' }}>
-              No printers available right now.
+            <Ionicons name="print-outline" size={64} color={isDark ? '#3A3A3C' : '#D1D1D6'} />
+            <Text style={{ marginTop: 16, fontSize: 16, color: isDark ? '#8E8E93' : '#8E8E93', textAlign: 'center' }}>
+              No print partners available in this region.
             </Text>
           </View>
         ) : (
@@ -523,7 +502,7 @@ function PrinterSelectionScreen({
             renderItem={renderPrinter}
             numColumns={2}
             contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
-            columnWrapperStyle={{ justifyContent: 'space-between' }}
+            columnWrapperStyle={{ gap: 16 }}
             showsVerticalScrollIndicator={false}
           />
         )}
@@ -531,7 +510,6 @@ function PrinterSelectionScreen({
     </Modal>
   );
 }
-
 
 // ─── Product detail screen ────────────────────────────────────────────────────
 
@@ -579,7 +557,7 @@ function ProductDetailScreen({
     design.designerName ||
     `${design.profile.firstName} ${design.profile.lastName}`.trim() ||
     design.profile.username ||
-    'Berrystamp';
+    'Berrystamp Studio';
 
   const lowestPrice = useMemo(() => {
     const prices = design.mocks.map((m) => m.price).filter((p) => p > 0);
@@ -606,7 +584,7 @@ function ProductDetailScreen({
 
   const handleAddToCart = async (printNow = false) => {
     if (!selectedMock) {
-      showAlert({ type: 'warning', title: 'Select a mockup', message: 'Please select a mockup before adding to cart.' });
+      showAlert({ type: 'warning', title: 'Selection Required', message: 'Please select a specific style to continue.' });
       return;
     }
     try {
@@ -617,7 +595,6 @@ function ProductDetailScreen({
         size: selectedSize || undefined,
       });
       if (printNow) {
-        // Print Now: skip cart flow — go straight to printer selection with this item
         onClose();
         router.push({
           pathname: '/(tabs)/select-printer',
@@ -632,9 +609,7 @@ function ProductDetailScreen({
                 colour: selectedColour || '',
                 size: selectedSize || '',
                 variantText: [selectedColour, selectedSize].filter(Boolean).join(' / '),
-                designerName:
-                  `${design.profile.firstName} ${design.profile.lastName}`.trim() ||
-                  design.profile.username,
+                designerName: artistName,
               },
             ]),
           },
@@ -645,11 +620,10 @@ function ProductDetailScreen({
       onCartAdded(design, selectedMock, selectedColour, selectedSize, quantity);
       setTimeout(() => setCartSuccess(false), 3000);
     } catch (err: any) {
-      console.error('[ProductDetail] Add to cart failed:', err);
       showAlert({
         type: 'error',
-        title: 'Could not add to cart',
-        message: err?.response?.data?.message || 'Please try again.',
+        title: 'Transaction Failed',
+        message: err?.response?.data?.message || 'Unable to update cart at this time.',
       });
     } finally {
       setAddingToCart(false);
@@ -666,8 +640,8 @@ function ProductDetailScreen({
           {
             id: `custom-${design.id}-${Date.now()}`,
             type: 'text',
-            text: `Hi, I'd like to request a customization for "${design.title}".`,
-            previewText: `Customization request for "${design.title}"`,
+            text: `Hello, I am interested in requesting a custom variation of "${design.title}".`,
+            previewText: `Custom order inquiry for "${design.title}"`,
             author: 'me',
             createdAt: new Date().toISOString(),
             status: 'sent',
@@ -684,90 +658,15 @@ function ProductDetailScreen({
           participantRole: 'Designer',
         },
       });
-    } catch (err) {
-      console.error('[ProductDetail] Customization request failed:', err);
-    }
+    } catch (err) {}
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: isDark ? '#121212' : '#F5F5F5' }}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 120 }}>
-
-        {/* ── Hero header with gallery ── */}
-        <View style={{ backgroundColor: isDark ? '#1A1A1A' : '#B7B7B7' }}>
-          {/* Top bar */}
-          <View
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              paddingHorizontal: 16,
-              paddingTop: insets.top + 8,
-              paddingBottom: 12,
-            }}>
-            <TouchableOpacity
-              onPress={onClose}
-              style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center' }}>
-              <Ionicons name="arrow-back" size={22} color="#FFF" />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => router.push({ pathname: '/my-shop', params: { profileId: String(design.profile.id) } })}
-              style={{ flex: 1, flexDirection: 'row', alignItems: 'center', marginHorizontal: 8 }}>
-              <View
-                style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 18,
-                  overflow: 'hidden',
-                  backgroundColor: '#4A3298',
-                  marginRight: 8,
-                }}>
-                {design.profile.profilePicturePath ? (
-                  <Image
-                    source={{ uri: design.profile.profilePicturePath }}
-                    style={{ width: 36, height: 36 }}
-                    
-                  />
-                ) : (
-                  <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-                    <Text style={{ color: '#FFF', fontWeight: '700' }}>
-                      {(design.profile.firstName || 'B').slice(0, 1).toUpperCase()}
-                    </Text>
-                  </View>
-                )}
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text numberOfLines={1} style={{ fontSize: 15, fontWeight: '700', color: '#FFF' }}>
-                  {design.title}
-                </Text>
-                <Text numberOfLines={1} style={{ fontSize: 11, color: 'rgba(255,255,255,0.85)' }}>
-                  Designed by {artistName}
-                </Text>
-              </View>
-            </TouchableOpacity>
-
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <TouchableOpacity
-                onPress={handleFavorite}
-                style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center' }}>
-                <Ionicons
-                  name={isFavorite ? 'heart' : 'heart-outline'}
-                  size={22}
-                  color={isFavorite ? '#FF4D67' : '#FFF'}
-                />
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => setShowShare(true)}
-                style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center' }}>
-                <Feather name="share-2" size={20} color="#FFF" />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Gallery */}
+    <View style={{ flex: 1, backgroundColor: isDark ? '#000' : '#FFF' }}>
+      <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
+        
+        {/* ── Full Bleed Edge-to-Edge Image Gallery ── */}
+        <View style={{ width: SCREEN_WIDTH, height: GALLERY_HEIGHT, backgroundColor: isDark ? '#1C1C1E' : '#F5F5F7' }}>
           <ScrollView
             horizontal
             pagingEnabled
@@ -776,344 +675,332 @@ function ProductDetailScreen({
               setGalleryIndex(Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH))
             }>
             {gallery.map((item) => (
-              <View
-                key={item.id}
-                style={{ width: SCREEN_WIDTH, height: 280, alignItems: 'center', justifyContent: 'center' }}>
+              <View key={item.id} style={{ width: SCREEN_WIDTH, height: GALLERY_HEIGHT }}>
                 {item.uri ? (
                   <Image
                     source={{ uri: item.uri }}
-                    style={{ width: SCREEN_WIDTH * 0.8, height: 260 }}
-                    
+                    style={{ width: '100%', height: '100%', resizeMode: 'cover' }}
                   />
                 ) : (
-                  <Ionicons name="image-outline" size={64} color={isDark ? '#444' : '#CCC'} />
+                  <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons name="image-outline" size={64} color={isDark ? '#3A3A3C' : '#D1D1D6'} />
+                  </View>
                 )}
               </View>
             ))}
           </ScrollView>
 
-          {/* Dots */}
-          {gallery.length > 1 && (
-            <View style={{ flexDirection: 'row', justifyContent: 'center', paddingVertical: 10 }}>
-              {gallery.map((item, i) => (
-                <View
-                  key={item.id}
-                  style={{
-                    width: i === galleryIndex ? 20 : 8,
-                    height: 8,
-                    borderRadius: 4,
-                    backgroundColor: i === galleryIndex ? '#333' : '#CCC',
-                    marginHorizontal: 3,
-                  }}
+          {/* Floating Header Over Image */}
+          <View
+            style={{
+              position: 'absolute',
+              top: Math.max(insets.top, 20),
+              left: 0,
+              right: 0,
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              paddingHorizontal: 16,
+              zIndex: 10,
+            }}>
+            <TouchableOpacity
+              onPress={onClose}
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 20,
+                backgroundColor: 'rgba(255,255,255,0.7)',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+              <Ionicons name="chevron-back" size={24} color="#000" />
+            </TouchableOpacity>
+
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <TouchableOpacity
+                onPress={handleFavorite}
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 20,
+                  backgroundColor: 'rgba(255,255,255,0.7)',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}>
+                <Ionicons
+                  name={isFavorite ? 'heart' : 'heart-outline'}
+                  size={22}
+                  color={isFavorite ? '#FF3B30' : '#000'}
                 />
-              ))}
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setShowShare(true)}
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 20,
+                  backgroundColor: 'rgba(255,255,255,0.7)',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}>
+                <Feather name="share" size={20} color="#000" />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Gallery Pagination Indicator */}
+          {gallery.length > 1 && (
+            <View style={{
+              position: 'absolute',
+              bottom: 30,
+              alignSelf: 'center',
+              backgroundColor: 'rgba(0,0,0,0.5)',
+              paddingHorizontal: 12,
+              paddingVertical: 6,
+              borderRadius: 12,
+            }}>
+              <Text style={{ color: '#FFF', fontSize: 12, fontWeight: '600', letterSpacing: 1 }}>
+                {galleryIndex + 1} / {gallery.length}
+              </Text>
             </View>
           )}
         </View>
 
-        {/* ── Content ── */}
-        <View style={{ backgroundColor: isDark ? '#121212' : '#FFF', paddingHorizontal: 20, paddingTop: 20 }}>
-          {/* Description */}
-          <Text style={{ fontSize: 13, fontWeight: '600', color: isDark ? '#AAA' : '#555', marginBottom: 4 }}>
-            Description
-          </Text>
-          <Text style={{ fontSize: 13, color: isDark ? '#CCC' : '#444', lineHeight: 20, marginBottom: 8 }}>
-            {design.description || design.title}
-          </Text>
-          <Text style={{ fontSize: 13, color: isDark ? '#CCC' : '#444', marginBottom: 4 }}>
-            From{' '}
-            <Text
-              style={{ color: '#2D71E3', fontWeight: '600' }}
-              onPress={() =>
-                router.push({ pathname: '/my-shop', params: { profileId: String(design.profile.id) } })
-              }>
-              {artistName} Collections
+        {/* ── Content Box ── */}
+        <View style={{ 
+          backgroundColor: isDark ? '#000' : '#FFF', 
+          marginTop: -20, 
+          borderTopLeftRadius: 24, 
+          borderTopRightRadius: 24, 
+          paddingHorizontal: 20, 
+          paddingTop: 28,
+          paddingBottom: 120 
+        }}>
+          
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+            <Text style={{ flex: 1, fontSize: 22, fontWeight: '800', color: isDark ? '#FFF' : '#1C1C1E', letterSpacing: -0.5 }}>
+              {design.title}
             </Text>
-          </Text>
-          <Text style={{ fontSize: 22, fontWeight: '800', color: isDark ? '#FFF' : '#111', marginBottom: 16 }}>
-            {formatNaira(lowestPrice)}
+            <Text style={{ fontSize: 22, fontWeight: '800', color: isDark ? '#FFF' : '#1C1C1E' }}>
+              {formatNaira(lowestPrice)}
+            </Text>
+          </View>
+
+          <Text style={{ fontSize: 15, color: isDark ? '#8E8E93' : '#636366', marginBottom: 20 }}>
+            Designed by <Text style={{ color: '#4A3298', fontWeight: '600' }}>{artistName}</Text>
           </Text>
 
-          {/* Cart success toast */}
+          <Text style={{ fontSize: 15, lineHeight: 24, color: isDark ? '#E5E5EA' : '#3A3A3C', marginBottom: 28 }}>
+            {design.description || "Premium quality design crafted for exceptional aesthetics and comfort."}
+          </Text>
+
           {cartSuccess && (
             <View
               style={{
                 flexDirection: 'row',
                 alignItems: 'center',
-                backgroundColor: isDark ? '#1E2E1E' : '#F0FFF4',
-                borderRadius: 10,
-                padding: 10,
-                marginBottom: 12,
+                backgroundColor: isDark ? '#1C2E1C' : '#F0FFF4',
+                borderRadius: 12,
+                padding: 14,
+                marginBottom: 24,
                 borderWidth: 1,
-                borderColor: '#22C55E',
+                borderColor: '#34C759',
               }}>
-              <Ionicons name="checkmark-circle" size={18} color="#22C55E" />
-              <Text style={{ flex: 1, marginLeft: 8, fontSize: 13, color: '#22C55E', fontWeight: '600' }}>
-                Item successfully added to cart
+              <Ionicons name="checkmark-circle" size={20} color="#34C759" />
+              <Text style={{ flex: 1, marginLeft: 10, fontSize: 14, color: '#34C759', fontWeight: '600' }}>
+                Added to cart successfully
               </Text>
               <TouchableOpacity onPress={() => { router.push('/cart'); onClose(); }}>
-                <Text style={{ color: '#4A3298', fontSize: 13, fontWeight: '700' }}>Go to Cart</Text>
+                <Text style={{ color: isDark ? '#FFF' : '#1C1C1E', fontSize: 14, fontWeight: '700', textDecorationLine: 'underline' }}>View Cart</Text>
               </TouchableOpacity>
             </View>
           )}
 
-          {/* Select Mockup */}
-          <Text style={{ fontSize: 14, fontWeight: '700', color: isDark ? '#FFF' : '#111', marginBottom: 10 }}>
-            Select Mockup
-          </Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
-            {design.mocks.map((mock) => {
-              const isActive = selectedMock?.id === mock.id;
-              return (
-                <TouchableOpacity
-                  key={mock.id}
-                  onPress={() => {
-                    setSelectedMock(mock);
-                    setSelectedColour(mock.colours?.[0] || '');
-                    setSelectedSize(getMockSizes(mock)[0] || '');
-                  }}
-                  style={{
-                    marginRight: 12,
-                    borderWidth: 2,
-                    borderColor: isActive ? '#4A3298' : isDark ? '#333' : '#E0E0E0',
-                    borderRadius: 12,
-                    overflow: 'hidden',
-                    width: 90,
-                  }}>
-                  <View style={{ width: 90, height: 90, backgroundColor: isDark ? '#2A2A2A' : '#F5F5F5' }}>
-                    {mock.imagePath ? (
-                      <Image source={{ uri: mock.imagePath }} style={{ width: 90, height: 90 }}  />
-                    ) : (
-                      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-                        <Ionicons name="shirt-outline" size={28} color={isDark ? '#555' : '#CCC'} />
-                      </View>
-                    )}
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-
-          {/* Select colour */}
-          {!!selectedMock?.colours?.length && (
-            <View style={{ marginBottom: 16 }}>
-              <Text style={{ fontSize: 13, color: isDark ? '#AAA' : '#666', marginBottom: 8 }}>Select colour</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                {selectedMock.colours.map((colour) => (
-                  <TouchableOpacity
-                    key={colour}
-                    onPress={() => setSelectedColour(colour)}
-                    style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: 16,
-                      backgroundColor: colour,
-                      borderWidth: selectedColour === colour ? 3 : 1.5,
-                      borderColor: selectedColour === colour ? '#4A3298' : 'rgba(0,0,0,0.15)',
-                    }}
-                  />
-                ))}
-              </View>
-            </View>
-          )}
-
-          {/* Choose size */}
-          {!!mockSizes.length && (
-            <View style={{ marginBottom: 16 }}>
-              <Text style={{ fontSize: 13, color: isDark ? '#AAA' : '#666', marginBottom: 8 }}>Choose size</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                {mockSizes.map((size) => (
-                  <TouchableOpacity
-                    key={size}
-                    onPress={() => setSelectedSize(size)}
-                    style={{
-                      paddingHorizontal: 14,
-                      paddingVertical: 7,
-                      borderRadius: 8,
-                      borderWidth: 1.5,
-                      borderColor: selectedSize === size ? '#4A3298' : isDark ? '#444' : '#D0D0D0',
-                      backgroundColor:
-                        selectedSize === size ? '#4A3298' : isDark ? '#1A1A1A' : '#FFF',
-                    }}>
-                    <Text
-                      style={{
-                        fontSize: 12,
-                        fontWeight: '600',
-                        color: selectedSize === size ? '#FFF' : isDark ? '#CCC' : '#333',
-                      }}>
-                      {size}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-          )}
-
-          {/* Select quantity */}
-          <View style={{ marginBottom: 20 }}>
-            <Text style={{ fontSize: 13, color: isDark ? '#AAA' : '#666', marginBottom: 8 }}>Select quantity</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <TouchableOpacity
-                onPress={() => setQuantity((q) => Math.max(1, q - 1))}
-                style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: 8,
-                  backgroundColor: '#4A3298',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}>
-                <Text style={{ color: '#FFF', fontSize: 18, fontWeight: '700', lineHeight: 22 }}>−</Text>
-              </TouchableOpacity>
-              <Text
-                style={{
-                  marginHorizontal: 16,
-                  fontSize: 16,
-                  fontWeight: '700',
-                  color: isDark ? '#FFF' : '#111',
-                  minWidth: 24,
-                  textAlign: 'center',
-                }}>
-                {quantity}
-              </Text>
-              <TouchableOpacity
-                onPress={() => setQuantity((q) => q + 1)}
-                style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: 8,
-                  backgroundColor: '#4A3298',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}>
-                <Text style={{ color: '#FFF', fontSize: 18, fontWeight: '700', lineHeight: 22 }}>+</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Request customization */}
-          <TouchableOpacity
-            onPress={handleRequestCustomization}
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              borderWidth: 1,
-              borderColor: isDark ? '#333' : '#E0E0E0',
-              borderRadius: 12,
-              paddingHorizontal: 14,
-              paddingVertical: 13,
-              marginBottom: 20,
-              backgroundColor: isDark ? '#1A1A1A' : '#FFF',
-            }}>
-            <Ionicons name="grid-outline" size={18} color="#4A3298" style={{ marginRight: 10 }} />
-            <Text style={{ flex: 1, fontSize: 14, color: '#4A3298', fontWeight: '600' }}>
-              Request customization
+          {/* ── Selections ── */}
+          <View style={{ borderTopWidth: 1, borderColor: isDark ? '#2C2C2E' : '#F5F5F7', paddingTop: 24 }}>
+            <Text style={{ fontSize: 15, fontWeight: '700', color: isDark ? '#FFF' : '#1C1C1E', marginBottom: 16 }}>
+              Available Styles
             </Text>
-            <Ionicons name="chevron-forward" size={18} color={isDark ? '#666' : '#AAA'} />
-          </TouchableOpacity>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 24 }}>
+              {design.mocks.map((mock) => {
+                const isActive = selectedMock?.id === mock.id;
+                return (
+                  <TouchableOpacity
+                    key={mock.id}
+                    onPress={() => {
+                      setSelectedMock(mock);
+                      setSelectedColour(mock.colours?.[0] || '');
+                      setSelectedSize(getMockSizes(mock)[0] || '');
+                    }}
+                    style={{
+                      marginRight: 16,
+                      borderWidth: 2,
+                      borderColor: isActive ? '#4A3298' : 'transparent',
+                      borderRadius: 12,
+                      overflow: 'hidden',
+                      width: 80,
+                    }}>
+                    <View style={{ width: 80, height: 80, backgroundColor: isDark ? '#1C1C1E' : '#F5F5F7' }}>
+                      {mock.imagePath ? (
+                        <Image source={{ uri: mock.imagePath }} style={{ width: '100%', height: '100%' }} />
+                      ) : (
+                        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                          <Ionicons name="shirt-outline" size={24} color={isDark ? '#555' : '#CCC'} />
+                        </View>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
 
-           {/* Action buttons */}
-          <View style={{ flexDirection: 'row', gap: 12, marginBottom: 28 }}>
-            <TouchableOpacity
-              onPress={() => handleAddToCart(false)}
-              disabled={addingToCart}
-              style={{
-                flex: 1,
-                paddingVertical: 15,
-                borderRadius: 14,
-                borderWidth: 2,
-                borderColor: '#4A3298',
-                alignItems: 'center',
-                backgroundColor: isDark ? '#1A1A1A' : '#FFF',
-              }}>
-              {addingToCart ? (
-                <ActivityIndicator size="small" color="#4A3298" />
-              ) : (
-                <Text style={{ fontSize: 15, fontWeight: '700', color: '#4A3298' }}>Add to Cart</Text>
-              )}
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => handleAddToCart(true)}
-              disabled={addingToCart}
-              style={{
-                flex: 1,
-                paddingVertical: 15,
-                borderRadius: 14,
-                backgroundColor: '#4A3298',
-                alignItems: 'center',
-              }}>
-              <Text style={{ fontSize: 15, fontWeight: '700', color: '#FFF' }}>Print Now</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* More from designer */}
-          {relatedDesigns.length > 0 && (
-            <View style={{ marginBottom: 20 }}>
-              <Text style={{ fontSize: 16, fontWeight: '700', color: isDark ? '#FFF' : '#111', marginBottom: 14 }}>
-                More from designer
-              </Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
-                {relatedDesigns.map((item) => {
-                  const relatedPrice = getLowestPrice(item);
-                  const relatedArtist =
-                    `${item.profile.firstName} ${item.profile.lastName}`.trim() || item.profile.username;
-                  return (
+            {!!selectedMock?.colours?.length && (
+              <View style={{ marginBottom: 24 }}>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: isDark ? '#FFF' : '#1C1C1E', marginBottom: 16 }}>Color Options</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+                  {selectedMock.colours.map((colour) => (
                     <TouchableOpacity
-                      key={item.id}
-                      onPress={() => router.push({ pathname: '/products', params: { designId: String(item.id) } })}
+                      key={colour}
+                      onPress={() => setSelectedColour(colour)}
                       style={{
-                        width: (SCREEN_WIDTH - 52) / 2,
-                        marginBottom: 14,
-                        borderRadius: 14,
-                        overflow: 'hidden',
-                        backgroundColor: isDark ? '#1B1B1B' : '#FFF',
+                        width: 40,
+                        height: 40,
+                        borderRadius: 20,
+                        backgroundColor: colour,
+                        borderWidth: 2,
+                        borderColor: selectedColour === colour ? '#4A3298' : (isDark ? '#2C2C2E' : '#E5E5EA'),
+                        shadowColor: "#000",
+                        shadowOffset: { width: 0, height: 2 },
+                        shadowOpacity: 0.1,
+                        shadowRadius: 3,
+                        elevation: 2,
+                      }}
+                    />
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {!!mockSizes.length && (
+              <View style={{ marginBottom: 24 }}>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: isDark ? '#FFF' : '#1C1C1E', marginBottom: 16 }}>Size Selection</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+                  {mockSizes.map((size) => (
+                    <TouchableOpacity
+                      key={size}
+                      onPress={() => setSelectedSize(size)}
+                      style={{
+                        minWidth: 50,
+                        paddingHorizontal: 16,
+                        paddingVertical: 12,
+                        borderRadius: 8,
                         borderWidth: 1,
-                        borderColor: isDark ? '#2B2B2B' : '#F0F0F0',
+                        borderColor: selectedSize === size ? '#4A3298' : (isDark ? '#2C2C2E' : '#E5E5EA'),
+                        backgroundColor: selectedSize === size ? '#4A3298' : 'transparent',
+                        alignItems: 'center'
                       }}>
-                      <View style={{ height: 120, backgroundColor: isDark ? '#2A2A2A' : '#F5F5F5' }}>
-                        {item.imagePath ? (
-                          <Image
-                            source={{ uri: item.imagePath }}
-                            style={{ width: '100%', height: '100%' }}
-                            
-                          />
-                        ) : null}
-                        <TouchableOpacity
-                          style={{
-                            position: 'absolute',
-                            top: 6,
-                            right: 6,
-                            width: 26,
-                            height: 26,
-                            borderRadius: 13,
-                            backgroundColor: isDark ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.9)',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                          }}>
-                          <Ionicons
-                            name={item.liked ? 'heart' : 'heart-outline'}
-                            size={13}
-                            color={item.liked ? '#FF4D67' : '#888'}
-                          />
-                        </TouchableOpacity>
-                      </View>
-                      <View style={{ padding: 8 }}>
-                        <Text numberOfLines={1} style={{ fontSize: 12, fontWeight: '600', color: isDark ? '#FFF' : '#111' }}>
-                          {item.title}
-                        </Text>
-                        <Text numberOfLines={1} style={{ fontSize: 10, color: isDark ? '#AAA' : '#888', marginTop: 1 }}>
-                          By {relatedArtist}
-                        </Text>
-                        <Text style={{ fontSize: 12, fontWeight: '700', color: isDark ? '#FFF' : '#111', marginTop: 3 }}>
-                          {formatNaira(relatedPrice)}
-                        </Text>
-                      </View>
+                      <Text
+                        style={{
+                          fontSize: 14,
+                          fontWeight: '600',
+                          color: selectedSize === size ? '#FFF' : (isDark ? '#E5E5EA' : '#1C1C1E'),
+                        }}>
+                        {size}
+                      </Text>
                     </TouchableOpacity>
-                  );
-                })}
+                  ))}
+                </View>
+              </View>
+            )}
+
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 32 }}>
+              <Text style={{ fontSize: 15, fontWeight: '700', color: isDark ? '#FFF' : '#1C1C1E' }}>Quantity</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isDark ? '#1C1C1E' : '#F5F5F7', borderRadius: 8, padding: 4 }}>
+                <TouchableOpacity
+                  onPress={() => setQuantity((q) => Math.max(1, q - 1))}
+                  style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ color: isDark ? '#FFF' : '#1C1C1E', fontSize: 20, fontWeight: '500' }}>−</Text>
+                </TouchableOpacity>
+                <Text style={{ width: 40, textAlign: 'center', fontSize: 16, fontWeight: '700', color: isDark ? '#FFF' : '#1C1C1E' }}>
+                  {quantity}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => setQuantity((q) => q + 1)}
+                  style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ color: isDark ? '#FFF' : '#1C1C1E', fontSize: 20, fontWeight: '500' }}>+</Text>
+                </TouchableOpacity>
               </View>
             </View>
-          )}
+
+            <TouchableOpacity
+              onPress={handleRequestCustomization}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderWidth: 1,
+                borderColor: isDark ? '#2C2C2E' : '#E5E5EA',
+                borderRadius: 12,
+                paddingVertical: 16,
+                marginBottom: 24,
+              }}>
+              <Ionicons name="color-wand-outline" size={20} color={isDark ? '#FFF' : '#1C1C1E'} style={{ marginRight: 8 }} />
+              <Text style={{ fontSize: 15, color: isDark ? '#FFF' : '#1C1C1E', fontWeight: '600' }}>
+                Request Custom Order
+              </Text>
+            </TouchableOpacity>
+
+            <View style={{ flexDirection: 'row', gap: 16, marginBottom: 40 }}>
+              <TouchableOpacity
+                onPress={() => handleAddToCart(false)}
+                disabled={addingToCart}
+                style={{
+                  flex: 1,
+                  paddingVertical: 18,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: isDark ? '#FFF' : '#1C1C1E',
+                  alignItems: 'center',
+                  backgroundColor: 'transparent',
+                }}>
+                {addingToCart ? (
+                  <ActivityIndicator size="small" color={isDark ? '#FFF' : '#1C1C1E'} />
+                ) : (
+                  <Text style={{ fontSize: 15, fontWeight: '700', color: isDark ? '#FFF' : '#1C1C1E' }}>Add to Cart</Text>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => handleAddToCart(true)}
+                disabled={addingToCart}
+                style={{
+                  flex: 1,
+                  paddingVertical: 18,
+                  borderRadius: 12,
+                  backgroundColor: '#4A3298',
+                  alignItems: 'center',
+                }}>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: '#FFF' }}>Print Now</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* More from designer */}
+            {relatedDesigns.length > 0 && (
+              <View>
+                <Text style={{ fontSize: 18, fontWeight: '700', color: isDark ? '#FFF' : '#1C1C1E', marginBottom: 20 }}>
+                  More from {artistName}
+                </Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
+                  {relatedDesigns.map((item) => (
+                    <ProductCard
+                      key={item.id}
+                      design={item}
+                      onPress={() => router.push({ pathname: '/products', params: { designId: String(item.id) } })}
+                      onFavorite={handleFavorite}
+                    />
+                  ))}
+                </View>
+              </View>
+            )}
+          </View>
         </View>
       </ScrollView>
 
@@ -1121,7 +1008,6 @@ function ProductDetailScreen({
     </View>
   );
 }
-
 
 // ─── Main ProductsScreen ──────────────────────────────────────────────────────
 
@@ -1150,22 +1036,19 @@ export default function ProductsScreen() {
   });
   const [error, setError] = useState<string | null>(null);
 
-  // Detail view — if designId param is present, start in detail mode immediately
   const [selectedDesign, setSelectedDesign] = useState<Design | null>(null);
-  // Track whether we are in "single product" mode (came from a designId link)
   const isSingleProduct = Boolean(designId);
 
-  // Printer selection
   const [showPrinters, setShowPrinters] = useState(false);
   const [pendingCartItems, setPendingCartItems] = useState<any[]>([]);
 
   const theme = useMemo(
     () => ({
-      background: isDark ? '#121212' : '#F8F8F8',
-      surface: isDark ? '#1E1E1E' : '#FFFFFF',
-      text: isDark ? '#FFFFFF' : '#111111',
-      subtext: isDark ? '#ABABAB' : '#777777',
-      border: isDark ? '#2A2A2A' : '#ECECEC',
+      background: isDark ? '#000000' : '#FFFFFF',
+      surface: isDark ? '#1C1C1E' : '#FFFFFF',
+      text: isDark ? '#FFFFFF' : '#1C1C1E',
+      subtext: isDark ? '#8E8E93' : '#8E8E93',
+      border: isDark ? '#2C2C2E' : '#E5E5EA',
     }),
     [isDark],
   );
@@ -1177,7 +1060,6 @@ export default function ProductsScreen() {
         setError(null);
 
         if (designId) {
-          // Single-product mode: fetch and go straight to detail, never show the list
           const res = await ApiService.fetchDesignById(Number(designId));
           const normalized = normalizeDesign(res?.responseBody || res);
           setSelectedDesign(normalized);
@@ -1201,7 +1083,6 @@ export default function ProductsScreen() {
 
         let list = normalizeDesignListResponse(res);
 
-        // Client-side sort
         if (nextFilters.sortBy === 'Low Price') {
           list = list.sort((a, b) => getLowestPrice(a) - getLowestPrice(b));
         } else if (nextFilters.sortBy === 'High Price') {
@@ -1210,8 +1091,7 @@ export default function ProductsScreen() {
 
         setProducts(list);
       } catch (err: any) {
-        console.error('[Products] Failed to load:', err);
-        setError(err?.response?.data?.message || 'Unable to load products right now.');
+        setError(err?.response?.data?.message || 'Unable to load catalog right now.');
       } finally {
         setIsLoading(false);
       }
@@ -1271,29 +1151,27 @@ export default function ProductsScreen() {
     ]);
   };
 
-  const title = artistNameParam ? `${artistNameParam}'s products` : 'Marketplace';
+  const title = artistNameParam ? `${artistNameParam}'s Catalog` : 'The Marketplace';
 
-  // ── Single-product mode: came here via designId param ──
-  // Show a spinner while loading, then the detail screen — never the list.
   if (isSingleProduct) {
     if (isLoading || (!selectedDesign && !error)) {
       return (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: isDark ? '#121212' : '#F5F5F5' }}>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.background }}>
           <ActivityIndicator size="large" color="#4A3298" />
         </View>
       );
     }
     if (error || !selectedDesign) {
       return (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, backgroundColor: isDark ? '#121212' : '#F5F5F5' }}>
-          <Ionicons name="alert-circle-outline" size={48} color="#E15656" />
-          <Text style={{ color: '#E15656', textAlign: 'center', marginTop: 12 }}>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, backgroundColor: theme.background }}>
+          <Ionicons name="alert-circle-outline" size={48} color="#FF3B30" />
+          <Text style={{ color: '#FF3B30', textAlign: 'center', marginTop: 12 }}>
             {error || 'Could not load this product.'}
           </Text>
           <TouchableOpacity
             onPress={() => router.back()}
-            style={{ marginTop: 16, backgroundColor: '#4A3298', borderRadius: 20, paddingHorizontal: 24, paddingVertical: 10 }}>
-            <Text style={{ color: '#FFF', fontWeight: '600' }}>Go back</Text>
+            style={{ marginTop: 20, backgroundColor: '#4A3298', borderRadius: 12, paddingHorizontal: 32, paddingVertical: 14 }}>
+            <Text style={{ color: '#FFF', fontWeight: '600' }}>Return</Text>
           </TouchableOpacity>
         </View>
       );
@@ -1316,7 +1194,6 @@ export default function ProductsScreen() {
     );
   }
 
-  // ── If a design is selected from the list, show the detail screen ──
   if (selectedDesign) {
     return (
       <>
@@ -1336,122 +1213,109 @@ export default function ProductsScreen() {
     );
   }
 
-  // ── Product list ──
   return (
     <View style={{ flex: 1, backgroundColor: theme.background }}>
-      {/* Header */}
       <View
         style={{
           backgroundColor: theme.surface,
-          borderBottomWidth: 1,
-          borderBottomColor: theme.border,
-          paddingTop: insets.top + 8,
-          paddingBottom: 12,
-          paddingHorizontal: 16,
+          paddingTop: insets.top + 12,
+          paddingBottom: 16,
+          paddingHorizontal: 20,
           flexDirection: 'row',
           alignItems: 'center',
         }}>
         <TouchableOpacity
           onPress={() => router.back()}
-          style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center', marginRight: 8 }}>
-          <Ionicons name="arrow-back" size={22} color={theme.text} />
+          style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center', marginRight: 12, marginLeft: -10 }}>
+          <Ionicons name="arrow-back" size={24} color={theme.text} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 17, fontWeight: '700', color: theme.text }} numberOfLines={1}>
+          <Text style={{ fontSize: 20, fontWeight: '800', color: theme.text, letterSpacing: -0.5 }} numberOfLines={1}>
             {title}
-          </Text>
-          <Text style={{ fontSize: 11, color: theme.subtext, marginTop: 1 }}>
-            Tap a product to view details
           </Text>
         </View>
         <TouchableOpacity
           onPress={() => loadProducts(searchQuery, filters)}
-          style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center' }}>
-          <Ionicons name="refresh-outline" size={20} color={theme.text} />
+          style={{ width: 40, height: 40, alignItems: 'flex-end', justifyContent: 'center' }}>
+          <Ionicons name="refresh-outline" size={22} color={theme.text} />
         </TouchableOpacity>
       </View>
 
-      {/* Search + filter */}
       {!designId && (
         <View
           style={{
             flexDirection: 'row',
             alignItems: 'center',
-            paddingHorizontal: 16,
-            paddingVertical: 10,
-            gap: 10,
+            paddingHorizontal: 20,
+            paddingVertical: 12,
+            gap: 12,
           }}>
           <View
             style={{
               flex: 1,
               flexDirection: 'row',
               alignItems: 'center',
-              backgroundColor: theme.surface,
-              borderWidth: 1,
-              borderColor: theme.border,
-              borderRadius: 24,
-              paddingHorizontal: 14,
-              height: 42,
+              backgroundColor: isDark ? '#1C1C1E' : '#F5F5F7',
+              borderRadius: 12,
+              paddingHorizontal: 16,
+              height: 48,
             }}>
-            <Ionicons name="search-outline" size={16} color={theme.subtext} style={{ marginRight: 8 }} />
+            <Ionicons name="search-outline" size={18} color={theme.subtext} style={{ marginRight: 10 }} />
             <TextInput
               value={searchQuery}
               onChangeText={setSearchQuery}
-              placeholder="Search designs"
+              placeholder="Search catalog..."
               placeholderTextColor={theme.subtext}
-              style={{ flex: 1, fontSize: 14, color: theme.text }}
+              style={{ flex: 1, fontSize: 15, color: theme.text }}
               returnKeyType="search"
               onSubmitEditing={() => addSearchHistory(searchQuery)}
             />
             {searchQuery.length > 0 && (
               <TouchableOpacity onPress={() => setSearchQuery('')}>
-                <Ionicons name="close-circle" size={16} color={theme.subtext} />
+                <Ionicons name="close-circle" size={18} color={theme.subtext} />
               </TouchableOpacity>
             )}
           </View>
           <TouchableOpacity
             onPress={() => router.push('/Filter')}
             style={{
-              width: 42,
-              height: 42,
-              borderRadius: 21,
-              backgroundColor: theme.surface,
-              borderWidth: 1,
-              borderColor: theme.border,
+              width: 48,
+              height: 48,
+              borderRadius: 12,
+              backgroundColor: isDark ? '#1C1C1E' : '#F5F5F7',
               alignItems: 'center',
               justifyContent: 'center',
             }}>
-            <Ionicons name="options-outline" size={20} color={theme.text} />
+            <Ionicons name="options-outline" size={22} color={theme.text} />
           </TouchableOpacity>
         </View>
       )}
 
-      {/* Content */}
       {isLoading ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <ActivityIndicator size="large" color="#4A3298" />
         </View>
       ) : error ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 }}>
-          <Ionicons name="alert-circle-outline" size={48} color="#E15656" />
-          <Text style={{ color: '#E15656', textAlign: 'center', marginTop: 12 }}>{error}</Text>
+          <Ionicons name="alert-circle-outline" size={56} color="#FF3B30" />
+          <Text style={{ color: '#FF3B30', textAlign: 'center', marginTop: 16, fontSize: 15 }}>{error}</Text>
           <TouchableOpacity
             onPress={() => loadProducts(searchQuery, filters)}
             style={{
-              marginTop: 16,
+              marginTop: 24,
               backgroundColor: '#4A3298',
-              borderRadius: 20,
-              paddingHorizontal: 24,
-              paddingVertical: 10,
+              borderRadius: 12,
+              paddingHorizontal: 32,
+              paddingVertical: 14,
             }}>
-            <Text style={{ color: '#FFF', fontWeight: '600' }}>Retry</Text>
+            <Text style={{ color: '#FFF', fontWeight: '600', fontSize: 15 }}>Retry Connection</Text>
           </TouchableOpacity>
         </View>
       ) : products.length === 0 ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 }}>
-          <Ionicons name="grid-outline" size={48} color={theme.subtext} />
-          <Text style={{ color: theme.subtext, textAlign: 'center', marginTop: 12 }}>
-            No products found.
+          <Ionicons name="grid-outline" size={56} color={theme.border} />
+          <Text style={{ color: theme.subtext, textAlign: 'center', marginTop: 16, fontSize: 15 }}>
+            No matching products found in the catalog.
           </Text>
         </View>
       ) : (
@@ -1459,7 +1323,7 @@ export default function ProductsScreen() {
           data={products}
           keyExtractor={(item) => String(item.id)}
           numColumns={2}
-          contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
+          contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 100 }}
           columnWrapperStyle={{ justifyContent: 'space-between' }}
           showsVerticalScrollIndicator={false}
           renderItem={({ item }) => (

@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '@/lib/theme/appTheme';
 import ApiService from '@/services/apiClient';
 import { useAuthStore } from '@/store/authStore';
+import { useAppAlert } from '@/components/common/AppAlert';
 
 const FALLBACK_INTERESTS = [
   'Nature', 'Abstract', 'Minimalist', 'Conceptual', 'Sticker', 'Masculine',
