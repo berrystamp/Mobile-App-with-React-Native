@@ -1,7 +1,7 @@
 import { useAppAlert } from "@/components/common/AppAlert";
 import { formatNaira } from "@/lib/currency";
+import { encodeDraft } from "@/lib/customDesign";
 import { normalizeDesign, normalizeDesignListResponse } from "@/lib/designs";
-import { upsertLocalConversation } from "@/lib/localConversations";
 import { SearchFilters, addSearchHistory, getSearchFilters } from "@/lib/localStorage";
 import ApiService from "@/services/apiClient";
 import { Design, Mock } from "@/types";
@@ -326,7 +326,7 @@ function PrinterSelectionScreen({
         const res = await ApiService.getUsers('PRINTER', 0, 60);
         const content = res?.responseBody?.content || res?.content || res?.responseBody || res || [];
         setPrinters(Array.isArray(content) ? content.map(normalizePrinter) : []);
-      } catch (err) {
+      } catch {
         setPrinters([]);
       } finally {
         setLoading(false);
@@ -373,7 +373,7 @@ function PrinterSelectionScreen({
           },
         });
       }, 1200);
-    } catch (err) {
+    } catch {
       setSentId(null);
     }
   };
@@ -631,34 +631,19 @@ function ProductDetailScreen({
   };
 
   const handleRequestCustomization = async () => {
-    try {
-      const conversationId = await upsertLocalConversation({
-        participantId: design.profile.id,
-        name: artistName,
-        role: 'Designer',
-        initialMessages: [
-          {
-            id: `custom-${design.id}-${Date.now()}`,
-            type: 'text',
-            text: `Hello, I am interested in requesting a custom variation of "${design.title}".`,
-            previewText: `Custom order inquiry for "${design.title}"`,
-            author: 'me',
-            createdAt: new Date().toISOString(),
-            status: 'sent',
-          },
-        ],
-      });
-      onClose();
-      router.push({
-        pathname: '/chat',
-        params: {
-          conversationId: String(conversationId),
-          participantId: String(design.profile.id),
-          participantName: artistName,
-          participantRole: 'Designer',
-        },
-      });
-    } catch (err) {}
+    const draft = encodeDraft({
+      designFor: '',
+      designTheme: '',
+      items: selectedMock?.name ? [selectedMock.name] : [],
+      sourceDesignId: design.id,
+      sourceDesignTitle: design.title,
+      sourceDesignImage: selectedMock?.imagePath || design.imagePath,
+      designerId: design.designerId || design.profile.id,
+      designerName: artistName,
+    });
+
+    onClose();
+    router.push({ pathname: '/(tabs)/create-custom-design', params: { draft } });
   };
 
   return (
@@ -1015,7 +1000,7 @@ export default function ProductsScreen() {
   const router = useRouter();
   const isDark = useColorScheme() === 'dark';
   const insets = useSafeAreaInsets();
-  const { show: showAlert, element: alertElement } = useAppAlert();
+  const { element: alertElement } = useAppAlert();
 
   const { artistId, artistName: artistNameParam, designId, searchField } =
     useLocalSearchParams<{

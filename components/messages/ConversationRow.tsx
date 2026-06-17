@@ -47,14 +47,14 @@ export function ConversationRow({ conversation, onPress, onLongPress }: Conversa
         <View className="flex-row justify-between items-center mb-1.5">
           <View className="flex-row items-center shrink">
             <Text 
-              className={`text-[15px] font-bold ${isDark ? 'text-[#FFFFFF]' : 'text-[#222222]'}`}
+              className={`text-[15px]  font-bold ${isDark ? 'text-[#FFFFFF]' : 'text-[#222222]'}`}
             >
               {conversation.name}
             </Text>
             <Text 
-              className={`text-[14px] ${isDark ? 'text-[#9791AD]' : 'text-[#9792A8]'}`}
+              className={`text-[14px]  ${isDark ? 'text-[#9791AD]' : 'text-[#9792A8]'}`}
             >
-              {' - '} {conversation.role}
+              {' - '} {conversation.participantProfileType?.toLocaleLowerCase()}
             </Text>
           </View>
           <Text 

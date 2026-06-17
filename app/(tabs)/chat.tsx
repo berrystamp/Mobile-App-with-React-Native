@@ -10,10 +10,11 @@ import {
 } from '@/lib/messages';
 import ApiService from '@/services/apiClient';
 import { Feather, Ionicons } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -44,6 +45,8 @@ const formatDateLabel = (value?: string) => {
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleDateString('en-US');
 };
+
+const formatDateForApi = (date: Date) => date.toISOString().slice(0, 10);
 
 const formatCurrency = (value?: string | number) => {
   const numeric = Number(value || 0);
@@ -80,11 +83,55 @@ const isImageContent = (text?: string) => {
   );
 };
 
+const getMessageOrderId = (message?: Partial<ChatMessageDto & { raw?: any }>) => {
+  const raw = message?.raw || {};
+  const candidates = [
+    raw?.orderId,
+    raw?.order?.id,
+    raw?.content,
+    message?.text,
+    raw?.id,
+    raw?.orderRequest?.order?.id,
+  ];
+
+  const value = candidates.find((candidate) => {
+    const numeric = Number(candidate);
+    return Number.isFinite(numeric) && numeric > 0;
+  });
+
+  return value ? String(value) : '';
+};
+
+const getMessageKey = (message: ChatMessageDto & { imageUrl?: string }, index: number) => {
+  return [
+    message.id,
+    message.messageIdentifier,
+    message.conversationId,
+    message.chatType,
+    message.raw?.createdDate || message.raw?.createdAt || message.raw?.timestamp,
+    index,
+  ]
+    .filter(Boolean)
+    .join('-');
+};
+
+const isReviewStatus = (status?: string) => {
+  const normalized = String(status || '').toUpperCase();
+  return normalized === 'REVIEW' || normalized === 'IN_REVIEW' || normalized === 'AWAITING_CONFIRMATION';
+};
+
+const isRejectedStatus = (status?: string) => String(status || '').toUpperCase() === 'REJECTED';
+
+const isAcceptedStatus = (status?: string) => {
+  const normalized = String(status || '').toUpperCase();
+  return normalized === 'ACTIVE' || normalized === 'CONFIRMED' || normalized === 'COMPLETED';
+};
+
 // Normalize the full order API response into a display-friendly shape
 const normalizeOrderDetail = (raw: any) => {
   if (!raw) return null;
   const body = raw?.responseBody || raw?.data || raw || {};
-  const req = body?.orderRequest || {};
+  const req = body?.orderRequest || (body?.customDesignRequest || body?.printRequest ? body : {});
   const printReq = req?.printRequest || {};
   const customReq = req?.customDesignRequest || {};
 
@@ -98,7 +145,7 @@ const normalizeOrderDetail = (raw: any) => {
 
   return {
     id: body.id,
-    title: body.title || 'Order',
+    title: body.title || req?.title || '',
     description: body.description || '',
     printingAmount: body.printingAmount || 0,
     designAmount: body.designAmount || 0,
@@ -109,7 +156,7 @@ const normalizeOrderDetail = (raw: any) => {
     deliveryDate: body.deliveryDate || '',
     itemProvidedByCustomer: body.itemProvidedByCustomer || false,
     ref: body.ref || '',
-    orderRequestId: req?.id,
+    orderRequestId: req?.id || body?.orderRequestId,
     orderType: req?.orderType || 'PRINT',
     budgetAmount: req?.budgetAmount || 0,
     dateOfDelivery: req?.dateOfDelivery || '',
@@ -120,6 +167,7 @@ const normalizeOrderDetail = (raw: any) => {
     customerProfile: req?.customerProfile || null,
     providerProfile: req?.providerProfile || null,
     conversationId: req?.conversationId || null,
+    hasOffer: Boolean(body.id && (body.title || body.totalAmount || body.designAmount || body.printingAmount)),
   };
 };
 
@@ -140,7 +188,6 @@ export default function ChatScreen() {
     participantName,
     participantRole,
     orderId,
-    chatType: chatTypeParam,
     isDesigner: isDesignerParam,
   } = useLocalSearchParams<{
     conversationId?: string;
@@ -148,11 +195,8 @@ export default function ChatScreen() {
     participantName?: string;
     participantRole?: string;
     orderId?: string;
-    chatType?: string;
     isDesigner?: string;
   }>();
-
-  const isDesigner = isDesignerParam === 'true';
 
   const [conversation, setConversation] = useState<ConversationSummaryDto>({
     id: String(conversationId || 'new-conversation'),
@@ -175,7 +219,6 @@ export default function ChatScreen() {
   const [messages, setMessages] = useState<(ChatMessageDto & { imageUrl?: string })[]>([]);
   const [draft, setDraft] = useState('');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [showConversationActions, setShowConversationActions] = useState(false);
   const [showActions, setShowActions] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showReportReasons, setShowReportReasons] = useState(false);
@@ -200,7 +243,56 @@ export default function ChatScreen() {
   const [orderDescription, setOrderDescription] = useState('');
   const [orderAmount, setOrderAmount] = useState('');
   const [orderDeliveryDate, setOrderDeliveryDate] = useState('');
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [creatingOrder, setCreatingOrder] = useState(false);
+  const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
+
+  const normalizeChatMessages = useCallback(
+    (messagesRes: any, myId?: number, selectedConversation?: ConversationSummaryDto) => {
+      return normalizeMessagesResponse(messagesRes, myId).map((item) => {
+        const senderId = item.sender?.id || item.sender?.userId;
+        const receiverId = item.receiver?.id || item.receiver?.userId;
+        const otherProfileId = selectedConversation?.participantId || participantId;
+        const resolvedAuthor =
+          Number(senderId) === Number(otherProfileId)
+            ? 'other'
+            : Number(receiverId) === Number(otherProfileId)
+            ? 'me'
+            : item.author;
+        const imageUrl = isImageContent(item.text) ? resolveImageUri(item.text) : undefined;
+
+        return { ...item, author: resolvedAuthor, imageUrl } as ChatMessageDto & { imageUrl?: string };
+      });
+    },
+    [participantId],
+  );
+
+  const currentProfileType = useMemo(() => {
+    const messageWithMe = messages.find((message) => message.author === 'me' && (message.sender || message.receiver));
+    const profileFromMessage =
+      messageWithMe?.sender?.profileType ||
+      messages.find((message) => message.author === 'other' && message.receiver?.profileType)?.receiver?.profileType ||
+      undefined;
+
+    return String(profileFromMessage || (isDesignerParam === 'true' ? 'DESIGNER' : '')).toUpperCase();
+  }, [isDesignerParam, messages]);
+
+  const isDesigner = currentProfileType === 'DESIGNER';
+  const isCustomer = currentProfileType === 'CUSTOMER' || (!currentProfileType && isDesignerParam !== 'true');
+
+  const displayMessages = useMemo(() => {
+    const seenOrderCards = new Set<string>();
+
+    return messages.filter((message) => {
+      if (message.chatType !== 'ORDER' && message.chatType !== 'ORDER_REQUEST') return true;
+
+      const orderKey = getMessageOrderId(message) || message.messageIdentifier || message.id;
+      const dedupeKey = `${message.chatType}-${orderKey}`;
+      if (seenOrderCards.has(dedupeKey)) return false;
+      seenOrderCards.add(dedupeKey);
+      return true;
+    });
+  }, [messages]);
 
   useEffect(() => {
     const load = async () => {
@@ -213,30 +305,21 @@ export default function ChatScreen() {
             ApiService.getConversations(0, 80),
             ApiService.getConversationMessages(String(conversationId), 0, 100),
           ]);
-
+          // console.log("The convos",JSON.stringify(convoRes))
+          // console.log("The Message",JSON.stringify(messagesRes))
           const allConversations = normalizeConversationsResponse(convoRes);
           const selected = allConversations.find((item) => item.id === String(conversationId));
           if (selected) setConversation((c) => ({ ...c, ...selected }));
 
           const myId = me?.id || me?.userId || me?.profileId;
-          const normalized = normalizeMessagesResponse(messagesRes, myId).map((item) => {
-            const senderId = item.sender?.id || item.sender?.userId;
-            const receiverId = item.receiver?.id || item.receiver?.userId;
-            const resolvedAuthor =
-              Number(senderId) === Number(selected?.participantId || participantId)
-                ? 'other'
-                : Number(receiverId) === Number(selected?.participantId || participantId)
-                ? 'me'
-                : item.author;
-            const imageUrl = isImageContent(item.text) ? resolveImageUri(item.text) : undefined;
-            return { ...item, author: resolvedAuthor, imageUrl } as ChatMessageDto & { imageUrl?: string };
-          });
-
+          const normalized = normalizeChatMessages(messagesRes, myId, selected);
+          // console.log("The Normalized",JSON.stringify(normalized))
           setMessages(normalized);
           // Mark unread messages as read
+
           const unread = normalized
-            .filter((m) => m.author === 'other' && m.status !== 'seen')
-            .map((m) => String(m.messageIdentifier || m.id)).filter(Boolean);
+            .filter((m) => m.author === 'other' && m.readDateTime === null )
+            .map((m) => String( m.id)).filter(Boolean);
           if (unread.length) {
             Promise.allSettled(unread.map((id) => ApiService.markMessageAsRead(id))).catch(() => {});
           }
@@ -249,7 +332,32 @@ export default function ChatScreen() {
       }
     };
     load();
-  }, [conversationId, participantId]);
+  }, [conversationId, normalizeChatMessages, participantId]);
+
+  useEffect(() => {
+    if (!conversationId) return;
+
+    let cancelled = false;
+    const refreshMessages = async () => {
+      try {
+        const [me, messagesRes] = await Promise.all([
+          ApiService.getCurrentUser(),
+          ApiService.getConversationMessages(String(conversationId), 0, 100),
+        ]);
+        if (cancelled) return;
+        const myId = me?.id || me?.userId || me?.profileId;
+        setMessages(normalizeChatMessages(messagesRes, myId, conversation));
+      } catch {
+        // Keep the current thread visible if a background refresh fails.
+      }
+    };
+
+    const timer = setInterval(refreshMessages, 5000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [conversation, conversationId, normalizeChatMessages]);
 
     const openActionSheet = () => {
       setShowActions(true);
@@ -289,40 +397,35 @@ export default function ChatScreen() {
   // Fetch order request detail for ORDER_REQUEST / ORDER chat type (both designer and customer)
   useEffect(() => {
     // Resolve orderId: prefer URL param, then scan messages for an ORDER/ORDER_REQUEST message
-    const resolvedOrderId = orderId
-      || messages.find((m) => m.chatType === 'ORDER_REQUEST' || m.chatType === 'ORDER')
-          ?.raw?.orderId
-      || messages.find((m) => m.chatType === 'ORDER_REQUEST' || m.chatType === 'ORDER')
-          ?.raw?.id
-      || null;
+    const firstOrderMessage = messages.find((m) => m.chatType === 'ORDER_REQUEST' || m.chatType === 'ORDER');
+    const resolvedOrderId = orderId || getMessageOrderId(firstOrderMessage) || null;
 
-    const isOrderChat =
-      chatTypeParam === 'ORDER_REQUEST' ||
-      chatTypeParam === 'ORDER' ||
-      messages.some((m) => m.chatType === 'ORDER_REQUEST' || m.chatType === 'ORDER');
+    const isOrderChat = messages.some((m) => m.chatType === 'ORDER_REQUEST' || m.chatType === 'ORDER')
 
     if (!isOrderChat || !resolvedOrderId) return;
+    const request =
+      firstOrderMessage?.chatType === 'ORDER_REQUEST'
+        ? ApiService.getOrderRequestById(String(resolvedOrderId))
+        : ApiService.getOrderById(String(resolvedOrderId));
 
-    ApiService.getOrderById(String(resolvedOrderId))
+    request
       .then((res) => {
         const detail = normalizeOrderDetail(res);
         setOrderRequestDetail(detail);
       })
       .catch(() => setOrderRequestDetail(null));
-  }, [isDesigner, chatTypeParam, orderId, messages]);
+  }, [orderId, messages]);
 
   // Fetch order details for ORDER-type messages
   useEffect(() => {
     const orderMessages = messages.filter((m) => {
       // Fix: was `m.chatType !== 'ORDER' || 'ORDER_REQUEST'` which is always true (JS bug)
       if (m.chatType !== 'ORDER' && m.chatType !== 'ORDER_REQUEST') return false;
+      // console.log("The order messages",JSON.stringify(m))
+
       if (orderDetailsByMessageId[m.id]) return false;
-      // orderId lives in raw.orderId, raw.order.id, raw.id, caption, or text
-      const oid =
-        m.raw?.orderId ||
-        m.raw?.order?.id ||
-        m.raw?.id ||
-        Number(m.caption || m.text || 0);
+      const oid = getMessageOrderId(m);
+      // console.log("order id",oid)
       const valid = Number.isFinite(Number(oid)) && Number(oid) > 0;
       if (!valid) {
         console.warn('[Chat] ORDER message has no resolvable orderId', {
@@ -330,7 +433,7 @@ export default function ChatScreen() {
           chatType: m.chatType,
           rawKeys: m.raw ? Object.keys(m.raw) : [],
           caption: m.caption,
-          text: m.text,
+        text: m.text,
         });
       }
       return valid;
@@ -339,13 +442,13 @@ export default function ChatScreen() {
 
     Promise.allSettled(
       orderMessages.map(async (m) => {
-        const oid =
-          m.raw?.orderId ||
-          m.raw?.order?.id ||
-          m.raw?.id ||
-          Number(m.caption || m.text || 0);
- 
-          const res = await ApiService.getOrderById(oid);
+        const oid = getMessageOrderId(m);
+          // console.log("The order ol",oid)
+          const res =
+            m.chatType === 'ORDER_REQUEST'
+              ? await ApiService.getOrderRequestById(oid)
+              : await ApiService.getOrderById(oid);
+          // console.log(res)
           const order = normalizeOrderDetail(res);
           return { messageId: m.id, order };
       
@@ -362,19 +465,14 @@ export default function ChatScreen() {
       });
       if (Object.keys(next).length) setOrderDetailsByMessageId((c) => ({ ...c, ...next }));
     });
-  }, [messages]);
+  }, [messages, orderDetailsByMessageId]);
 
   useEffect(() => {
     const timer = setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: false }), 80);
     return () => clearTimeout(timer);
   }, [messages]);
 
-  // chatType rules:
-  // - plain text with no orderId/chatTypeParam → always DIRECT
-  // - image upload → FILE
-  // - orderId present or explicit param → use param or ORDER
-  const VALID_CHAT_TYPES = ['ORDER', 'ORDER_REQUEST', 'DIRECT', 'FILE'] as const;
-  type ChatType = typeof VALID_CHAT_TYPES[number];
+  type ChatType = 'ORDER' | 'ORDER_REQUEST' | 'DIRECT' | 'FILE';
 
   const resolvePayloadChatType = (isFile = false): ChatType => {
     if (isFile) return 'FILE';
@@ -382,14 +480,12 @@ export default function ChatScreen() {
     return 'DIRECT';
   };
 
-  const buildPayload = (content: string, caption: string, isFile = false) =>{console.log(resolvePayloadChatType(isFile)); return({
-    
+  const buildPayload = (content: string, caption: string, isFile = false) => ({
     toProfileId: Number(conversation.participantId || participantId || 0),
     content,
     caption,
     chatType: resolvePayloadChatType(isFile),
-  })
-};
+  });
 
   const dispatchMessage = async (payload: ReturnType<typeof buildPayload>) => {
     if (orderId) {
@@ -472,6 +568,10 @@ export default function ChatScreen() {
       });
       const created = normalizeOrderDetail(res);
       setOrderRequestDetail(created || orderRequestDetail);
+      setOrderTitle('');
+      setOrderDescription('');
+      setOrderAmount('');
+      setOrderDeliveryDate('');
       setShowCreateOrder(false);
       setShowOrderSuccess(true);
       setTimeout(() => setShowOrderSuccess(false), 3000);
@@ -485,6 +585,70 @@ export default function ChatScreen() {
     } finally {
       setCreatingOrder(false);
     }
+  };
+
+  const refreshOrderDetail = async (id: string | number) => {
+    const res = await ApiService.getOrderById(id);
+    const detail = normalizeOrderDetail(res);
+    if (detail) {
+      setOrderRequestDetail(detail);
+      setOrderDetailsByMessageId((current) => {
+        const next = { ...current };
+        Object.keys(next).forEach((key) => {
+          if (String(next[key]?.id) === String(id)) next[key] = detail;
+        });
+        return next;
+      });
+      setSelectedOrderDetail(detail);
+    }
+    return detail;
+  };
+
+  const handleAcceptOffer = async (detail: any) => {
+    if (!detail?.id) return;
+    setUpdatingOrderId(String(detail.id));
+    try {
+      await ApiService.confirmOrder(detail.id);
+      await refreshOrderDetail(detail.id);
+      showAlert({ type: 'success', title: 'Offer accepted', message: 'The offer has been accepted.' });
+    } catch (err: any) {
+      showAlert({
+        type: 'error',
+        title: 'Could not accept offer',
+        message: err?.response?.data?.responseMessage || err?.message || 'Please try again.',
+      });
+    } finally {
+      setUpdatingOrderId(null);
+    }
+  };
+
+  const handleRejectOffer = async (detail: any) => {
+    if (!detail?.id) return;
+    setUpdatingOrderId(String(detail.id));
+    try {
+      await ApiService.declineOrder(detail.id);
+      await refreshOrderDetail(detail.id);
+      showAlert({ type: 'success', title: 'Offer rejected', message: 'The offer has been rejected.' });
+    } catch (err: any) {
+      showAlert({
+        type: 'error',
+        title: 'Could not reject offer',
+        message: err?.response?.data?.responseMessage || err?.message || 'Please try again.',
+      });
+    } finally {
+      setUpdatingOrderId(null);
+    }
+  };
+
+  const handleDeliveryDateChange = (_event: any, selectedDate?: Date) => {
+    if (Platform.OS !== 'ios') setShowDatePicker(false);
+    if (!selectedDate) return;
+    setOrderDeliveryDate(formatDateForApi(selectedDate));
+  };
+
+  const handlePayForOrder = async (detail: any) => {
+    await handleAcceptOffer(detail);
+    setShowOrderDetails(false);
   };
 
   // ─── Resolve the other user's avatar from the message sender field ──────────
@@ -510,83 +674,63 @@ export default function ChatScreen() {
   };
 
   // ─── Render: ORDER message bubble (fetched order details) ───────────────────
-  const renderOrderMessage = (message: ChatMessageDto & { imageUrl?: string }, orderDetail: any) => {
-    const isMe = message.author === 'me';
-    const otherAvatar = resolveOtherAvatar(message);
+  // ─── Render: ORDER_REQUEST card (designer and customer) ────────────────────
+  const renderOrderCard = (orderDetail: any) => {
+    if (!orderDetail) return null;
+    const imageUrl = orderDetail.coverImageUrl;
+
     return (
-      <View key={message.id} className={`w-full my-2 flex-row ${isMe ? 'justify-end' : 'justify-start'}`}>
-        {!isMe && (
-          <View className="mr-2 self-end mb-1">
-            <AvatarBadge
-              color={conversation.avatarColor}
-              imageUrl={otherAvatar.imageUrl}
-              label={otherAvatar.initials}
-              size={32}
-            />
-          </View>
-        )}
-        <View className="max-w-[82%] rounded-2xl overflow-hidden bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-          {orderDetail.coverImageUrl ? (
-            <TouchableOpacity onPress={() => setSelectedImage(orderDetail.coverImageUrl)} activeOpacity={0.85}>
-              <Image source={{ uri: orderDetail.coverImageUrl }} style={{ width: '100%', height: 160 }} contentFit="cover" />
+      <View className="my-3 self-start">
+        <Text className="mb-2 text-[13px] text-slate-500 dark:text-slate-400">Custom order offer</Text>
+        <View style={{ width: 128 }}>
+          {imageUrl ? (
+            <TouchableOpacity onPress={() => setSelectedImage(imageUrl)} activeOpacity={0.85}>
+              <Image source={{ uri: imageUrl }} style={{ width: 112, height: 124 }} contentFit="cover" />
             </TouchableOpacity>
-          ) : null}
-          <View className="px-4 py-3">
-            <Text className="text-[15px] font-semibold text-slate-900 dark:text-slate-100">{orderDetail.title}</Text>
-            <Text className="text-[13px] text-slate-500 dark:text-slate-400 mt-1" numberOfLines={2}>{orderDetail.description}</Text>
-            <Text className="text-[13px] text-slate-700 dark:text-slate-200 mt-2 font-medium">
-              Total Amount: {formatCurrency(orderDetail.totalAmount)}
-            </Text>
-            <Text className="text-[12px] text-slate-500 dark:text-slate-400 mt-1">
-              Timeline: Due on {orderDetail.deliveryDate || 'N/A'}
-            </Text>
-            <Text className="text-[12px] text-slate-500 dark:text-slate-400 mt-0.5">
-              Status: {orderDetail.orderStatus}
-            </Text>
-            <TouchableOpacity
-              className="mt-3 border border-[#4A3298] rounded-lg py-2 items-center"
-              onPress={() => { setSelectedOrderDetail(orderDetail); setShowOrderDetails(true); }}>
-              <Text className="text-[#4A3298] text-[14px] font-semibold">View Details</Text>
-            </TouchableOpacity>
-          </View>
+          ) : (
+            <View className="items-center justify-center bg-slate-100 dark:bg-slate-800" style={{ width: 112, height: 124 }}>
+              <Ionicons name="image-outline" size={24} color={themeSecondaryIconColor} />
+            </View>
+          )}
+          <Text className="mt-2 text-[11px] text-slate-700 dark:text-slate-200" numberOfLines={1}>
+            {orderDetail.title || orderDetail.purpose || 'Custom order'}
+          </Text>
+          <TouchableOpacity
+            className="mt-1 items-center bg-[#4A3298] py-2"
+            style={{ width: 112 }}
+            onPress={() => {
+              setSelectedOrderDetail(orderDetail);
+              setShowOrderDetails(true);
+            }}>
+            <Text className="text-[11px] font-semibold text-white">View Details</Text>
+          </TouchableOpacity>
         </View>
       </View>
     );
   };
 
-  // ─── Render: ORDER_REQUEST card (designer and customer) ────────────────────
-  const renderOrderRequestCard = () => {
+  const renderOrderRequestCard = (orderRequestDetail:any) => {
     if (!orderRequestDetail) return null;
     const detail = orderRequestDetail;
+    const hasOffer = detail.hasOffer || Boolean(detail.id && detail.title);
+    const canCreateOffer = isDesigner && isReviewStatus(detail.orderStatus) && !isRejectedStatus(detail.orderStatus);
+    const canRespondToOffer = isCustomer && hasOffer && isReviewStatus(detail.orderStatus);
+    const isUpdatingThisOrder = updatingOrderId === String(detail.id);
     return (
       <View className="mx-4 my-3">
-        {/* Cover image card */}
-        {detail.coverImageUrl ? (
-          <View className="rounded-2xl overflow-hidden bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 mb-3" style={{ width: 200 }}>
-            <TouchableOpacity onPress={() => setSelectedImage(detail.coverImageUrl)} activeOpacity={0.85}>
-              <Image source={{ uri: detail.coverImageUrl }} style={{ width: 200, height: 160 }} contentFit="cover" />
-            </TouchableOpacity>
-            <TouchableOpacity
-              className="py-2 items-center border-t border-slate-200 dark:border-slate-700"
-              onPress={() => setShowProductDetails(true)}>
-              <Text className="text-[#4A3298] text-[14px] font-semibold">View Details</Text>
-            </TouchableOpacity>
-          </View>
-        ) : null}
-
         {/* "You have an offer sent to this customer" */}
-        {detail.title ? (
+        {hasOffer ? (
           <View className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 mt-1">
             <Text className="text-center text-[13px] text-slate-500 dark:text-slate-400 mb-3">
               {isDesigner ? 'You have an offer sent to this customer' : 'Order details'}
             </Text>
-            <Text className="text-[15px] font-semibold text-slate-900 dark:text-slate-100 text-center">{detail.title}</Text>
+            <Text className="text-[15px] font-semibold text-slate-900 dark:text-slate-100 text-center">{detail.title || 'Order offer'}</Text>
             <Text className="text-[13px] text-slate-500 dark:text-slate-400 text-center mt-1" numberOfLines={2}>{detail.description}</Text>
             <Text className="text-[13px] text-slate-700 dark:text-slate-200 text-center mt-2 font-medium">
-              Total Amount: {formatCurrency(detail.totalAmount)}
+              Total Amount: {formatCurrency(detail.totalAmount || detail.designAmount || detail.printingAmount)}
             </Text>
             <Text className="text-[12px] text-slate-500 dark:text-slate-400 text-center mt-1">
-              Timeline: Due on {detail.deliveryDate || detail.dateOfDelivery || 'N/A'}
+              Timeline: Due on {formatDateLabel(detail.deliveryDate || detail.dateOfDelivery)}
             </Text>
             <Text className="text-[12px] text-slate-500 dark:text-slate-400 text-center mt-0.5">
               Status: {detail.orderStatus || 'ACTIVE'}
@@ -596,6 +740,30 @@ export default function ChatScreen() {
               onPress={() => { setSelectedOrderDetail(detail); setShowOrderDetails(true); }}>
               <Text className="text-[#4A3298] text-[14px] font-semibold">View Details</Text>
             </TouchableOpacity>
+            {canRespondToOffer ? (
+              <View className="flex-row gap-3 mt-3">
+                <TouchableOpacity
+                  className="flex-1 border border-slate-300 dark:border-slate-600 rounded-lg py-2.5 items-center"
+                  disabled={isUpdatingThisOrder}
+                  onPress={() => handleRejectOffer(detail)}>
+                  <Text className="text-slate-700 dark:text-slate-200 text-[14px] font-semibold">Reject Offer</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  className={`flex-1 rounded-lg py-2.5 items-center ${isUpdatingThisOrder ? 'bg-slate-400' : 'bg-[#4A3298]'}`}
+                  disabled={isUpdatingThisOrder}
+                  onPress={() => handleAcceptOffer(detail)}>
+                  {isUpdatingThisOrder ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text className="text-white text-[14px] font-semibold">Accept Offer</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            ) : isAcceptedStatus(detail.orderStatus) ? (
+              <Text className="text-[12px] text-green-600 dark:text-green-400 text-center mt-3 font-semibold">Offer accepted</Text>
+            ) : isRejectedStatus(detail.orderStatus) ? (
+              <Text className="text-[12px] text-red-500 text-center mt-3 font-semibold">Offer rejected</Text>
+            ) : null}
           </View>
         ) : (
           // No order created yet — only designer can create an offer
@@ -603,7 +771,7 @@ export default function ChatScreen() {
             <Text className="text-center text-[13px] text-slate-500 dark:text-slate-400 mb-3">
               {isDesigner ? 'You received an order request' : 'Waiting for offer from designer'}
             </Text>
-            {isDesigner && (
+            {canCreateOffer && (
               <TouchableOpacity
                 className="bg-[#4A3298] rounded-full py-3 items-center mt-2"
                 onPress={() => setShowCreateOrder(true)}>
@@ -618,9 +786,15 @@ export default function ChatScreen() {
 
   // ─── Render: regular text / image message bubble ────────────────────────────
   const renderMessage = (message: ChatMessageDto & { imageUrl?: string }) => {
-    const orderDetail = orderDetailsByMessageId[message.id];
+    const orderDetail =
+      orderDetailsByMessageId[message.id] ||
+      (message.chatType === 'ORDER' || message.chatType === 'ORDER_REQUEST' ? orderRequestDetail : null);
     if (message.chatType === 'ORDER' && orderDetail) {
-      return renderOrderMessage(message, orderDetail);
+      return renderOrderCard(orderDetail);
+    }
+
+     if (message.chatType === 'ORDER_REQUEST' && orderDetail) {
+      return renderOrderRequestCard(orderDetail);
     }
 
     const isMe = message.author === 'me';
@@ -719,12 +893,11 @@ export default function ChatScreen() {
             ) : (
               <>
                 {/* ORDER_REQUEST / ORDER card at top — visible to both designer and customer */}
-                {orderRequestDetail &&
-                  (chatTypeParam === 'ORDER_REQUEST' ||
-                    chatTypeParam === 'ORDER' ||
-                    messages.some((m) => m.chatType === 'ORDER_REQUEST' || m.chatType === 'ORDER')) &&
-                  renderOrderRequestCard()}
-                {messages.map(renderMessage)}
+                {displayMessages.map((message, index) => (
+                  <React.Fragment key={getMessageKey(message, index)}>
+                    {renderMessage(message)}
+                  </React.Fragment>
+                ))}
               </>
             )}
           </ScrollView>
@@ -914,11 +1087,13 @@ export default function ChatScreen() {
               ) : null}
             </ScrollView>
 
-            <TouchableOpacity
-              className="bg-[#4A3298] rounded-full py-4 items-center mt-4"
-              onPress={() => { setShowProductDetails(false); setShowCreateOrder(true); }}>
-              <Text className="text-white text-[16px] font-bold">Create Offer</Text>
-            </TouchableOpacity>
+            {isDesigner && isReviewStatus(orderRequestDetail?.orderStatus) ? (
+              <TouchableOpacity
+                className="bg-[#4A3298] rounded-full py-4 items-center mt-4"
+                onPress={() => { setShowProductDetails(false); setShowCreateOrder(true); }}>
+                <Text className="text-white text-[16px] font-bold">Create Offer</Text>
+              </TouchableOpacity>
+            ) : null}
           </Pressable>
         </Pressable>
       </Modal>
@@ -982,16 +1157,23 @@ export default function ChatScreen() {
               <Text className="text-[13px] font-semibold text-slate-800 dark:text-slate-200 mb-1">
                 Agreed date of delivery
               </Text>
-              <View className="flex-row items-center border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 mb-6 bg-white dark:bg-slate-800">
-                <TextInput
-                  value={orderDeliveryDate}
-                  onChangeText={setOrderDeliveryDate}
-                  placeholder="mm/dd/yy"
-                  placeholderTextColor="#94a3b8"
-                  className="flex-1 text-[15px] text-slate-900 dark:text-slate-100"
-                />
+              <TouchableOpacity
+                className="flex-row items-center border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 mb-3 bg-white dark:bg-slate-800"
+                onPress={() => setShowDatePicker(true)}>
+                <Text className={`flex-1 text-[15px] ${orderDeliveryDate ? 'text-slate-900 dark:text-slate-100' : 'text-slate-400'}`}>
+                  {orderDeliveryDate ? formatDateLabel(orderDeliveryDate) : 'Select date'}
+                </Text>
                 <Ionicons name="calendar-outline" size={20} color={themeSecondaryIconColor} />
-              </View>
+              </TouchableOpacity>
+              {showDatePicker ? (
+                <DateTimePicker
+                  value={orderDeliveryDate ? new Date(orderDeliveryDate) : new Date()}
+                  mode="date"
+                  display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                  minimumDate={new Date()}
+                  onChange={handleDeliveryDateChange}
+                />
+              ) : null}
             </ScrollView>
 
             <TouchableOpacity
@@ -1062,6 +1244,26 @@ export default function ChatScreen() {
                 </>
               ) : null}
             </ScrollView>
+            {selectedOrderDetail && isCustomer && isReviewStatus(selectedOrderDetail.orderStatus) ? (
+              <View className="mt-4 flex-row gap-3 border-t border-slate-100 pt-4 dark:border-slate-800">
+                <TouchableOpacity
+                  className="flex-1 items-center rounded-full border border-[#4A3298] py-3"
+                  disabled={updatingOrderId === String(selectedOrderDetail.id)}
+                  onPress={() => handleRejectOffer(selectedOrderDetail)}>
+                  <Text className="text-[14px] font-semibold text-[#4A3298]">Reject Order</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  className={`flex-1 items-center rounded-full py-3 ${updatingOrderId === String(selectedOrderDetail.id) ? 'bg-slate-400' : 'bg-[#4A3298]'}`}
+                  disabled={updatingOrderId === String(selectedOrderDetail.id)}
+                  onPress={() => handlePayForOrder(selectedOrderDetail)}>
+                  {updatingOrderId === String(selectedOrderDetail.id) ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Text className="text-[14px] font-semibold text-white">Pay for Order</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            ) : null}
           </Pressable>
         </Pressable>
       </Modal>

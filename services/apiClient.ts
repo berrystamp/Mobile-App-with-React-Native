@@ -967,6 +967,27 @@ async getManageOrderById(orderId: string | number, profileType?: ProfileTypeInte
     return response.data;
   }
 
+  async createOrderRequest(payload: Record<string, unknown>) {
+    const profileType = getProfileType();
+    const candidates = [
+      () => api.post('/order-requests', payload, { headers: { profileType } }),
+      () => api.post('/orders/requests', payload, { headers: { profileType } }),
+    ];
+
+    for (const request of candidates) {
+      try {
+        const response = await request();
+        return response.data;
+      } catch (error: any) {
+        if (error?.response?.status && ![400, 404, 405].includes(error.response.status)) {
+          throw error;
+        }
+      }
+    }
+
+    return { requestSuccessful: false };
+  }
+
   async markMessageAsRead(messageId: string) {
     const profileType = getProfileType();
     const response = await api.patch(

@@ -4,6 +4,11 @@ export interface CustomDesignDraft {
   designFor: string;
   designTheme: string;
   items: string[];
+  sourceDesignId?: number;
+  sourceDesignTitle?: string;
+  sourceDesignImage?: string;
+  designerId?: number;
+  designerName?: string;
 }
 
 export interface CustomDesignRecord {
@@ -106,6 +111,22 @@ export const decodeDraft = (value?: string): CustomDesignDraft | null => {
             (item: unknown): item is string => typeof item === "string",
           )
         : [],
+      sourceDesignId: Number.isFinite(Number(parsed.sourceDesignId))
+        ? Number(parsed.sourceDesignId)
+        : undefined,
+      sourceDesignTitle:
+        typeof parsed.sourceDesignTitle === "string"
+          ? parsed.sourceDesignTitle
+          : undefined,
+      sourceDesignImage:
+        typeof parsed.sourceDesignImage === "string"
+          ? parsed.sourceDesignImage
+          : undefined,
+      designerId: Number.isFinite(Number(parsed.designerId))
+        ? Number(parsed.designerId)
+        : undefined,
+      designerName:
+        typeof parsed.designerName === "string" ? parsed.designerName : undefined,
     };
   } catch {
     return null;
