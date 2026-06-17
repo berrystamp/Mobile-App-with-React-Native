@@ -961,7 +961,7 @@ async getManageOrderById(orderId: string | number, profileType?: ProfileTypeInte
 
   async getOrderRequestById(orderRequestId: string | number) {
     const profileType = getProfileType();
-    const response = await api.get(`/order-requests/${orderRequestId}`, {
+    const response = await api.get(`/orders-request/${orderRequestId}`, {
       headers: { profileType },
     });
     return response.data;

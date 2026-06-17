@@ -127,14 +127,13 @@ const isAcceptedStatus = (status?: string) => {
   return normalized === 'ACTIVE' || normalized === 'CONFIRMED' || normalized === 'COMPLETED';
 };
 
-// Normalize the full order API response into a display-friendly shape
+// Normalize the full order API response into a display friendly shape
 const normalizeOrderDetail = (raw: any) => {
   if (!raw) return null;
   const body = raw?.responseBody || raw?.data || raw || {};
   const req = body?.orderRequest || (body?.customDesignRequest || body?.printRequest ? body : {});
   const printReq = req?.printRequest || {};
   const customReq = req?.customDesignRequest || {};
-
   const coverImageUrl =
     printReq?.designCoverImage?.url ||
     printReq?.designCoverImage?.previewUrl ||
@@ -142,7 +141,6 @@ const normalizeOrderDetail = (raw: any) => {
     customReq?.image?.url ||
     customReq?.imageUrlFront ||
     '';
-
   return {
     id: body.id,
     title: body.title || req?.title || '',
@@ -188,7 +186,6 @@ export default function ChatScreen() {
     participantName,
     participantRole,
     orderId,
-    isDesigner: isDesignerParam,
   } = useLocalSearchParams<{
     conversationId?: string;
     participantId?: string;
@@ -223,22 +220,17 @@ export default function ChatScreen() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showReportReasons, setShowReportReasons] = useState(false);
   const [showReportSuccess, setShowReportSuccess] = useState(false);
-  // ORDER_REQUEST: the order request detail fetched from the conversation's order
+  
   const [orderRequestDetail, setOrderRequestDetail] = useState<any>(null);
-  // ORDER: per-message order details
   const [orderDetailsByMessageId, setOrderDetailsByMessageId] = useState<Record<string, any>>({});
+  const [orderRequestDetailsByMessageId, setOrderRequestDetailsByMessageId] = useState<Record<string, any>>({});
 
-  // Designer-specific: product details modal (ORDER_REQUEST)
   const [showProductDetails, setShowProductDetails] = useState(false);
-  // Designer-specific: create order form modal
   const [showCreateOrder, setShowCreateOrder] = useState(false);
-  // Designer-specific: order details modal (after order created / VIEW DETAILS)
   const [showOrderDetails, setShowOrderDetails] = useState(false);
   const [selectedOrderDetail, setSelectedOrderDetail] = useState<any>(null);
-  // Success toast
   const [showOrderSuccess, setShowOrderSuccess] = useState(false);
 
-  // Create order form state
   const [orderTitle, setOrderTitle] = useState('');
   const [orderDescription, setOrderDescription] = useState('');
   const [orderAmount, setOrderAmount] = useState('');
@@ -268,17 +260,19 @@ export default function ChatScreen() {
   );
 
   const currentProfileType = useMemo(() => {
-    const messageWithMe = messages.find((message) => message.author === 'me' && (message.sender || message.receiver));
-    const profileFromMessage =
-      messageWithMe?.sender?.profileType ||
-      messages.find((message) => message.author === 'other' && message.receiver?.profileType)?.receiver?.profileType ||
-      undefined;
-
-    return String(profileFromMessage || (isDesignerParam === 'true' ? 'DESIGNER' : '')).toUpperCase();
-  }, [isDesignerParam, messages]);
+    for (const message of messages) {
+      if (message.author === 'me' && message.sender?.profileType) {
+        return String(message.sender.profileType).toUpperCase();
+      }
+      if (message.author === 'other' && message.receiver?.profileType) {
+        return String(message.receiver.profileType).toUpperCase();
+      }
+    }
+    return '';
+  }, [messages]);
 
   const isDesigner = currentProfileType === 'DESIGNER';
-  const isCustomer = currentProfileType === 'CUSTOMER' || (!currentProfileType && isDesignerParam !== 'true');
+  const isCustomer = currentProfileType === 'CUSTOMER';
 
   const displayMessages = useMemo(() => {
     const seenOrderCards = new Set<string>();
@@ -305,17 +299,14 @@ export default function ChatScreen() {
             ApiService.getConversations(0, 80),
             ApiService.getConversationMessages(String(conversationId), 0, 100),
           ]);
-          // console.log("The convos",JSON.stringify(convoRes))
-          // console.log("The Message",JSON.stringify(messagesRes))
+          
           const allConversations = normalizeConversationsResponse(convoRes);
           const selected = allConversations.find((item) => item.id === String(conversationId));
           if (selected) setConversation((c) => ({ ...c, ...selected }));
 
           const myId = me?.id || me?.userId || me?.profileId;
           const normalized = normalizeChatMessages(messagesRes, myId, selected);
-          // console.log("The Normalized",JSON.stringify(normalized))
           setMessages(normalized);
-          // Mark unread messages as read
 
           const unread = normalized
             .filter((m) => m.author === 'other' && m.readDateTime === null )
@@ -359,44 +350,42 @@ export default function ChatScreen() {
     };
   }, [conversation, conversationId, normalizeChatMessages]);
 
-    const openActionSheet = () => {
-      setShowActions(true);
-    };
-  
-    const closeAllModals = () => {
-      setShowActions(false);
-      setShowDeleteModal(false);
-      setShowReportReasons(false);
-    };
-  
-    const handleDeleteConversation = async () => {
-      if (!conversationId) return;
-      closeAllModals();
-        await ApiService.deleteConversation(conversationId);
-     
-    };
-  
-    const handleReportConversation = async (reason: string) => {
-      if (!conversationId) return;
-  
-      closeAllModals();
-      try {
-        await ApiService.reportConversation(conversationId, reason);
-      } finally {
-        setShowReportSuccess(true);
-      }
-    };
+  const openActionSheet = () => {
+    setShowActions(true);
+  };
 
-    const reportReasons = [
+  const closeAllModals = () => {
+    setShowActions(false);
+    setShowDeleteModal(false);
+    setShowReportReasons(false);
+  };
+
+  const handleDeleteConversation = async () => {
+    if (!conversationId) return;
+    closeAllModals();
+    await ApiService.deleteConversation(conversationId);
+  };
+
+  const handleReportConversation = async (reason: string) => {
+    if (!conversationId) return;
+
+    closeAllModals();
+    try {
+      await ApiService.reportConversation(conversationId, reason);
+    } finally {
+      setShowReportSuccess(true);
+    }
+  };
+
+  const reportReasons = [
     { id: 'not-trustworthy', label: 'Not trustworthy' },
     { id: 'not-skilled', label: 'Not skilled' },
     { id: 'hate-speech', label: 'Hate speech or symbols' },
     { id: 'scam', label: 'Scam and fraud' },
     { id: 'bullying', label: 'Bullying harassment' },
-    ];
-  // Fetch order request detail for ORDER_REQUEST / ORDER chat type (both designer and customer)
+  ];
+
   useEffect(() => {
-    // Resolve orderId: prefer URL param, then scan messages for an ORDER/ORDER_REQUEST message
     const firstOrderMessage = messages.find((m) => m.chatType === 'ORDER_REQUEST' || m.chatType === 'ORDER');
     const resolvedOrderId = orderId || getMessageOrderId(firstOrderMessage) || null;
 
@@ -416,56 +405,63 @@ export default function ChatScreen() {
       .catch(() => setOrderRequestDetail(null));
   }, [orderId, messages]);
 
-  // Fetch order details for ORDER-type messages
   useEffect(() => {
     const orderMessages = messages.filter((m) => {
-      // Fix: was `m.chatType !== 'ORDER' || 'ORDER_REQUEST'` which is always true (JS bug)
       if (m.chatType !== 'ORDER' && m.chatType !== 'ORDER_REQUEST') return false;
-      // console.log("The order messages",JSON.stringify(m))
 
-      if (orderDetailsByMessageId[m.id]) return false;
+      if (m.chatType === 'ORDER' && orderDetailsByMessageId[m.id]) return false;
+      if (m.chatType === 'ORDER_REQUEST' && orderRequestDetailsByMessageId[m.id]) return false;
+
       const oid = getMessageOrderId(m);
-      // console.log("order id",oid)
       const valid = Number.isFinite(Number(oid)) && Number(oid) > 0;
+      
       if (!valid) {
         console.warn('[Chat] ORDER message has no resolvable orderId', {
           messageId: m.id,
           chatType: m.chatType,
           rawKeys: m.raw ? Object.keys(m.raw) : [],
           caption: m.caption,
-        text: m.text,
+          text: m.text,
         });
       }
       return valid;
     });
+
     if (!orderMessages.length) return;
 
     Promise.allSettled(
       orderMessages.map(async (m) => {
         const oid = getMessageOrderId(m);
-          // console.log("The order ol",oid)
-          const res =
-            m.chatType === 'ORDER_REQUEST'
-              ? await ApiService.getOrderRequestById(oid)
-              : await ApiService.getOrderById(oid);
-          // console.log(res)
-          const order = normalizeOrderDetail(res);
-          return { messageId: m.id, order };
-      
+        const res =
+          m.chatType === 'ORDER_REQUEST'
+            ? await ApiService.getOrderRequestById(oid)
+            : await ApiService.getOrderById(oid);
+            
+        const data = normalizeOrderDetail(res);
+        return { messageId: m.id, data, type: m.chatType };
       }),
     ).then((results) => {
-      const next: Record<string, any> = {};
+      const nextOrders: Record<string, any> = {};
+      const nextRequests: Record<string, any> = {};
+
       results.forEach((r) => {
-        if (r.status === 'fulfilled' && r.value.order) {
-          next[r.value.messageId] = r.value.order;
-        } 
-        // else if (r.status === 'rejected') {
-        //   console.error('[Chat] Order fetch settled as rejected:', r.reason);
-        // }
+        if (r.status === 'fulfilled' && r.value?.data) {
+          if (r.value.type === 'ORDER') {
+            nextOrders[r.value.messageId] = r.value.data;
+          } else if (r.value.type === 'ORDER_REQUEST') {
+            nextRequests[r.value.messageId] = r.value.data;
+          }
+        }
       });
-      if (Object.keys(next).length) setOrderDetailsByMessageId((c) => ({ ...c, ...next }));
+
+      if (Object.keys(nextOrders).length) {
+        setOrderDetailsByMessageId((c) => ({ ...c, ...nextOrders }));
+      }
+      if (Object.keys(nextRequests).length) {
+        setOrderRequestDetailsByMessageId((c) => ({ ...c, ...nextRequests }));
+      }
     });
-  }, [messages, orderDetailsByMessageId]);
+  }, [messages, orderDetailsByMessageId, orderRequestDetailsByMessageId]);
 
   useEffect(() => {
     const timer = setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: false }), 80);
@@ -476,7 +472,6 @@ export default function ChatScreen() {
 
   const resolvePayloadChatType = (isFile = false): ChatType => {
     if (isFile) return 'FILE';
-    // Typed/input text messages are always DIRECT
     return 'DIRECT';
   };
 
@@ -567,7 +562,8 @@ export default function ChatScreen() {
         deliveryDate: orderDeliveryDate.trim(),
       });
       const created = normalizeOrderDetail(res);
-      setOrderRequestDetail(created || orderRequestDetail);
+      // Immediately register that an offer exists so 'Create Offer' hides everywhere
+      setOrderRequestDetail({ ...(created || orderRequestDetail), hasOffer: true });
       setOrderTitle('');
       setOrderDescription('');
       setOrderAmount('');
@@ -640,6 +636,24 @@ export default function ChatScreen() {
     }
   };
 
+  const handleCancelOrder = async (detail: any) => {
+    if (!detail?.id) return;
+    setUpdatingOrderId(String(detail.id));
+    try {
+        await ApiService.declineOrder(detail.id); // Fallback if cancel logic shares the decline endpoint
+      await refreshOrderDetail(detail.id);
+      showAlert({ type: 'success', title: 'Order cancelled', message: 'The order has been cancelled.' });
+    } catch (err: any) {
+      showAlert({
+        type: 'error',
+        title: 'Could not cancel order',
+        message: err?.response?.data?.responseMessage || err?.message || 'Please try again.',
+      });
+    } finally {
+      setUpdatingOrderId(null);
+    }
+  };
+
   const handleDeliveryDateChange = (_event: any, selectedDate?: Date) => {
     if (Platform.OS !== 'ios') setShowDatePicker(false);
     if (!selectedDate) return;
@@ -651,9 +665,7 @@ export default function ChatScreen() {
     setShowOrderDetails(false);
   };
 
-  // ─── Resolve the other user's avatar from the message sender field ──────────
   const resolveOtherAvatar = (message: ChatMessageDto & { imageUrl?: string }) => {
-    // The "other" sender profile comes directly from the backend message payload
     const senderProfile = message.author === 'other' ? message.sender : message.receiver;
     const imageUrl =
       senderProfile?.profileImage?.thumbnailUrl ||
@@ -673,8 +685,6 @@ export default function ChatScreen() {
     return { imageUrl, initials };
   };
 
-  // ─── Render: ORDER message bubble (fetched order details) ───────────────────
-  // ─── Render: ORDER_REQUEST card (designer and customer) ────────────────────
   const renderOrderCard = (orderDetail: any) => {
     if (!orderDetail) return null;
     const imageUrl = orderDetail.coverImageUrl;
@@ -709,16 +719,15 @@ export default function ChatScreen() {
     );
   };
 
-  const renderOrderRequestCard = (orderRequestDetail:any) => {
-    if (!orderRequestDetail) return null;
-    const detail = orderRequestDetail;
+  const renderOrderRequestCard = (orderRequestDetailParams:any) => {
+    if (!orderRequestDetailParams) return null;
+    const detail = orderRequestDetailParams;
     const hasOffer = detail.hasOffer || Boolean(detail.id && detail.title);
-    const canCreateOffer = isDesigner && isReviewStatus(detail.orderStatus) && !isRejectedStatus(detail.orderStatus);
     const canRespondToOffer = isCustomer && hasOffer && isReviewStatus(detail.orderStatus);
     const isUpdatingThisOrder = updatingOrderId === String(detail.id);
+    
     return (
       <View className="mx-4 my-3">
-        {/* "You have an offer sent to this customer" */}
         {hasOffer ? (
           <View className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 mt-1">
             <Text className="text-center text-[13px] text-slate-500 dark:text-slate-400 mb-3">
@@ -735,11 +744,26 @@ export default function ChatScreen() {
             <Text className="text-[12px] text-slate-500 dark:text-slate-400 text-center mt-0.5">
               Status: {detail.orderStatus || 'ACTIVE'}
             </Text>
+
             <TouchableOpacity
               className="mt-3 border border-[#4A3298] rounded-lg py-2 items-center"
               onPress={() => { setSelectedOrderDetail(detail); setShowOrderDetails(true); }}>
               <Text className="text-[#4A3298] text-[14px] font-semibold">View Details</Text>
             </TouchableOpacity>
+
+            {isDesigner && isReviewStatus(detail.orderStatus) && (
+              <TouchableOpacity
+                className={`mt-3 rounded-lg py-2 items-center border ${isUpdatingThisOrder ? 'bg-slate-100 border-slate-200' : 'bg-red-50 border-red-500 dark:bg-red-500/10 dark:border-red-500/30'}`}
+                disabled={isUpdatingThisOrder}
+                onPress={() => handleCancelOrder(detail)}>
+                {isUpdatingThisOrder ? (
+                  <ActivityIndicator size="small" color="#ef4444" />
+                ) : (
+                  <Text className="text-red-500 text-[14px] font-semibold">Cancel Order</Text>
+                )}
+              </TouchableOpacity>
+            )}
+
             {canRespondToOffer ? (
               <View className="flex-row gap-3 mt-3">
                 <TouchableOpacity
@@ -766,35 +790,26 @@ export default function ChatScreen() {
             ) : null}
           </View>
         ) : (
-          // No order created yet — only designer can create an offer
           <View className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 mt-1">
             <Text className="text-center text-[13px] text-slate-500 dark:text-slate-400 mb-3">
               {isDesigner ? 'You received an order request' : 'Waiting for offer from designer'}
             </Text>
-            {canCreateOffer && (
-              <TouchableOpacity
-                className="bg-[#4A3298] rounded-full py-3 items-center mt-2"
-                onPress={() => setShowCreateOrder(true)}>
-                <Text className="text-white text-[15px] font-bold">Create Offer</Text>
-              </TouchableOpacity>
-            )}
           </View>
         )}
       </View>
     );
   };
 
-  // ─── Render: regular text / image message bubble ────────────────────────────
   const renderMessage = (message: ChatMessageDto & { imageUrl?: string }) => {
-    const orderDetail =
-      orderDetailsByMessageId[message.id] ||
-      (message.chatType === 'ORDER' || message.chatType === 'ORDER_REQUEST' ? orderRequestDetail : null);
+    const orderDetail = orderDetailsByMessageId[message.id];
+    const orderRequest = orderRequestDetailsByMessageId[message.id]; 
+    
     if (message.chatType === 'ORDER' && orderDetail) {
-      return renderOrderCard(orderDetail);
+      return renderOrderRequestCard(orderDetail);
     }
 
-     if (message.chatType === 'ORDER_REQUEST' && orderDetail) {
-      return renderOrderRequestCard(orderDetail);
+    if (message.chatType === 'ORDER_REQUEST' && orderRequest) {
+      return renderOrderCard(orderRequest);
     }
 
     const isMe = message.author === 'me';
@@ -807,7 +822,6 @@ export default function ChatScreen() {
     const otherAvatar = resolveOtherAvatar(message);
     const isSeen = message.raw?.read === true;
 
-    
     return (
       <View key={message.id} className={`w-full my-1 flex-row ${isMe ? 'justify-end' : 'justify-start'}`}>
         {!isMe && (
@@ -845,6 +859,8 @@ export default function ChatScreen() {
     );
   };
 
+  const canShowModalCreateOffer = isDesigner && Boolean(selectedOrderDetail) && !selectedOrderDetail?.hasOffer && isReviewStatus(selectedOrderDetail?.orderStatus) && !isRejectedStatus(selectedOrderDetail?.orderStatus);
+
   return (
     <View style={{ flex: 1, backgroundColor: isDark ? '#020617' : '#f8fafc' }}>
     <SafeAreaView style={{ flex: 1 }} edges={['top', 'left', 'right']}>
@@ -853,7 +869,7 @@ export default function ChatScreen() {
         behavior="padding"
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}>
 
-          {/* ── Header ── */}
+          {/* Header */}
           <View
             className="flex-row items-center justify-between px-4 pb-3 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
             style={{ paddingTop: 4 }}>
@@ -877,14 +893,14 @@ export default function ChatScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* ── Messages ── */}
+          {/* Messages */}
           <ScrollView
             ref={scrollViewRef}
             style={{ flex: 1 }}
             contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 20, flexGrow: 1 }}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
-            onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: false })}>
+            >
             {isLoading ? (
               <View className="py-10 items-center justify-center gap-3">
                 <ActivityIndicator size="small" color="#4A3298" />
@@ -892,7 +908,6 @@ export default function ChatScreen() {
               </View>
             ) : (
               <>
-                {/* ORDER_REQUEST / ORDER card at top — visible to both designer and customer */}
                 {displayMessages.map((message, index) => (
                   <React.Fragment key={getMessageKey(message, index)}>
                     {renderMessage(message)}
@@ -902,7 +917,7 @@ export default function ChatScreen() {
             )}
           </ScrollView>
 
-          {/* ── Composer ── */}
+          {/* Composer */}
           <View
             className="flex-row items-end px-4 pt-3 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 gap-3"
             style={{ paddingBottom: Math.max(insets.bottom, 12) }}>
@@ -937,7 +952,7 @@ export default function ChatScreen() {
       </KeyboardAvoidingView>
     </SafeAreaView>
 
-      {/* ── Lightbox ── */}
+      {/* Lightbox */}
       <Modal visible={!!selectedImage} transparent animationType="fade" onRequestClose={() => setSelectedImage(null)}>
         <View className="flex-1 bg-black/95 justify-center items-center">
           <TouchableOpacity
@@ -952,7 +967,7 @@ export default function ChatScreen() {
         </View>
       </Modal>
 
-      {/* ── Conversation actions ── */}
+      {/* Conversation actions */}
 
             <Modal transparent visible={showActions} animationType="slide" onRequestClose={closeAllModals}>
               <Pressable className="flex-1 justify-end bg-black/40" onPress={closeAllModals}>
@@ -1037,11 +1052,10 @@ export default function ChatScreen() {
               </View>
             </Modal>
 
-      {/* ── Product Details modal (ORDER_REQUEST — designer) ── */}
+      {/* Product Details modal */}
       <Modal transparent visible={showProductDetails} animationType="slide" onRequestClose={() => setShowProductDetails(false)}>
         <Pressable className="flex-1 bg-black/40 justify-end" onPress={() => setShowProductDetails(false)}>
           <Pressable className="bg-white dark:bg-slate-900 rounded-t-3xl px-5 pt-4 pb-8" onPress={(e) => e.stopPropagation()}>
-            {/* Header */}
             <View className="flex-row justify-between items-center mb-5">
               <View className="w-6" />
               <Text className="text-[17px] font-semibold text-slate-900 dark:text-slate-100">Product details and specifications</Text>
@@ -1051,7 +1065,6 @@ export default function ChatScreen() {
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 480 }}>
-              {/* Design image */}
               {orderRequestDetail?.coverImageUrl ? (
                 <View className="items-center mb-5">
                   <Image
@@ -1087,7 +1100,7 @@ export default function ChatScreen() {
               ) : null}
             </ScrollView>
 
-            {isDesigner && isReviewStatus(orderRequestDetail?.orderStatus) ? (
+            {isDesigner && isReviewStatus(orderRequestDetail?.orderStatus) && !orderRequestDetail?.hasOffer ? (
               <TouchableOpacity
                 className="bg-[#4A3298] rounded-full py-4 items-center mt-4"
                 onPress={() => { setShowProductDetails(false); setShowCreateOrder(true); }}>
@@ -1098,11 +1111,10 @@ export default function ChatScreen() {
         </Pressable>
       </Modal>
 
-      {/* ── Create New Order modal (designer) ── */}
+      {/* Create New Order modal */}
       <Modal transparent visible={showCreateOrder} animationType="slide" onRequestClose={() => setShowCreateOrder(false)}>
         <Pressable className="flex-1 bg-black/40 justify-end" onPress={() => setShowCreateOrder(false)}>
           <Pressable className="bg-white dark:bg-slate-900 rounded-t-3xl px-5 pt-4 pb-8" onPress={(e) => e.stopPropagation()}>
-            {/* Header */}
             <View className="flex-row items-center mb-1">
               <TouchableOpacity onPress={() => setShowCreateOrder(false)} className="mr-3">
                 <Ionicons name="arrow-back" size={22} color={themeIconColor} />
@@ -1114,7 +1126,6 @@ export default function ChatScreen() {
             </Text>
 
             <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 460 }}>
-              {/* Order title */}
               <Text className="text-[13px] font-semibold text-slate-800 dark:text-slate-200 mb-1">Order title</Text>
               <TextInput
                 value={orderTitle}
@@ -1124,7 +1135,6 @@ export default function ChatScreen() {
                 className="border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-[15px] text-slate-900 dark:text-slate-100 mb-4 bg-white dark:bg-slate-800"
               />
 
-              {/* Description */}
               <Text className="text-[13px] font-semibold text-slate-800 dark:text-slate-200 mb-1">
                 Brief description of order agreed specifications
               </Text>
@@ -1140,7 +1150,6 @@ export default function ChatScreen() {
                 style={{ minHeight: 80 }}
               />
 
-              {/* Amount */}
               <Text className="text-[13px] font-semibold text-slate-800 dark:text-slate-200 mb-1">
                 Agreed amount (\u20a6)
               </Text>
@@ -1153,7 +1162,6 @@ export default function ChatScreen() {
                 className="border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-[15px] text-slate-900 dark:text-slate-100 mb-4 bg-white dark:bg-slate-800"
               />
 
-              {/* Delivery date */}
               <Text className="text-[13px] font-semibold text-slate-800 dark:text-slate-200 mb-1">
                 Agreed date of delivery
               </Text>
@@ -1190,11 +1198,10 @@ export default function ChatScreen() {
         </Pressable>
       </Modal>
 
-      {/* ── Order Details modal ── */}
+      {/* Order Details modal */}
       <Modal transparent visible={showOrderDetails} animationType="slide" onRequestClose={() => setShowOrderDetails(false)}>
         <Pressable className="flex-1 bg-black/40 justify-end" onPress={() => setShowOrderDetails(false)}>
           <Pressable className="bg-white dark:bg-slate-900 rounded-t-3xl px-5 pt-4 pb-8" onPress={(e) => e.stopPropagation()}>
-            {/* Header */}
             <View className="flex-row justify-between items-center mb-2">
               <View className="w-6" />
               <Text className="text-[17px] font-semibold text-slate-900 dark:text-slate-100">Order details</Text>
@@ -1207,11 +1214,12 @@ export default function ChatScreen() {
             </Text>
 
             <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 480 }}>
+              
               {selectedOrderDetail ? (
                 <>
                   <View className="mb-4">
                     <Text className="text-[13px] font-bold text-slate-900 dark:text-slate-100 mb-1">Order title</Text>
-                    <Text className="text-[14px] text-slate-600 dark:text-slate-300">{selectedOrderDetail.title}</Text>
+                    <Text className="text-[14px] text-slate-600 dark:text-slate-300">{selectedOrderDetail.title || selectedOrderDetail.purpose || 'Custom order'}</Text>
                   </View>
                   <View className="mb-4">
                     <Text className="text-[13px] font-bold text-slate-900 dark:text-slate-100 mb-1">
@@ -1241,9 +1249,33 @@ export default function ChatScreen() {
                       {selectedOrderDetail.itemProvidedByCustomer ? 'Yes' : 'No'}
                     </Text>
                   </View>
+                {canShowModalCreateOffer && (
+                <TouchableOpacity
+                className="bg-[#4A3298] rounded-full py-3 items-center mt-2"
+                onPress={() => setShowCreateOrder(true)}>
+                <Text className="text-white text-[15px] font-bold">Create Offer</Text>
+                </TouchableOpacity>
+                )}
                 </>
               ) : null}
             </ScrollView>
+            
+            {/* Added modal cancel view for designers too, just to be thorough */}
+            {selectedOrderDetail && isDesigner && isReviewStatus(selectedOrderDetail.orderStatus) ? (
+              <View className="mt-4 flex-row gap-3 border-t border-slate-100 pt-4 dark:border-slate-800">
+                <TouchableOpacity
+                  className={`flex-1 items-center rounded-full border py-3 ${updatingOrderId === String(selectedOrderDetail.id) ? 'bg-slate-100 border-slate-200' : 'border-red-500 bg-red-50 dark:bg-red-500/10'}`}
+                  disabled={updatingOrderId === String(selectedOrderDetail.id)}
+                  onPress={() => handleCancelOrder(selectedOrderDetail)}>
+                  {updatingOrderId === String(selectedOrderDetail.id) ? (
+                    <ActivityIndicator size="small" color="#ef4444" />
+                  ) : (
+                    <Text className="text-[14px] font-semibold text-red-500">Cancel Order</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            ) : null}
+
             {selectedOrderDetail && isCustomer && isReviewStatus(selectedOrderDetail.orderStatus) ? (
               <View className="mt-4 flex-row gap-3 border-t border-slate-100 pt-4 dark:border-slate-800">
                 <TouchableOpacity
@@ -1268,7 +1300,7 @@ export default function ChatScreen() {
         </Pressable>
       </Modal>
 
-      {/* ── Order created success toast ── */}
+      {/* Order created success toast */}
       {showOrderSuccess && (
         <View
           style={{
@@ -1297,7 +1329,7 @@ export default function ChatScreen() {
         </View>
       )}
 
-      {/* ── Alert modal ── */}
+      {/* Alert modal */}
       {alertElement}
 
     </View>
