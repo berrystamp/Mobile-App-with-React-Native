@@ -110,6 +110,8 @@ export default function OrderDetailScreen() {
     );
   }
 
+  const countdownParts = getCountdownParts(order.dueOn);
+
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
       <View style={[styles.screen, { backgroundColor: theme.background, paddingBottom: 88 + insets.bottom }]}>

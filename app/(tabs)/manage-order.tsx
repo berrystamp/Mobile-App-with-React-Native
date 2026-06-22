@@ -12,6 +12,7 @@ import {
     StyleSheet, Text, TextInput, TouchableOpacity, View, useColorScheme
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 import { formatNaira } from '@/lib/currency';
 import { normalizeManageOrderListResponse } from '@/lib/orders';
@@ -44,6 +45,35 @@ const STATUS_BG_DARK: Record<ManageOrderStatus, string> = {
   Canceled: '#2A0D0D',
 };
 
+// const MOCK_ORDERS: ManageOrderItem[] = [
+//   {
+//     id: '1',
+//     title: 'Jollof Rice & Chicken Combo',
+//     shopName: "Mama Nkechi's Kitchen",
+//     code: 'ORD-10234',
+//     amount: 4500,
+//     status: 'Active',
+//   },
+//   {
+//     id: '2',
+//     title: 'Office Stationery Bundle',
+//     shopName: 'PrintHub Supplies',
+//     code: 'ORD-10198',
+//     amount: 12750,
+//     status: 'Completed',
+//   },
+//   {
+//     id: '3',
+//     title: 'Wireless Earbuds Pro',
+//     shopName: 'GadgetZone NG',
+//     code: 'ORD-10177',
+//     amount: 23000,
+//     status: 'Canceled',
+//   },
+// ] as ManageOrderItem[];
+
+
+
 export default function ManageOrderScreen() {
   const isDark = useColorScheme() === 'dark';
   const insets = useSafeAreaInsets();
@@ -53,7 +83,24 @@ export default function ManageOrderScreen() {
   const [orders, setOrders] = useState<ManageOrderItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [fromDate, setFromDate] = useState<Date | null>(null);
+  const [toDate, setToDate] = useState<Date | null>(null);
+  const [showFromPicker, setShowFromPicker] = useState(false);
+  const [showToPicker, setShowToPicker] = useState(false);
   const { show: showAlert, element: alertElement } = useAppAlert();
+
+
+  const statusCount = useMemo(() => {
+  return {
+    All: orders.length,
+    Active: orders.filter(order => order.status === 'Active').length,
+    Completed: orders.filter(order => order.status === 'Completed').length,
+    Canceled: orders.filter(order => order.status === 'Canceled').length,
+  };
+}, [orders]);
+
+  const formatDate = (d: Date | null) =>
+  d ? d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'From';
 
   const theme = {
     background: isDark ? '#121212' : '#F7F6FC',
@@ -70,17 +117,23 @@ export default function ManageOrderScreen() {
   };
 
   const loadOrders = useCallback(async (isRefresh = false) => {
-    try {
-      if (!isRefresh) setLoading(true);
-      const response = await ApiService.getManageOrders({ profileType: toProfileType(role) });
-      setOrders(normalizeManageOrderListResponse(response));
-    } catch (error: any) {
-      showAlert({ type: 'error', title: 'Unable to load orders', message: error?.response?.data?.responseMessage || error?.message || 'Please try again.' });
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [role]);
+  try {
+    if (!isRefresh) setLoading(true);
+
+    // --- DEMO MODE: comment this block out and uncomment the API call below to go live ---
+    await new Promise((res) => setTimeout(res, 400)); // fake network delay
+    // setOrders(MOCK_ORDERS);
+    // --- END DEMO MODE ---
+
+    const response = await ApiService.getManageOrders({ profileType: toProfileType(role) });
+    setOrders(normalizeManageOrderListResponse(response));
+  } catch (error: any) {
+    showAlert({ type: 'error', title: 'Unable to load orders', message: error?.response?.data?.responseMessage || error?.message || 'Please try again.' });
+  } finally {
+    setLoading(false);
+    setRefreshing(false);
+  }
+}, [role]);
 
   useEffect(() => { loadOrders(); }, [loadOrders]);
 
@@ -90,20 +143,23 @@ export default function ManageOrderScreen() {
   }, [loadOrders]);
 
   const filteredOrders = useMemo(() => {
-    return orders.filter((order) => {
-      const matchesFilter = activeFilter === 'All' || order.status === activeFilter;
-      const query = search.trim().toLowerCase();
-      const matchesSearch = !query || (order.title + ' ' + order.shopName + ' ' + order.code).toLowerCase().includes(query);
-      return matchesFilter && matchesSearch;
-    });
-  }, [activeFilter, orders, search]);
+  return orders.filter((order) => {
+    const matchesFilter = activeFilter === 'All' || order.status === activeFilter;
+    const query = search.trim().toLowerCase();
+    const matchesSearch = !query || (order.title + ' ' + order.shopName + ' ' + order.code).toLowerCase().includes(query);
 
-  const statusCount = useMemo(() => ({
-    All: orders.length,
-    Active: orders.filter((o) => o.status === 'Active').length,
-    Completed: orders.filter((o) => o.status === 'Completed').length,
-    Canceled: orders.filter((o) => o.status === 'Canceled').length,
-  }), [orders]);
+    let matchesDate = true;
+    if (fromDate || toDate) {
+      const orderDate = order.createdAt ? new Date(order.createdAt) : null;
+      if (orderDate) {
+        if (fromDate && orderDate < fromDate) matchesDate = false;
+        if (toDate && orderDate > toDate) matchesDate = false;
+      }
+    }
+
+    return matchesFilter && matchesSearch && matchesDate;
+  });
+}, [activeFilter, orders, search, fromDate, toDate]);
 
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1, backgroundColor: theme.background }}>
@@ -115,7 +171,7 @@ export default function ManageOrderScreen() {
           </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: theme.text }]}>My Orders</Text>
           <View style={[styles.countBadge, { backgroundColor: isDark ? '#2A2A2A' : '#EEF0FF' }]}>
-            <Text style={[styles.countText, { color: theme.pillActive }]}>{filteredOrders.length}</Text>
+            <Text style={[styles.countText, { color: theme.pillActive }]}>{filteredOrders.length} <Text className='text-gray-400 font-light'>order</Text></Text>
           </View>
         </View>
 
@@ -135,6 +191,61 @@ export default function ManageOrderScreen() {
             </TouchableOpacity>
           )}
         </View>
+
+        {/* Date Range Filter */}
+<View style={styles.dateFilterRow}>
+  <TouchableOpacity
+    onPress={() => setShowFromPicker(true)}
+    style={[styles.dateBox, { borderColor: theme.border, backgroundColor: theme.inputBg }]}
+  >
+    <Ionicons name="calendar-outline" size={16} color={theme.subtext} style={{ marginRight: 6 }} />
+    <Text style={[styles.dateText, { color: fromDate ? theme.text : theme.muted }]}>
+      {fromDate ? formatDate(fromDate) : 'From'}
+    </Text>
+  </TouchableOpacity>
+
+  <Text style={[styles.toLabel, { color: theme.subtext }]}>to</Text>
+
+  <TouchableOpacity
+    onPress={() => setShowToPicker(true)}
+    style={[styles.dateBox, { borderColor: theme.border, backgroundColor: theme.inputBg }]}
+  >
+    <Ionicons name="calendar-outline" size={16} color={theme.subtext} style={{ marginRight: 6 }} />
+    <Text style={[styles.dateText, { color: toDate ? theme.text : theme.muted }]}>
+      {toDate ? formatDate(toDate) : 'To'}
+    </Text>
+  </TouchableOpacity>
+
+  {(fromDate || toDate) && (
+    <TouchableOpacity onPress={() => { setFromDate(null); setToDate(null); }} style={{ marginLeft: 8 }} className='my-4 text-xs'>
+      <Ionicons name="close-circle" size={20} color={theme.muted} />
+    </TouchableOpacity>
+  )}
+</View>
+
+{showFromPicker && (
+  <DateTimePicker
+    value={fromDate || new Date()}
+    mode="date"
+    display="default"
+    onChange={(_, selected) => {
+      setShowFromPicker(false);
+      if (selected) setFromDate(selected);
+    }}
+  />
+)}
+
+{showToPicker && (
+  <DateTimePicker
+    value={toDate || new Date()}
+    mode="date"
+    display="default"
+    onChange={(_, selected) => {
+      setShowToPicker(false);
+      if (selected) setToDate(selected);
+    }}
+  />
+)}
 
         {/* Orders List */}
         <ScrollView
@@ -275,4 +386,26 @@ const styles = StyleSheet.create({
     fontSize: 12, 
     textAlign: 'center' 
   },
+
+  dateFilterRow: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  marginBottom: 14,
+},
+dateBox: {
+  flex: 1,
+  flexDirection: 'row',
+  alignItems: 'center',
+  borderRadius: 12,
+  borderWidth: 1,
+  height: 42,
+  paddingHorizontal: 12,
+},
+dateText: {
+  fontSize: 13,
+},
+toLabel: {
+  fontSize: 13,
+  marginHorizontal: 10,
+},
 });

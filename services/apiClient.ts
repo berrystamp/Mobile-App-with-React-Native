@@ -1303,6 +1303,7 @@ async getManageOrderById(orderId: string | number, profileType?: ProfileTypeInte
     const response = await api.get('/wallets', {
       headers: { profileType },
     });
+    console.log(`Responnse for wallet ${JSON.stringify(response.data)}`);
     return response.data;
   }
 

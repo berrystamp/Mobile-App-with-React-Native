@@ -59,13 +59,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         // Only redirect if we aren't skipping it (e.g., let index.tsx handle initial routing)
         if (!skipRedirect) {
-          if (needsInterestOnboarding) {
-            if (!(segments[0] === '(auth)' && segments[1] === 'interests')) {
-              router.replace('/(auth)/interests');
-            }
-          } else if (segments[0] !== '(tabs)') {
-            router.replace('/(tabs)');
-          }
+          const segmentsArr = segments as string[];
+      if (needsInterestOnboarding) {
+        if (!(segmentsArr[0] === '(auth)' && segmentsArr[1] === 'interests')) {
+          router.replace('/(auth)/interests');
+        }
+      } else if (segmentsArr[0] !== '(tabs)') {
+        router.replace('/(tabs)');
+      }
         }
       } else {
         setIsAuthenticated(false);

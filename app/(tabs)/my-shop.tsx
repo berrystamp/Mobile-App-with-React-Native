@@ -433,7 +433,7 @@ function AddToCollectionSheet({ visible,collectionItems, theme, designId, onClos
 }
 
 // ─── EditProfileSheet ─────────────────────────────────────────────────────────
-function EditProfileSheet({ visible, theme, profile, onClose, onSaved }: { visible: boolean; theme: ReturnType<typeof useTheme>; profile: any; onClose: () => void; onSaved: () => void }) {
+function EditProfileSheet({ visible, theme, profile, onClose, onSaved }: { visible: boolean; theme: ReturnType<typeof useTheme>; profile: any; onClose: () => void; onSaved: (updated: any) => void }) {
   const [shopName, setShopName] = useState('');
   const [bio, setBio] = useState('');
   const [coverUri, setCoverUri] = useState<string | null>(null);
@@ -464,34 +464,42 @@ function EditProfileSheet({ visible, theme, profile, onClose, onSaved }: { visib
     setSelectedSpecs((prev) => prev.includes(spec) ? prev.filter((s) => s !== spec) : [...prev, spec]);
   };
 
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      let coverPath = profile?.cover || '';
-      let avatarPath = profile?.avatar || '';
-      if (coverUri) {
-        const uploaded = await ApiService.uploadSingleFile(coverUri);
-        coverPath = uploaded?.path || uploaded?.url || uploaded?.originalFilePath || coverUri;
-      }
-      if (avatarUri) {
-        const uploaded = await ApiService.uploadSingleFile(avatarUri);
-        avatarPath = uploaded?.path || uploaded?.url || uploaded?.originalFilePath || avatarUri;
-      }
-      await ApiService.updateMyProfile({
-        name: shopName.trim(),
-        bio: bio.trim(),
-        categories: selectedSpecs,
-        ...(coverPath ? { coverPic: coverPath.replace("https://berry-stamp-prod.s3.amazonaws.com/","") } : {}),
-        ...(avatarPath ? { profilePic: avatarPath.replace("https://berry-stamp-prod.s3.amazonaws.com/","") } : {}),
-      });
-      onSaved();
-      onClose();
-    } catch (e: any) {
-      Alert.alert('Save failed', e?.response?.data?.responseMessage || e?.message || 'Please try again.');
-    } finally {
-      setSaving(false);
+ const handleSave = async () => {
+  setSaving(true);
+  try {
+    let coverPath = profile?.cover || '';
+    let avatarPath = profile?.avatar || '';
+    if (coverUri) {
+      const uploaded = await ApiService.uploadSingleFile(coverUri);
+      coverPath = uploaded?.path || uploaded?.url || uploaded?.originalFilePath || coverUri;
     }
-  };
+    if (avatarUri) {
+      const uploaded = await ApiService.uploadSingleFile(avatarUri);
+      avatarPath = uploaded?.path || uploaded?.url || uploaded?.originalFilePath || avatarUri;
+    }
+    await ApiService.updateMyProfile({
+      name: shopName.trim(),
+      bio: bio.trim(),
+      categories: selectedSpecs,
+      ...(coverPath ? { coverPic: coverPath.replace("https://berry-stamp-prod.s3.amazonaws.com/", "") } : {}),
+      ...(avatarPath ? { profilePic: avatarPath.replace("https://berry-stamp-prod.s3.amazonaws.com/", "") } : {}),
+    });
+
+    // pass the locally-known new values straight back up
+    onSaved({
+      fullName: shopName.trim(),
+      bio: bio.trim(),
+      categories: selectedSpecs,
+      cover: coverUri || profile?.cover,
+      avatar: avatarUri || profile?.avatar,
+    });
+    onClose();
+  } catch (e: any) {
+    Alert.alert('Save failed', e?.response?.data?.responseMessage || e?.message || 'Please try again.');
+  } finally {
+    setSaving(false);
+  }
+};
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -1496,7 +1504,13 @@ export default function MyShopScreen() {
         theme={theme}
         profile={profile}
         onClose={() => setShowEditProfile(false)}
-        onSaved={() => loadShop()}
+       onSaved={(updated) => {
+    setShop((prev: any) => ({
+      ...prev,
+      profile: { ...prev.profile, ...updated },
+    }));
+    loadShop(true); // background sync, doesn't block UI
+  }}
       />
 
       <NewCollectionSheet

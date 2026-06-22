@@ -192,6 +192,7 @@ export default function ProfileScreen() {
       return [
         { icon: "document-text-outline" as const, label: "Manage Orders", onPress: () => router.push("/manage-order") },
         { icon: "print-outline" as const, label: "Print Jobs", onPress: () => router.push("/printers") },
+        { icon: "storefront-outline" as const, label: "My Shop", onPress: () => router.push("/my-shop") },
         { icon: "wallet-outline" as const, label: "Wallet", onPress: () => router.push("/wallet") },
       ];
     }
