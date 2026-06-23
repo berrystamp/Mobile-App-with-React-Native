@@ -115,7 +115,7 @@ export default function WalletScreen() {
         ApiService.getPaymentDetails().catch(() => null),
       ]);
       const walletBody = walletRes?.responseBody || walletRes || {};
-      setBalance(Number(walletBody?.balance ?? walletBody?.availableBalance ?? 0));
+      setBalance(Number(walletBody?.amount ));
       setTransactions(normaliseHistory(historyRes));
       if (paymentRes) {
         const pd = normalizePaymentDetails(paymentRes);
@@ -212,7 +212,7 @@ export default function WalletScreen() {
             </View>
           ) : (
             transactions.map((tx, index) => {
-              const isCredit = String(tx.type ?? '').toUpperCase() === 'CREDIT';
+              const isCredit = String(tx.transactionType ?? '').toUpperCase() === 'CREDIT';
               const amount = Number(tx.amount ?? 0);
               return (
                 <View

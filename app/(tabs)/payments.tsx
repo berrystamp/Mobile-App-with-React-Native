@@ -72,16 +72,16 @@ export default function WalletScreen() {
     load(true);
   }, [load]);
 
-  const balance = Number(wallet?.balance ?? 0);
+  const balance = Number(wallet?.amount ?? 0);
   const ledgerBalance = Number(wallet?.ledgerBalance ?? wallet?.availableBalance ?? balance);
 
   const totalCredits = useMemo(
-    () => history.filter((i) => String(i.type).toUpperCase() === 'CREDIT')
+    () => history.filter((i) => String(i.transactionType).toUpperCase() === 'CREDIT')
       .reduce((s, i) => s + Number(i.amount || 0), 0),
     [history],
   );
   const totalDebits = useMemo(
-    () => history.filter((i) => String(i.type).toUpperCase() === 'DEBIT')
+    () => history.filter((i) => String(i.transactionType).toUpperCase() === 'DEBIT')
       .reduce((s, i) => s + Math.abs(Number(i.amount || 0)), 0),
     [history],
   );
@@ -89,7 +89,7 @@ export default function WalletScreen() {
   const filtered = useMemo(() =>
     activeFilter === 'All'
       ? history
-      : history.filter((i) => String(i.type).toUpperCase() === activeFilter),
+      : history.filter((i) => String(i.transactionType).toUpperCase() === activeFilter),
     [history, activeFilter],
   );
 

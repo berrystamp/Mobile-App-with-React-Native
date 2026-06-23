@@ -1,17 +1,19 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   FlatList,
   Image,
-  StyleSheet,
   Text,
   TouchableOpacity,
   View,
+  useColorScheme,
 } from 'react-native';
 
 import { LoadingSpinner } from '@/components/LoadingSpinner';
-import { decodeDraft, encodeDraft } from '@/lib/customDesign';
+import { useAppAlert } from '@/components/common/AppAlert';
+import { useCustomDesignStore } from '@/context/CustomDesignContext';
 import ApiService from '@/services/apiClient';
 
 interface DesignerCard {
@@ -41,11 +43,15 @@ const unwrapList = (response: any) => {
 
 export default function SelectDesignerScreen() {
   const router = useRouter();
-  const { draft } = useLocalSearchParams<{ draft?: string }>();
-  const parsed = useMemo(() => decodeDraft(draft), [draft]);
+  const isDark = useColorScheme() === 'dark';
+  const { show: showAlert, element: alertElement } = useAppAlert();
+  
+  // 1. Pull clearDraft in addition to the variables
+  const { designFor, theme, items, clearDraft } = useCustomDesignStore();
 
   const [loading, setLoading] = useState(true);
   const [designers, setDesigners] = useState<DesignerCard[]>([]);
+  const [submittingId, setSubmittingId] = useState<number | null>(null);
 
   const loadDesigners = useCallback(async () => {
     try {
@@ -56,13 +62,13 @@ export default function SelectDesignerScreen() {
       setDesigners(
         list.map((item: any) => ({
           id: Number(item.id),
-          name: item.userName || item.name || 'Designer',
+          name: item.username || item.name || 'Designer',
           avatar: toAbsolutePath(item.profileImage?.url || item.profilePic || item.previewProfilePic || item.thumbnailProfilePic),
           cover: toAbsolutePath(item.coverImage?.url || item.coverPic || item.previewCoverPic || item.thumbnailCoverPic || item.profileImage?.url),
           role: item.bio || 'Creative designer',
           jobs: Number(item.insight?.totalUploads || 0),
           rating: item.insight?.rating?.avgStars ? String(item.insight.rating.avgStars) : '4.5',
-        })),
+        }))
       );
     } catch (error) {
       console.error('Unable to fetch designers', error);
@@ -75,26 +81,71 @@ export default function SelectDesignerScreen() {
   useEffect(() => {
     loadDesigners();
   }, [loadDesigners]);
+  console.log(designers)
+  const handleMessage = async (designer: DesignerCard) => {
+    if (submittingId) return;
+    setSubmittingId(designer.id);
+
+    try {
+      const response = await ApiService.createCustomizeDesign({
+        designId: 0,
+        designerId: designer.id,
+        mockTypes: items,
+        purpose: designFor,
+        theme: theme,
+        // Format to YYYY-MM-DD to match the backend expectation
+        dateOfDelivery: new Date().toISOString().split('T')[0], 
+        estimatedAmount: 0,                       
+      });
+
+      const body = response?.responseBody || response?.data || response || {};
+      const conversationId = body?.conversationId || body?.conversation?.id || body?.orderRequest?.conversationId;
+      const orderId = body?.orderId || body?.order?.id || body?.id;
+
+      // 2. Wipe the global Custom Design state now that the request is successful
+      clearDraft();
+
+      router.replace({
+        pathname: '/(tabs)/chat',
+        params: {
+          ...(conversationId ? { conversationId: String(conversationId) } : {}),
+          ...(orderId ? { orderId: String(orderId) } : {}),
+          participantId: String(designer.id),
+          participantName: designer.name,
+          participantRole: 'Designer',
+        },
+      });
+    } catch (err: any) {
+      showAlert({
+        type: 'error',
+        title: 'Request not sent',
+        message: err?.response?.data?.responseMessage || err?.message || 'Please try again.',
+      });
+    } finally {
+      setSubmittingId(null);
+    }
+  };
 
   if (loading) {
     return <LoadingSpinner message="Loading designers..." />;
   }
 
-  const encodedDraft = encodeDraft(parsed || { designFor: '', designTheme: '', items: [] });
-
   return (
-    <View style={styles.screen}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="#252039" />
+    <View className="flex-1 bg-[#F9F8FC] dark:bg-[#121212]">
+      {/* Header */}
+      <View className="flex-row items-center justify-between px-5 pb-4 pt-[58px]">
+        <TouchableOpacity onPress={() => router.back()} className="h-8 w-8 justify-center">
+          <Ionicons name="arrow-back" size={24} color={isDark ? '#FFFFFF' : '#4A34A5'} />
         </TouchableOpacity>
-        <Text style={styles.title}>Select Designer</Text>
-        <TouchableOpacity onPress={loadDesigners}>
-          <Ionicons name="refresh-outline" size={22} color="#252039" />
+        <Text className="text-xl font-medium text-[#2A2537] dark:text-white">
+          Select Designer
+        </Text>
+        <TouchableOpacity onPress={loadDesigners} className="h-8 w-8 items-end justify-center">
+          <Ionicons name="refresh-outline" size={22} color={isDark ? '#FFFFFF' : '#4A34A5'} />
         </TouchableOpacity>
       </View>
 
-      <Text style={styles.subtitle}>
+      <Text className="my-5 px-6 text-center text-[15px] text-[#2A2537] dark:text-[#D1D1D6]">
         Select a designer to discuss your idea, styling, and custom design direction.
       </Text>
 
@@ -102,79 +153,47 @@ export default function SelectDesignerScreen() {
         data={designers}
         keyExtractor={(item) => String(item.id)}
         numColumns={2}
-        contentContainerStyle={styles.grid}
+        contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 24 }}
         renderItem={({ item }) => (
-          <View style={styles.card}>
-            <Image source={{ uri: item.cover }} style={styles.cover} />
-            <View style={styles.avatarWrap}>
-              <Image source={{ uri: item.avatar }} style={styles.avatar} />
+          <View className="m-2 flex-1 items-center overflow-hidden rounded-2xl border border-[#ECE8F3] bg-white pb-4 dark:border-[#33333A] dark:bg-[#1C1C1E]">
+            <Image source={{ uri: item.cover }} className="h-[62px] w-full" />
+            
+            <View className="-mt-6 rounded-full bg-white p-[2px] dark:bg-[#1C1C1E]">
+              <Image source={{ uri: item.avatar }} className="h-12 w-12 rounded-full" />
             </View>
 
-            <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
-            <Text style={styles.role} numberOfLines={1}>{item.role}</Text>
-            <Text style={styles.stats}>{item.jobs} uploads | * {item.rating}</Text>
+            <Text className="mt-2 px-2 text-[16px] font-semibold text-[#2A2537] dark:text-white" numberOfLines={1}>
+              {item.name}
+            </Text>
+            <Text className="mt-1 px-2 text-[13px] text-[#8A8598] dark:text-[#A19BAF]" numberOfLines={1}>
+              {item.role}
+            </Text>
+            <Text className="mt-1 px-2 text-[12px] text-[#928BA2] dark:text-[#7D7D88]">
+              {item.jobs} uploads | ★ {item.rating}
+            </Text>
 
             <TouchableOpacity
-              style={styles.messageButton}
-              onPress={() =>
-                router.push({
-                  pathname: '/chat',
-                  params: {
-                    participantId: String(item.id),
-                    participantName: item.name,
-                    participantRole: 'Designer',
-                    draft: encodedDraft,
-                  },
-                })
-              }>
-              <Text style={styles.messageButtonText}>Message</Text>
+              className="mt-3 min-w-[100px] items-center rounded-full border border-[#4A34A5] px-5 py-2 dark:border-[#C8BFFF]"
+              onPress={() => handleMessage(item)}
+              disabled={submittingId !== null}
+            >
+              {submittingId === item.id ? (
+                <ActivityIndicator size="small" color={isDark ? '#C8BFFF' : '#4A34A5'} />
+              ) : (
+                <Text className="text-[13px] font-semibold text-[#4A34A5] dark:text-[#C8BFFF]">
+                  Message
+                </Text>
+              )}
             </TouchableOpacity>
           </View>
         )}
-        ListEmptyComponent={<Text style={styles.empty}>No designers available right now.</Text>}
+        ListEmptyComponent={
+          <Text className="mt-10 text-center text-[15px] text-[#888193] dark:text-[#A19BAF]">
+            No designers available right now.
+          </Text>
+        }
       />
+      {alertElement}
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#F7F7FA' },
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 58,
-    paddingBottom: 14,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  title: { fontSize: 30, fontWeight: '600', color: '#252039' },
-  subtitle: { paddingHorizontal: 20, color: '#736E80', fontSize: 15, marginBottom: 8 },
-  grid: { paddingHorizontal: 12, paddingBottom: 24 },
-  card: {
-    flex: 1,
-    margin: 8,
-    borderRadius: 16,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#ECE8F3',
-    overflow: 'hidden',
-    alignItems: 'center',
-    paddingBottom: 14,
-  },
-  cover: { width: '100%', height: 62 },
-  avatarWrap: { marginTop: -24, borderRadius: 24, padding: 2, backgroundColor: '#FFFFFF' },
-  avatar: { width: 48, height: 48, borderRadius: 24 },
-  name: { marginTop: 8, fontSize: 16, fontWeight: '600', color: '#2A2537' },
-  role: { marginTop: 2, fontSize: 13, color: '#8A8598' },
-  stats: { marginTop: 6, fontSize: 12, color: '#928BA2' },
-  messageButton: {
-    marginTop: 10,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: '#3C2D90',
-    paddingVertical: 7,
-    paddingHorizontal: 22,
-  },
-  messageButtonText: { color: '#3C2D90', fontWeight: '600' },
-  empty: { textAlign: 'center', marginTop: 40, fontSize: 15, color: '#888193' },
-});

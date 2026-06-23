@@ -1,11 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import { useRouter } from 'expo-router';
+import React, { useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { DEFAULT_DESIGN_CATEGORIES, decodeDraft, encodeDraft } from '@/lib/customDesign';
+import { DEFAULT_DESIGN_CATEGORIES } from '@/lib/customDesign';
 import { useAppTheme } from '@/lib/theme/appTheme';
+import { useCustomDesignStore } from '@/context/CustomDesignContext';
 
 const MAX_SELECTIONS = 3;
 
@@ -13,10 +14,11 @@ export default function SelectDesignForScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
-  const { draft } = useLocalSearchParams<{ draft?: string }>();
-  const parsed = useMemo(() => decodeDraft(draft), [draft]);
+  
+  // Read and write directly to your global store
+  const { designFor, setDesignFor } = useCustomDesignStore();
 
-  const initialSelections = parsed?.designFor ? parsed.designFor.split(', ').filter(Boolean) : [];
+  const initialSelections = designFor ? designFor.split(', ').filter(Boolean) : [];
   const standardSelected = initialSelections.filter((item) =>
     DEFAULT_DESIGN_CATEGORIES.includes(item as (typeof DEFAULT_DESIGN_CATEGORIES)[number])
   );
@@ -35,10 +37,8 @@ export default function SelectDesignForScreen() {
   const toggle = (category: string) => {
     setSelected((current) => {
       if (current.includes(category)) {
-        // Always allow deselect
         return current.filter((item) => item !== category);
       }
-      // Block new selection if at limit
       if (atLimit) return current;
       return [...current, category];
     });
@@ -50,13 +50,10 @@ export default function SelectDesignForScreen() {
       .map((item) => item.trim())
       .filter(Boolean);
     const choices = Array.from(new Set([...selected, ...customValues])).slice(0, MAX_SELECTIONS);
-    const nextDraft = encodeDraft({
-      designFor: choices.join(', '),
-      designTheme: parsed?.designTheme || '',
-      items: parsed?.items || [],
-    });
-    // Replace back to the correct screen — /(tabs)/create-custom-design
-    router.replace({ pathname: '/(tabs)/create-custom-design', params: { draft: nextDraft } });
+    
+    // Update global state and pop back to the form
+    setDesignFor(choices.join(', '));
+    router.back();
   };
 
   return (
@@ -71,10 +68,9 @@ export default function SelectDesignForScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Selection counter */}
       <View style={[styles.counter, { backgroundColor: theme.surfaceMuted }]}>
         <Text style={[styles.counterText, { color: atLimit ? theme.primary : theme.textMuted }]}>
-          {totalCount}/{MAX_SELECTIONS} selected{atLimit ? ' — limit reached' : ''}
+          {totalCount}/{MAX_SELECTIONS} selected{atLimit ? ' limit reached' : ''}
         </Text>
       </View>
 
@@ -144,9 +140,7 @@ export default function SelectDesignForScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-  },
+  screen: { flex: 1 },
   header: {
     alignItems: 'center',
     borderBottomWidth: StyleSheet.hairlineWidth,
@@ -155,86 +149,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 14,
   },
-  iconButton: {
-    alignItems: 'center',
-    borderRadius: 20,
-    height: 40,
-    justifyContent: 'center',
-    width: 40,
-  },
-  headerTitle: {
-    flex: 1,
-    fontSize: 18,
-    fontWeight: '700',
-    marginHorizontal: 12,
-  },
-  applyButton: {
-    minWidth: 48,
-  },
-  applyText: {
-    fontSize: 16,
-    fontWeight: '700',
-    textAlign: 'right',
-  },
-  counter: {
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-  },
-  counterText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  content: {
-    padding: 16,
-    paddingBottom: 32,
-  },
-  card: {
-    borderRadius: 24,
-    borderWidth: 1,
-    overflow: 'hidden',
-  },
-  optionRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 18,
-  },
-  optionText: {
-    flex: 1,
-    fontSize: 15,
-    fontWeight: '600',
-    paddingRight: 16,
-  },
-  checkbox: {
-    alignItems: 'center',
-    borderRadius: 8,
-    borderWidth: 1.5,
-    height: 24,
-    justifyContent: 'center',
-    width: 24,
-  },
-  section: {
-    marginTop: 24,
-  },
-  sectionLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    marginBottom: 10,
-    marginLeft: 4,
-  },
-  input: {
-    borderRadius: 16,
-    borderWidth: 1,
-    fontSize: 15,
-    minHeight: 56,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-  },
-  limitNote: {
-    fontSize: 12,
-    fontWeight: '600',
-    marginTop: 6,
-    marginLeft: 4,
-  },
+  iconButton: { alignItems: 'center', borderRadius: 20, height: 40, justifyContent: 'center', width: 40 },
+  headerTitle: { flex: 1, fontSize: 18, fontWeight: '700', marginHorizontal: 12 },
+  applyButton: { minWidth: 48 },
+  applyText: { fontSize: 16, fontWeight: '700', textAlign: 'right' },
+  counter: { paddingHorizontal: 20, paddingVertical: 8 },
+  counterText: { fontSize: 12, fontWeight: '600' },
+  content: { padding: 16, paddingBottom: 32 },
+  card: { borderRadius: 24, borderWidth: 1, overflow: 'hidden' },
+  optionRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 18 },
+  optionText: { flex: 1, fontSize: 15, fontWeight: '600', paddingRight: 16 },
+  checkbox: { alignItems: 'center', borderRadius: 8, borderWidth: 1.5, height: 24, justifyContent: 'center', width: 24 },
+  section: { marginTop: 24 },
+  sectionLabel: { fontSize: 13, fontWeight: '600', marginBottom: 10, marginLeft: 4 },
+  input: { borderRadius: 16, borderWidth: 1, fontSize: 15, minHeight: 56, paddingHorizontal: 16, paddingVertical: 14 },
+  limitNote: { fontSize: 12, fontWeight: '600', marginTop: 6, marginLeft: 4 },
 });

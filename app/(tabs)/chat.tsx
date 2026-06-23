@@ -29,6 +29,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { WebView } from 'react-native-webview'; // Added WebView import
 
 const IMAGE_FILE_PATTERN = /\.(png|jpe?g|gif|webp|bmp|heic|heif|svg)(\?.*)?$/i;
 
@@ -229,7 +230,14 @@ export default function ChatScreen() {
   const [showCreateOrder, setShowCreateOrder] = useState(false);
   const [showOrderDetails, setShowOrderDetails] = useState(false);
   const [selectedOrderDetail, setSelectedOrderDetail] = useState<any>(null);
+  const [selectedOrderRequest, setSelectedOrderRequest] = useState<any>(null);
   const [showOrderSuccess, setShowOrderSuccess] = useState(false);
+
+  // Paystack WebView payment state
+  const [showPaystackWebView, setShowPaystackWebView] = useState(false);
+  const [paystackUrl, setPaystackUrl] = useState('');
+  const [paystackOrderId, setPaystackOrderId] = useState<string | number | null>(null);
+  const [initializingPayment, setInitializingPayment] = useState(false);
 
   const [orderTitle, setOrderTitle] = useState('');
   const [orderDescription, setOrderDescription] = useState('');
@@ -272,6 +280,7 @@ export default function ChatScreen() {
   }, [messages]);
 
   const isDesigner = currentProfileType === 'DESIGNER';
+  const isPrinter = currentProfileType === 'PRINTER';
   const isCustomer = currentProfileType === 'CUSTOMER';
 
   const displayMessages = useMemo(() => {
@@ -463,11 +472,6 @@ export default function ChatScreen() {
     });
   }, [messages, orderDetailsByMessageId, orderRequestDetailsByMessageId]);
 
-  useEffect(() => {
-    const timer = setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: false }), 80);
-    return () => clearTimeout(timer);
-  }, [messages]);
-
   type ChatType = 'ORDER' | 'ORDER_REQUEST' | 'DIRECT' | 'FILE';
 
   const resolvePayloadChatType = (isFile = false): ChatType => {
@@ -600,12 +604,13 @@ export default function ChatScreen() {
     return detail;
   };
 
-  const handleAcceptOffer = async (detail: any) => {
-    if (!detail?.id) return;
-    setUpdatingOrderId(String(detail.id));
+  const handleAcceptOffer = async (id: any) => {
+    console.log("The order id is ", id)
+    if (id) return;
+    setUpdatingOrderId(String(id));
     try {
-      await ApiService.confirmOrder(detail.id);
-      await refreshOrderDetail(detail.id);
+      await ApiService.confirmOrder(id);
+      await refreshOrderDetail(id);
       showAlert({ type: 'success', title: 'Offer accepted', message: 'The offer has been accepted.' });
     } catch (err: any) {
       showAlert({
@@ -640,7 +645,7 @@ export default function ChatScreen() {
     if (!detail?.id) return;
     setUpdatingOrderId(String(detail.id));
     try {
-        await ApiService.declineOrder(detail.id); // Fallback if cancel logic shares the decline endpoint
+      await ApiService.declineOrder(detail.id); 
       await refreshOrderDetail(detail.id);
       showAlert({ type: 'success', title: 'Order cancelled', message: 'The order has been cancelled.' });
     } catch (err: any) {
@@ -661,9 +666,81 @@ export default function ChatScreen() {
   };
 
   const handlePayForOrder = async (detail: any) => {
-    await handleAcceptOffer(detail);
-    setShowOrderDetails(false);
+    if (!detail?.id) return;
+    setInitializingPayment(true);
+    try {
+      // The callback URL Paystack will redirect to after payment
+      const callbackUrl = `${ENV.BASE_URL}/orders/${detail.id}/payment/callback`;
+      const res = await ApiService.payForOrder(detail.id, {
+        callback: callbackUrl,
+        orderId: Number(detail.id),
+      });
+      const body = res?.responseBody || res || {};
+      // Backend returns the Paystack authorization_url (or data.authorization_url)
+      const authorizationUrl =
+        body?.authorizationUrl ||
+        body?.authorization_url ||
+        body?.data?.authorization_url ||
+        body?.data?.authorizationUrl ||
+        body?.paymentUrl ||
+        body?.url ||
+        '';
+      if (!authorizationUrl) {
+        throw new Error(res?.responseMessage || 'Payment could not be initialized. No authorization URL received.');
+      }
+      setPaystackOrderId(detail.id);
+      setPaystackUrl(authorizationUrl);
+      setShowOrderDetails(false);
+      setShowPaystackWebView(true);
+    } catch (err: any) {
+      showAlert({
+        type: 'error',
+        title: 'Payment initialization failed',
+        message: err?.response?.data?.responseMessage || err?.message || 'Please try again.',
+      });
+    } finally {
+      setInitializingPayment(false);
+    }
   };
+
+const handlePaystackNavigationChange = async (navState: { url: string }) => {
+  const { url } = navState;
+  
+  // Paystack redirects to the callback URL or adds ?trxref= / ?reference= on success
+  const isCallback =
+    url.includes('/payment/callback') ||
+    url.includes('trxref=') ||
+    url.includes('reference=');
+
+  if (!isCallback) return;
+
+  setShowPaystackWebView(false);
+  
+  try {
+    if (paystackOrderId) {
+      await refreshOrderDetail(paystackOrderId);
+      // await ApiService.confirmOrder(detail?.id);
+      
+      showAlert({ 
+        type: 'success', 
+        title: 'Payment successful', 
+        message: 'Your order has been paid for successfully.' 
+        });
+    }
+  } catch (error) {
+    // Good practice to log the error so you know what went wrong during debugging
+    console.error("Payment navigation error:", error); 
+    
+    showAlert({ 
+      type: 'success', // Kept as success per your original fallback logic
+      title: 'Payment received', 
+      message: 'Your payment was processed. Your order will be updated shortly.' 
+    });
+  } finally {
+    setPaystackOrderId(null);
+    setPaystackUrl('');
+  }
+};
 
   const resolveOtherAvatar = (message: ChatMessageDto & { imageUrl?: string }) => {
     const senderProfile = message.author === 'other' ? message.sender : message.receiver;
@@ -709,8 +786,8 @@ export default function ChatScreen() {
             className="mt-1 items-center bg-[#4A3298] py-2"
             style={{ width: 112 }}
             onPress={() => {
-              setSelectedOrderDetail(orderDetail);
-              setShowOrderDetails(true);
+              setSelectedOrderRequest(orderDetail);
+              setShowProductDetails(true);
             }}>
             <Text className="text-[11px] font-semibold text-white">View Details</Text>
           </TouchableOpacity>
@@ -772,16 +849,16 @@ export default function ChatScreen() {
                   onPress={() => handleRejectOffer(detail)}>
                   <Text className="text-slate-700 dark:text-slate-200 text-[14px] font-semibold">Reject Offer</Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  className={`flex-1 rounded-lg py-2.5 items-center ${isUpdatingThisOrder ? 'bg-slate-400' : 'bg-[#4A3298]'}`}
-                  disabled={isUpdatingThisOrder}
-                  onPress={() => handleAcceptOffer(detail)}>
-                  {isUpdatingThisOrder ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <Text className="text-white text-[14px] font-semibold">Accept Offer</Text>
-                  )}
-                </TouchableOpacity>
+              <TouchableOpacity
+                className={`flex-1 items-center rounded-full py-3 ${updatingOrderId === String(detail.id) ? 'bg-slate-400' : 'bg-[#4A3298]'}`}
+                disabled={updatingOrderId === String(detail.id)}
+                onPress={() => handlePayForOrder(detail)}>
+                {updatingOrderId === String(detail.id) ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text className="text-[14px] font-semibold text-white">Pay for Order</Text>
+                )}
+              </TouchableOpacity>
               </View>
             ) : isAcceptedStatus(detail.orderStatus) ? (
               <Text className="text-[12px] text-green-600 dark:text-green-400 text-center mt-3 font-semibold">Offer accepted</Text>
@@ -863,11 +940,11 @@ export default function ChatScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: isDark ? '#020617' : '#f8fafc' }}>
-    <SafeAreaView style={{ flex: 1 }} edges={['top', 'left', 'right']}>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior="padding"
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}>
+      <SafeAreaView style={{ flex: 1 }} edges={['top', 'left', 'right']}>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior="padding"
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}>
 
           {/* Header */}
           <View
@@ -948,9 +1025,8 @@ export default function ChatScreen() {
               <Ionicons name="paper-plane-outline" size={20} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
-
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
 
       {/* Lightbox */}
       <Modal visible={!!selectedImage} transparent animationType="fade" onRequestClose={() => setSelectedImage(null)}>
@@ -968,89 +1044,88 @@ export default function ChatScreen() {
       </Modal>
 
       {/* Conversation actions */}
+      <Modal transparent visible={showActions} animationType="slide" onRequestClose={closeAllModals}>
+        <Pressable className="flex-1 justify-end bg-black/40" onPress={closeAllModals}>
+          <Pressable className="rounded-t-[32px] bg-white px-6 pb-8 pt-5 dark:bg-[#1E1E1E]" onPress={(event) => event.stopPropagation()}>
+            <View className="mb-5 h-1.5 w-14 self-center rounded-full bg-[#E5DFEF] dark:bg-[#3B3B3B]" />
+            <TouchableOpacity
+              className="flex-row items-center py-3"
+              onPress={() => {
+                setShowActions(false);
+                setShowDeleteModal(true);
+              }}>
+              <Ionicons name="trash-outline" size={22} color="#FF6B63" />
+              <Text className="ml-4 text-base font-semibold text-[#2F2A36] dark:text-white">Delete</Text>
+            </TouchableOpacity>
+            <View className="my-2 h-px bg-[#F1EDF6] dark:bg-[#2F2F2F]" />
+            <TouchableOpacity
+              className="flex-row items-center py-3"
+              onPress={() => {
+                setShowActions(false);
+                setShowReportReasons(true);
+              }}>
+              <Ionicons name="alert-circle-outline" size={22} color="#FF6B63" />
+              <Text className="ml-4 text-base font-semibold text-[#2F2A36] dark:text-white">Report</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
-            <Modal transparent visible={showActions} animationType="slide" onRequestClose={closeAllModals}>
-              <Pressable className="flex-1 justify-end bg-black/40" onPress={closeAllModals}>
-                <Pressable className="rounded-t-[32px] bg-white px-6 pb-8 pt-5 dark:bg-[#1E1E1E]" onPress={(event) => event.stopPropagation()}>
-                  <View className="mb-5 h-1.5 w-14 self-center rounded-full bg-[#E5DFEF] dark:bg-[#3B3B3B]" />
-                  <TouchableOpacity
-                    className="flex-row items-center py-3"
-                    onPress={() => {
-                      setShowActions(false);
-                      setShowDeleteModal(true);
-                    }}>
-                    <Ionicons name="trash-outline" size={22} color="#FF6B63" />
-                    <Text className="ml-4 text-base font-semibold text-[#2F2A36] dark:text-white">Delete</Text>
-                  </TouchableOpacity>
-                  <View className="my-2 h-px bg-[#F1EDF6] dark:bg-[#2F2F2F]" />
-                  <TouchableOpacity
-                    className="flex-row items-center py-3"
-                    onPress={() => {
-                      setShowActions(false);
-                      setShowReportReasons(true);
-                    }}>
-                    <Ionicons name="alert-circle-outline" size={22} color="#FF6B63" />
-                    <Text className="ml-4 text-base font-semibold text-[#2F2A36] dark:text-white">Report</Text>
-                  </TouchableOpacity>
-                </Pressable>
-              </Pressable>
-            </Modal>
-      
-            <Modal transparent visible={showDeleteModal} animationType="fade" onRequestClose={closeAllModals}>
-              <View className="flex-1 items-center justify-center bg-black/50 px-6">
-                <View className="w-full max-w-[340px] rounded-[28px] bg-white p-6 dark:bg-[#1E1E1E]">
-                  <TouchableOpacity className="self-end" onPress={closeAllModals}>
-                    <Ionicons name="close" size={20} color={isDark ? '#FFFFFF' : '#2B2833'} />
-                  </TouchableOpacity>
-                  <Text className="mt-2 text-center text-sm leading-6 text-[#4D4759] dark:text-gray-300">
-                    Are you sure you want to delete this chat? Your conversation with this user will not be seen again.
-                  </Text>
-                  <View className="mt-5 flex-row border-t border-[#EFEAF6] pt-4 dark:border-[#2F2F2F]">
-                    <TouchableOpacity className="flex-1 items-center" onPress={closeAllModals}>
-                      <Text className="text-base font-medium text-[#8F879F] dark:text-gray-400">Cancel</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity className="flex-1 items-center" onPress={handleDeleteConversation}>
-                      <Text className="text-base font-semibold text-[#FF6B63]">Delete</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </View>
-            </Modal>
-      
-            <Modal transparent visible={showReportReasons} animationType="slide" onRequestClose={closeAllModals}>
-              <Pressable className="flex-1 justify-end bg-black/40" onPress={closeAllModals}>
-                <Pressable className="rounded-t-[32px] bg-white px-6 pb-8 pt-6 dark:bg-[#1E1E1E]" onPress={(event) => event.stopPropagation()}>
-                  <Text className="mb-4 text-center text-lg font-bold text-[#2F2A36] dark:text-white">Report</Text>
-                  {reportReasons.map((reason) => (
-                    <TouchableOpacity key={reason.id} className="border-b border-[#F2EEF8] py-4 dark:border-[#2F2F2F]" onPress={() => handleReportConversation(reason.label)}>
-                      <Text className="text-sm text-[#4D4759] dark:text-gray-300">{reason.label}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </Pressable>
-              </Pressable>
-            </Modal>
-      
-            <Modal transparent visible={showReportSuccess} animationType="fade" onRequestClose={() => setShowReportSuccess(false)}>
-              <View className="flex-1 items-center justify-center bg-black/50 px-6">
-                <View className="w-full max-w-[360px] items-center rounded-[28px] bg-white p-6 dark:bg-[#1E1E1E]">
-                  <Text className="text-base font-bold text-[#2F2A36] dark:text-white">Report</Text>
-                  <View className="my-5 h-24 w-24 items-center justify-center rounded-full bg-[#EAF0FF] dark:bg-[#25314E]">
-                    <Ionicons name="checkmark" size={54} color="#3452B3" />
-                  </View>
-                  <Text className="text-xl font-bold text-[#2B2833] dark:text-white">Thanks for reporting</Text>
-                  <Text className="mt-3 text-center text-sm leading-6 text-[#6E677C] dark:text-gray-400">
-                    We will review your report and take action if there is a violation of community guidelines.
-                  </Text>
-                  <TouchableOpacity
-                    className="mt-5 w-full items-center rounded-2xl bg-[#FF726B] py-4"
-                    onPress={() => {
-                      setShowReportSuccess(false);
-                    }}>
-                    <Text className="text-base font-bold text-white">Done</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </Modal>
+      <Modal transparent visible={showDeleteModal} animationType="fade" onRequestClose={closeAllModals}>
+        <View className="flex-1 items-center justify-center bg-black/50 px-6">
+          <View className="w-full max-w-[340px] rounded-[28px] bg-white p-6 dark:bg-[#1E1E1E]">
+            <TouchableOpacity className="self-end" onPress={closeAllModals}>
+              <Ionicons name="close" size={20} color={isDark ? '#FFFFFF' : '#2B2833'} />
+            </TouchableOpacity>
+            <Text className="mt-2 text-center text-sm leading-6 text-[#4D4759] dark:text-gray-300">
+              Are you sure you want to delete this chat? Your conversation with this user will not be seen again.
+            </Text>
+            <View className="mt-5 flex-row border-t border-[#EFEAF6] pt-4 dark:border-[#2F2F2F]">
+              <TouchableOpacity className="flex-1 items-center" onPress={closeAllModals}>
+                <Text className="text-base font-medium text-[#8F879F] dark:text-gray-400">Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity className="flex-1 items-center" onPress={handleDeleteConversation}>
+                <Text className="text-base font-semibold text-[#FF6B63]">Delete</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal transparent visible={showReportReasons} animationType="slide" onRequestClose={closeAllModals}>
+        <Pressable className="flex-1 justify-end bg-black/40" onPress={closeAllModals}>
+          <Pressable className="rounded-t-[32px] bg-white px-6 pb-8 pt-6 dark:bg-[#1E1E1E]" onPress={(event) => event.stopPropagation()}>
+            <Text className="mb-4 text-center text-lg font-bold text-[#2F2A36] dark:text-white">Report</Text>
+            {reportReasons.map((reason) => (
+              <TouchableOpacity key={reason.id} className="border-b border-[#F2EEF8] py-4 dark:border-[#2F2F2F]" onPress={() => handleReportConversation(reason.label)}>
+                <Text className="text-sm text-[#4D4759] dark:text-gray-300">{reason.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <Modal transparent visible={showReportSuccess} animationType="fade" onRequestClose={() => setShowReportSuccess(false)}>
+        <View className="flex-1 items-center justify-center bg-black/50 px-6">
+          <View className="w-full max-w-[360px] items-center rounded-[28px] bg-white p-6 dark:bg-[#1E1E1E]">
+            <Text className="text-base font-bold text-[#2F2A36] dark:text-white">Report</Text>
+            <View className="my-5 h-24 w-24 items-center justify-center rounded-full bg-[#EAF0FF] dark:bg-[#25314E]">
+              <Ionicons name="checkmark" size={54} color="#3452B3" />
+            </View>
+            <Text className="text-xl font-bold text-[#2B2833] dark:text-white">Thanks for reporting</Text>
+            <Text className="mt-3 text-center text-sm leading-6 text-[#6E677C] dark:text-gray-400">
+              We will review your report and take action if there is a violation of community guidelines.
+            </Text>
+            <TouchableOpacity
+              className="mt-5 w-full items-center rounded-2xl bg-[#FF726B] py-4"
+              onPress={() => {
+                setShowReportSuccess(false);
+              }}>
+              <Text className="text-base font-bold text-white">Done</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* Product Details modal */}
       <Modal transparent visible={showProductDetails} animationType="slide" onRequestClose={() => setShowProductDetails(false)}>
@@ -1065,10 +1140,10 @@ export default function ChatScreen() {
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 480 }}>
-              {orderRequestDetail?.coverImageUrl ? (
+              {selectedOrderRequest?.coverImageUrl ? (
                 <View className="items-center mb-5">
                   <Image
-                    source={{ uri: orderRequestDetail.coverImageUrl }}
+                    source={{ uri: selectedOrderRequest.coverImageUrl }}
                     style={{ width: 140, height: 140, borderRadius: 8 }}
                     contentFit="cover"
                   />
@@ -1076,31 +1151,31 @@ export default function ChatScreen() {
                 </View>
               ) : null}
 
-              {orderRequestDetail?.purpose ? (
+              {selectedOrderRequest?.purpose ? (
                 <View className="mb-4">
                   <Text className="text-[13px] text-slate-400 dark:text-slate-500 mb-1">Purpose</Text>
-                  <Text className="text-[15px] font-semibold text-slate-900 dark:text-slate-100">{orderRequestDetail.purpose}</Text>
+                  <Text className="text-[15px] font-semibold text-slate-900 dark:text-slate-100">{selectedOrderRequest.purpose}</Text>
                 </View>
               ) : null}
 
-              {orderRequestDetail?.theme ? (
+              {selectedOrderRequest?.theme ? (
                 <View className="mb-4">
                   <Text className="text-[13px] text-slate-400 dark:text-slate-500 mb-1">Theme</Text>
-                  <Text className="text-[15px] font-semibold text-slate-900 dark:text-slate-100">{orderRequestDetail.theme}</Text>
+                  <Text className="text-[15px] font-semibold text-slate-900 dark:text-slate-100">{selectedOrderRequest.theme}</Text>
                 </View>
               ) : null}
 
-              {orderRequestDetail?.mockTypes?.length ? (
+              {selectedOrderRequest?.mockTypes?.length ? (
                 <View className="mb-4">
                   <Text className="text-[13px] text-slate-400 dark:text-slate-500 mb-1">Mock up</Text>
                   <Text className="text-[15px] font-semibold text-slate-900 dark:text-slate-100">
-                    {orderRequestDetail.mockTypes.join(', ')}
+                    {selectedOrderRequest.mockTypes.join(', ')}
                   </Text>
                 </View>
               ) : null}
             </ScrollView>
 
-            {isDesigner && isReviewStatus(orderRequestDetail?.orderStatus) && !orderRequestDetail?.hasOffer ? (
+            {isDesigner && isReviewStatus(selectedOrderRequest?.orderStatus) && !selectedOrderRequest?.hasOffer ? (
               <TouchableOpacity
                 className="bg-[#4A3298] rounded-full py-4 items-center mt-4"
                 onPress={() => { setShowProductDetails(false); setShowCreateOrder(true); }}>
@@ -1111,7 +1186,7 @@ export default function ChatScreen() {
         </Pressable>
       </Modal>
 
-      {/* Create New Order modal */}
+      {/* Create Order modal */}
       <Modal transparent visible={showCreateOrder} animationType="slide" onRequestClose={() => setShowCreateOrder(false)}>
         <Pressable className="flex-1 bg-black/40 justify-end" onPress={() => setShowCreateOrder(false)}>
           <Pressable className="bg-white dark:bg-slate-900 rounded-t-3xl px-5 pt-4 pb-8" onPress={(e) => e.stopPropagation()}>
@@ -1151,7 +1226,7 @@ export default function ChatScreen() {
               />
 
               <Text className="text-[13px] font-semibold text-slate-800 dark:text-slate-200 mb-1">
-                Agreed amount (\u20a6)
+                Agreed amount (u20a6)
               </Text>
               <TextInput
                 value={orderAmount}
@@ -1298,6 +1373,28 @@ export default function ChatScreen() {
             ) : null}
           </Pressable>
         </Pressable>
+      </Modal>
+      
+      {/* Paystack Payment Modal (MISSING COMPONENT ADDED) */}
+      <Modal visible={showPaystackWebView} animationType="slide" onRequestClose={() => setShowPaystackWebView(false)}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: isDark ? '#020617' : '#fff' }}>
+          <View className="flex-row items-center px-4 py-3 border-b border-slate-200 dark:border-slate-800">
+            <TouchableOpacity onPress={() => setShowPaystackWebView(false)}>
+              <Ionicons name="close" size={24} color={themeIconColor} />
+            </TouchableOpacity>
+            <Text className="ml-4 text-[17px] font-semibold text-slate-900 dark:text-slate-100">
+              Complete Payment
+            </Text>
+          </View>
+          {paystackUrl ? (
+            <WebView
+              source={{ uri: paystackUrl }}
+              onNavigationStateChange={handlePaystackNavigationChange}
+              startInLoadingState
+              renderLoading={() => <ActivityIndicator size="large" color="#4A3298" style={{ flex: 1, backgroundColor: isDark ? '#020617' : '#fff' }} />}
+            />
+          ) : null}
+        </SafeAreaView>
       </Modal>
 
       {/* Order created success toast */}
