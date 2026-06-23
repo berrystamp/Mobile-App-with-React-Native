@@ -267,6 +267,8 @@ export default function ChatScreen() {
     [participantId],
   );
 
+
+
   const currentProfileType = useMemo(() => {
     for (const message of messages) {
       if (message.author === 'me' && message.sender?.profileType) {
@@ -670,7 +672,7 @@ export default function ChatScreen() {
     setInitializingPayment(true);
     try {
       // The callback URL Paystack will redirect to after payment
-      const callbackUrl = `${ENV.BASE_URL}/orders/${detail.id}/payment/callback`;
+      const callbackUrl = `/order/${detail.id}`;
       const res = await ApiService.payForOrder(detail.id, {
         callback: callbackUrl,
         orderId: Number(detail.id),
@@ -705,7 +707,7 @@ export default function ChatScreen() {
 
 const handlePaystackNavigationChange = async (navState: { url: string }) => {
   const { url } = navState;
-  
+  console.log(url)
   // Paystack redirects to the callback URL or adds ?trxref= / ?reference= on success
   const isCallback =
     url.includes('/payment/callback') ||
@@ -718,9 +720,7 @@ const handlePaystackNavigationChange = async (navState: { url: string }) => {
   
   try {
     if (paystackOrderId) {
-      await refreshOrderDetail(paystackOrderId);
-      // await ApiService.confirmOrder(detail?.id);
-      
+      await refreshOrderDetail(paystackOrderId)
       showAlert({ 
         type: 'success', 
         title: 'Payment successful', 
@@ -977,6 +977,7 @@ const handlePaystackNavigationChange = async (navState: { url: string }) => {
             contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 20, flexGrow: 1 }}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
+            onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({animated:true})}
             >
             {isLoading ? (
               <View className="py-10 items-center justify-center gap-3">

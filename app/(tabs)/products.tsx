@@ -560,7 +560,7 @@ function ProductDetailScreen({
                       setSelectedColour(mock.colours?.[0] || '');
                       setSelectedSize(getMockSizes(mock)[0] || '');
                     }}
-                    style={{ widt0 }}
+                    style={{ width:40 }}
                     className={`mr-4 overflow-hidden rounded-xl border-2 ${isActive ? 'border-[#4A3298]' : 'border-transparent'}`}
                   >
                     <View className="h-10 w-10 bg-[#F5F5F7] dark:bg-[#1C1C1E]">
