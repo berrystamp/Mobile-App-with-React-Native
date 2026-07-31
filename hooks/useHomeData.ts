@@ -41,7 +41,7 @@ export function useHomeData(enabled: boolean = true) {
         [];
       const profileMap = new Map<number, any>(
         (Array.isArray(profileList) ? profileList : [])
-          .map((profile: any) => [
+          .map((profile: any): [number, any] => [
             Number(profile?.id || profile?.profileId || profile?.userId),
             profile,
           ])

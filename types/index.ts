@@ -102,6 +102,10 @@ export interface Design {
   designerId?: number;
   designerName?: string;
   designerShopName?: string;
+  // Influencer Merch: fixed pricing, direct checkout, an assigned printer,
+  // and instant purchase are all bundled together (no negotiation).
+  influencerMerch?: boolean;
+  autographMessage?: string;
 }
 
 export interface User {

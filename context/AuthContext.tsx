@@ -1,9 +1,9 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { router, useSegments } from 'expo-router';
-import { User } from '@/types';
 import ApiService from '@/services/apiClient';
 import { toAccountType, useAuthStore } from '@/store/authStore';
+import { User } from '@/types';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { router, useSegments } from 'expo-router';
+import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
 
 interface AuthContextType {
   user: User | null;
@@ -60,7 +60,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Only redirect if we aren't skipping it (e.g., let index.tsx handle initial routing)
         if (!skipRedirect) {
           if (needsInterestOnboarding) {
-            if (!(segments[0] === '(auth)' && segments[1] === 'interests')) {
+            const routeSegments = segments as unknown as string[];
+            if (!(routeSegments[0] === '(auth)' && routeSegments[1] === 'interests')) {
               router.replace('/(auth)/interests');
             }
           } else if (segments[0] !== '(tabs)') {
