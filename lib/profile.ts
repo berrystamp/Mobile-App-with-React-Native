@@ -133,40 +133,44 @@ export const normalizeProfileResponse = (input: any): ProfilePayload => {
   };
 };
 
-export const mergeUserAndProfile = (profile: ProfilePayload) => {
-  const fullName = `${profile?.firstName || ''} ${profile?.lastName || ''}`.trim();
-  
-  return {
-    id: profile?.id,
-    userId: profile?.userId,
-    fullName: fullName || profile?.name || profile?.username || 'User',
-    username:  profile?.name || profile?.username || '',
-    role: profile?.profileType || profile?.role || 'CUSTOMER',
-    address: profile?.address || 'No address added yet.',
-    city: profile?.city || '',
-    state: profile?.state || '',
-    country: profile?.country || '',
-    postalCode: profile?.postalCode || '',
-    email: profile?.email || '',
-    phone: profile?.phoneNumber || '',
-    
-    // Extracted flat fields
-    avatar: profile?.profilePicturePath || profile?.profileImageUrl,
-    cover: profile?.coverPic || profile?.coverImageUrl,
-    bio: profile?.bio || '',
-    categories: profile?.categories || [],
-    followersCount: profile?.followersCount || 0,
-    followingCount: profile?.followingCount || 0,
-    status: profile?.status,
+export const mergeUserAndProfile = (
+  user: Partial<User> | null | undefined,
+  profile?: ProfilePayload
+) => {
+  const merged: ProfilePayload = { ...(user as ProfilePayload), ...(profile || {}) };
+  const fullName = `${merged?.firstName || ''} ${merged?.lastName || ''}`.trim();
 
-    orders: profile?.ordersCount || profile?.orders || 0,
-    received: profile?.deliveredCount || profile?.deliveredOrders || 0,
-    roles: profile?.roles,
-    
+  return {
+    id: merged?.id,
+    userId: merged?.userId,
+    fullName: fullName || merged?.name || merged?.username || 'User',
+    username: merged?.name || merged?.username || '',
+    role: merged?.profileType || merged?.role || 'CUSTOMER',
+    address: merged?.address || 'No address added yet.',
+    city: merged?.city || '',
+    state: merged?.state || '',
+    country: merged?.country || '',
+    postalCode: merged?.postalCode || '',
+    email: merged?.email || '',
+    phone: merged?.phoneNumber || '',
+
+    // Extracted flat fields
+    avatar: merged?.profilePicturePath || merged?.profileImageUrl,
+    cover: merged?.coverPic || merged?.coverImageUrl,
+    bio: merged?.bio || '',
+    categories: merged?.categories || [],
+    followersCount: merged?.followersCount || 0,
+    followingCount: merged?.followingCount || 0,
+    status: merged?.status,
+
+    orders: merged?.ordersCount || merged?.orders || 0,
+    received: merged?.deliveredCount || merged?.deliveredOrders || 0,
+    roles: merged?.roles,
+
     // Retain nested profiles for backward compatibility
-    customerProfile: profile?.customerProfile,
-    printerProfile: profile?.printerProfile,
-    designerProfile: profile?.designerProfile,
+    customerProfile: merged?.customerProfile,
+    printerProfile: merged?.printerProfile,
+    designerProfile: merged?.designerProfile,
   };
 };
 

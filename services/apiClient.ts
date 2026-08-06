@@ -356,6 +356,94 @@ async getManageOrderById(orderId: string | number, profileType?: ProfileTypeInte
   }
 }
 
+  // ─── Influencer Merch order management (printer flow) ───────────────────
+  // Instant-checkout orders are grouped by design instead of listed
+  // one-by-one, since there's no printer negotiation step for them.
+  async getInfluencerMerchDesigns(options?: {
+    page?: number;
+    size?: number;
+    search?: string;
+    startDate?: string; // Expected format: YYYY-MM-DD
+    endDate?: string;   // Expected format: YYYY-MM-DD
+  }) {
+    const profileType = getProfileType();
+    const params: Record<string, unknown> = {
+      page: options?.page ?? 0,
+      size: options?.size ?? 50,
+    };
+    const search = options?.search?.trim();
+    if (search) params.search = search;
+    if (options?.startDate) params.startDate = options.startDate;
+    if (options?.endDate) params.endDate = options.endDate;
+
+    try {
+      const response = await api.get('/orders/influencer-merch/designs', {
+        params,
+        headers: { profileType },
+      });
+      return response.data;
+    } catch (error: any) {
+      if (error?.response?.status && error.response.status !== 404) {
+        throw error;
+      }
+      return { responseBody: { content: [] } };
+    }
+  }
+
+  async getInfluencerMerchDesignOrders(
+    designId: string | number,
+    options?: { page?: number; size?: number; search?: string }
+  ) {
+    const profileType = getProfileType();
+    const params: Record<string, unknown> = {
+      page: options?.page ?? 0,
+      size: options?.size ?? 50,
+    };
+    const search = options?.search?.trim();
+    if (search) params.search = search;
+
+    try {
+      const response = await api.get(
+        `/orders/influencer-merch/designs/${designId}`,
+        { params, headers: { profileType } }
+      );
+      return response.data;
+    } catch (error: any) {
+      if (error?.response?.status && error.response.status !== 404) {
+        throw error;
+      }
+      return { responseBody: { content: [] } };
+    }
+  }
+
+  async getInfluencerMerchOrderById(orderId: string | number) {
+    const profileType = getProfileType();
+    const response = await api.get(`/orders/influencer-merch/${orderId}`, {
+      headers: { profileType },
+    });
+    return response.data;
+  }
+
+  async deliverInfluencerMerchOrder(orderId: string | number) {
+    const profileType = getProfileType();
+    const response = await api.patch(
+      `/orders/influencer-merch/${orderId}/deliver`,
+      {},
+      { headers: { profileType } }
+    );
+    return response.data;
+  }
+
+  async cancelInfluencerMerchOrder(orderId: string | number) {
+    const profileType = getProfileType();
+    const response = await api.patch(
+      `/orders/influencer-merch/${orderId}/cancel`,
+      {},
+      { headers: { profileType } }
+    );
+    return response.data;
+  }
+
   async getOrderById(orderId: string | number) {
     console.log(orderId)
     const headers = { profileType: getProfileType() };
