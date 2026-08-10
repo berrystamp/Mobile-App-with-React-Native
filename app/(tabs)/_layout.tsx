@@ -1,6 +1,7 @@
 import BottomNavigation from '@/components/common/BottomNavigation';
 import Header from '@/components/common/Header';
 import { AuthProvider } from '@/context/AuthContext';
+import { CustomDesignProvider } from '@/context/CustomDesignContext';
 import { isCustomerRole, useAuthStore } from '@/store/authStore';
 import { Stack, usePathname, useRouter } from 'expo-router';
 import React, { useMemo } from 'react';
@@ -63,6 +64,7 @@ export default function TabsLayout() {
 
   return (
     <AuthProvider>
+      <CustomDesignProvider>
       <View style={{ flex: 1 }}>
         {!hideHeader && (
           <Header
@@ -131,6 +133,7 @@ export default function TabsLayout() {
         </Stack>
         {!hideBottomNavigation && <BottomNavigation />}
       </View>
+      </CustomDesignProvider>
     </AuthProvider>
   );
 }

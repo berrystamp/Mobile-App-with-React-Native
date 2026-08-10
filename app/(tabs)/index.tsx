@@ -281,7 +281,7 @@ export default function HomeScreen() {
 
   // ── Insight values — prefer real API data, fall back to profile nested data ─
   const insight = profileInsight || activeProfile?.insight || {};
-  const totalEarnings = insight.totalEarnings ?? wallet?.balance ?? 0;
+  const totalEarnings = wallet?.amount ?? 0;
   const rating = insight.rating?.avgStars ?? insight.avgRating ?? 0;
   const followers = insight.totalFollowers ?? 0;
   const following = insight.totalFollowing ?? 0;
@@ -590,7 +590,7 @@ export default function HomeScreen() {
           <View style={styles.profileStatsRow}>
             <View style={styles.profileStatItem}>
               <Text style={styles.profileStatValue}>
-                {showBalance ? formatNaira(Number(wallet?.balance || 0)) : "****"}
+                {showBalance ? formatNaira(Number(wallet?.amount || 0)) : "****"}
               </Text>
               <Text style={styles.profileStatLabel}>Earnings</Text>
             </View>

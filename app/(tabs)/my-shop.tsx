@@ -139,8 +139,8 @@ function QuickActionsSheet({ visible, theme, onClose, onCreateCollection, onUplo
           <SheetHandle />
           <Text style={[S.sheetTitle, { color: theme.text }]}>Quick Actions</Text>
           <SheetRow color={theme.text} label="Create Collection" icon="albums-outline" onPress={() => { onClose(); onCreateCollection(); }} />
-          <SheetRow color={theme.text} label="Upload Design" icon="cloud-upload-outline" onPress={() => { onClose(); onUploadDesign(); }} />
-          <View style={{ height: 16 }} />
+          {/* <SheetRow color={theme.text} label="Upload Design" icon="cloud-upload-outline" onPress={() => { onClose(); onUploadDesign(); }} /> */}
+          <View style={{ height: 10 }} />
         </View>
       </TouchableOpacity>
     </Modal>
@@ -157,12 +157,12 @@ function DesignMenuSheet({ visible, theme, onClose, onUpdate, onAddToCollection,
       <TouchableOpacity style={S.backdrop} activeOpacity={1} onPress={onClose}>
         <View style={[S.sheet, { backgroundColor: theme.surface }]}>
           <SheetHandle />
-          <SheetRow color={theme.text} label="Update Design" icon="create-outline" onPress={() => { onClose(); onUpdate(); }} />
+          {/* <SheetRow color={theme.text} label="Update Design" icon="create-outline" onPress={() => { onClose(); onUpdate(); }} /> */}
           <SheetRow color={theme.text} label="Add to collection" icon="add-circle-outline" onPress={() => { onClose(); onAddToCollection(); }} />
           <SheetRow color={theme.text} label="View post insights" icon="bar-chart-outline" onPress={() => { onClose(); onInsights(); }} />
           <SheetRow color={theme.text} label="Share design" icon="share-social-outline" onPress={() => { onClose(); onShare(); }} />
           <SheetRow label="Delete Design" icon="trash-outline" color={theme.red} onPress={() => { onClose(); onDelete(); }} />
-          <View style={{ height: 16 }} />
+          <View style={{ height: 10 }} />
         </View>
       </TouchableOpacity>
     </Modal>
@@ -182,7 +182,7 @@ function CollectionMenuSheet({ visible, theme, onClose, onUpdate, onShare, onDel
           <SheetRow color={theme.text} label="Update Collection" icon="create-outline" onPress={() => { onClose(); onUpdate(); }} />
           <SheetRow color={theme.text} label="Share collection" icon="share-social-outline" onPress={() => { onClose(); onShare(); }} />
           <SheetRow label="Delete Collection" icon="trash-outline" color={theme.red} onPress={() => { onClose(); onDelete(); }} />
-          <View style={{ height: 16 }} />
+          <View style={{ height: 10 }} />
         </View>
       </TouchableOpacity>
     </Modal>
@@ -412,7 +412,7 @@ function AddToCollectionSheet({ visible,collectionItems, theme, designId, onClos
                   </TouchableOpacity>
                 ))}
               </View>
-              <View style={{ height: 16 }} />
+              <View style={{ height: 10 }} />
             </ScrollView>
           )}
           <View style={{ paddingHorizontal: 20, paddingBottom: 24, paddingTop: 8 }}>
@@ -795,7 +795,7 @@ function MoveToCollectionSheet({ visible, theme, designId, fromCollectionId, onC
                   </TouchableOpacity>
                 ))}
               </View>
-              <View style={{ height: 16 }} />
+              <View style={{ height: 10 }} />
             </ScrollView>
           )}
           <View style={{ paddingHorizontal: 20, paddingBottom: 24, paddingTop: 8 }}>
@@ -1052,8 +1052,8 @@ function CollectionDetailScreen({ visible, theme, collection, username, readOnly
             <TouchableOpacity style={S.backdrop} activeOpacity={1} onPress={() => setMenuDesign(null)}>
               <View style={[S.sheet, { backgroundColor: theme.surface }]}>
                 <SheetHandle />
-                <SheetRow color={theme.text} label="Update Design" icon="create-outline"
-                  onPress={() => { const d = menuDesign; setMenuDesign(null); router.push({ pathname: '/upload-design', params: { designId: String(d?.id) } }); }} />
+                {/* <SheetRow color={theme.text} label="Update Design" icon="create-outline"
+                  onPress={() => { const d = menuDesign; setMenuDesign(null); router.push({ pathname: '/upload-design', params: { designId: String(d?.id) } }); }} /> */}
                 <SheetRow color={theme.text} label="Move to collection" icon="albums-outline"
                   onPress={() => { const d = menuDesign; setMenuDesign(null); setMoveDesignId(d?.id); setShowMoveSheet(true); }} />
                 <SheetRow color={theme.text} label="View post insights" icon="bar-chart-outline"
@@ -1062,7 +1062,7 @@ function CollectionDetailScreen({ visible, theme, collection, username, readOnly
                   onPress={() => { const d = menuDesign; setMenuDesign(null); handleShare(d); }} />
                 <SheetRow label="Delete Design" icon="trash-outline" color={theme.red}
                   onPress={() => { setDeleteTarget(menuDesign); setMenuDesign(null); }} />
-                <View style={{ height: 16 }} />
+                <View style={{ height: 10 }} />
               </View>
             </TouchableOpacity>
           </Modal>

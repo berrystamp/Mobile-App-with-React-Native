@@ -2,13 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-    ActivityIndicator,
-    Dimensions // 1. Added Dimensions import
-    ,
-
-
-
-    RefreshControl, ScrollView,
+    ActivityIndicator,Dimensions,RefreshControl, ScrollView,
     StyleSheet, Text, TextInput, TouchableOpacity, View, useColorScheme
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';

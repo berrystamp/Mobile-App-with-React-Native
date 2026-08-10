@@ -7,6 +7,15 @@
     "icon": "./assets/logo02.png",
     "scheme": "berrystamp",
     "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/logo02.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FFFFFF",
+      "dark": {
+        "image": "./assets/logo02.png",
+        "backgroundColor": "#3D2DB5"
+      }
+    },
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
@@ -18,12 +27,11 @@
     },
     "android": {
       "softwareKeyboardLayoutMode": "resize",
-       "icon": "./assets/logo02.png",
+      "icon": "./assets/logo02.png",
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.berrystamp.app"
     },
-
     "web": {
       "output": "static",
       "bundler": "metro",

@@ -1,11 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import { useRouter } from 'expo-router';
+import React, { useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { DEFAULT_PRINT_ITEMS, decodeDraft, encodeDraft } from '@/lib/customDesign';
+import { DEFAULT_PRINT_ITEMS } from '@/lib/customDesign';
 import { useAppTheme } from '@/lib/theme/appTheme';
+import { useCustomDesignStore } from '@/context/CustomDesignContext';
 
 const MAX_SELECTIONS = 3;
 
@@ -13,32 +14,25 @@ export default function SelectItemsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
-  const { draft } = useLocalSearchParams<{ draft?: string }>();
-  const parsed = useMemo(() => decodeDraft(draft), [draft]);
-  const [selected, setSelected] = useState<string[]>(parsed?.items || []);
+  
+  const { items, setItems } = useCustomDesignStore();
+  const [selected, setSelected] = useState<string[]>(items || []);
 
   const atLimit = selected.length >= MAX_SELECTIONS;
 
   const toggle = (item: string) => {
     setSelected((current) => {
       if (current.includes(item)) {
-        // Always allow deselect
         return current.filter((value) => value !== item);
       }
-      // Block new selection if at limit
       if (current.length >= MAX_SELECTIONS) return current;
       return [...current, item];
     });
   };
 
   const apply = () => {
-    const nextDraft = encodeDraft({
-      designFor: parsed?.designFor || '',
-      designTheme: parsed?.designTheme || '',
-      items: selected,
-    });
-    // Replace back to the correct screen — /(tabs)/create-custom-design
-    router.replace({ pathname: '/(tabs)/create-custom-design', params: { draft: nextDraft } });
+    setItems(selected);
+    router.back();
   };
 
   return (
@@ -53,10 +47,9 @@ export default function SelectItemsScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Selection counter */}
       <View style={[styles.counter, { backgroundColor: theme.surfaceMuted }]}>
         <Text style={[styles.counterText, { color: atLimit ? theme.primary : theme.textMuted }]}>
-          {selected.length}/{MAX_SELECTIONS} selected{atLimit ? ' — limit reached' : ''}
+          {selected.length}/{MAX_SELECTIONS} selected{atLimit ? ' limit reached' : ''}
         </Text>
       </View>
 
@@ -99,9 +92,7 @@ export default function SelectItemsScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-  },
+  screen: { flex: 1 },
   header: {
     alignItems: 'center',
     borderBottomWidth: StyleSheet.hairlineWidth,
@@ -110,63 +101,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 14,
   },
-  iconButton: {
-    alignItems: 'center',
-    borderRadius: 20,
-    height: 40,
-    justifyContent: 'center',
-    width: 40,
-  },
-  headerTitle: {
-    flex: 1,
-    fontSize: 18,
-    fontWeight: '700',
-    marginHorizontal: 12,
-  },
-  applyButton: {
-    minWidth: 48,
-  },
-  applyText: {
-    fontSize: 16,
-    fontWeight: '700',
-    textAlign: 'right',
-  },
-  counter: {
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-  },
-  counterText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  content: {
-    padding: 16,
-    paddingBottom: 32,
-  },
-  card: {
-    borderRadius: 24,
-    borderWidth: 1,
-    overflow: 'hidden',
-  },
-  optionRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 18,
-  },
-  optionText: {
-    flex: 1,
-    fontSize: 15,
-    fontWeight: '600',
-    paddingRight: 16,
-  },
-  checkbox: {
-    alignItems: 'center',
-    borderRadius: 8,
-    borderWidth: 1.5,
-    height: 24,
-    justifyContent: 'center',
-    width: 24,
-  },
+  iconButton: { alignItems: 'center', borderRadius: 20, height: 40, justifyContent: 'center', width: 40 },
+  headerTitle: { flex: 1, fontSize: 18, fontWeight: '700', marginHorizontal: 12 },
+  applyButton: { minWidth: 48 },
+  applyText: { fontSize: 16, fontWeight: '700', textAlign: 'right' },
+  counter: { paddingHorizontal: 20, paddingVertical: 8 },
+  counterText: { fontSize: 12, fontWeight: '600' },
+  content: { padding: 16, paddingBottom: 32 },
+  card: { borderRadius: 24, borderWidth: 1, overflow: 'hidden' },
+  optionRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 18 },
+  optionText: { flex: 1, fontSize: 15, fontWeight: '600', paddingRight: 16 },
+  checkbox: { alignItems: 'center', borderRadius: 8, borderWidth: 1.5, height: 24, justifyContent: 'center', width: 24 },
 });

@@ -1,28 +1,26 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import { useRouter } from 'expo-router';
+import React, { useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { DEFAULT_DESIGN_THEMES, decodeDraft, encodeDraft } from '@/lib/customDesign';
+import { DEFAULT_DESIGN_THEMES } from '@/lib/customDesign';
 import { useAppTheme } from '@/lib/theme/appTheme';
+import { useCustomDesignStore } from '@/context/CustomDesignContext';
 
 export default function SelectDesignThemeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  
+  // Renamed to currentTheme to avoid clashing with the theme variable from useAppTheme
+  const { theme: currentTheme, setTheme } = useCustomDesignStore();
   const theme = useAppTheme();
-  const { draft } = useLocalSearchParams<{ draft?: string }>();
-  const parsed = useMemo(() => decodeDraft(draft), [draft]);
-  const [selected, setSelected] = useState(parsed?.designTheme || '');
+  
+  const [selected, setSelected] = useState(currentTheme || '');
 
   const apply = () => {
-    const nextDraft = encodeDraft({
-      designFor: parsed?.designFor || '',
-      designTheme: selected,
-      items: parsed?.items || [],
-    });
-    // Replace back to the correct screen — /(tabs)/create-custom-design
-    router.replace({ pathname: '/(tabs)/create-custom-design', params: { draft: nextDraft } });
+    setTheme(selected);
+    router.back();
   };
 
   return (
@@ -74,9 +72,7 @@ export default function SelectDesignThemeScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-  },
+  screen: { flex: 1 },
   header: {
     alignItems: 'center',
     borderBottomWidth: StyleSheet.hairlineWidth,
@@ -85,60 +81,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 14,
   },
-  iconButton: {
-    alignItems: 'center',
-    borderRadius: 20,
-    height: 40,
-    justifyContent: 'center',
-    width: 40,
-  },
-  headerTitle: {
-    flex: 1,
-    fontSize: 18,
-    fontWeight: '700',
-    marginHorizontal: 12,
-  },
-  applyButton: {
-    minWidth: 48,
-  },
-  applyText: {
-    fontSize: 16,
-    fontWeight: '700',
-    textAlign: 'right',
-  },
-  content: {
-    padding: 16,
-    paddingBottom: 32,
-  },
-  card: {
-    borderRadius: 24,
-    borderWidth: 1,
-    overflow: 'hidden',
-  },
-  optionRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 18,
-  },
-  optionText: {
-    flex: 1,
-    fontSize: 15,
-    fontWeight: '600',
-    paddingRight: 16,
-  },
-  radioOuter: {
-    alignItems: 'center',
-    borderRadius: 12,
-    borderWidth: 1.5,
-    height: 24,
-    justifyContent: 'center',
-    width: 24,
-  },
-  radioInner: {
-    borderRadius: 5,
-    height: 10,
-    width: 10,
-  },
+  iconButton: { alignItems: 'center', borderRadius: 20, height: 40, justifyContent: 'center', width: 40 },
+  headerTitle: { flex: 1, fontSize: 18, fontWeight: '700', marginHorizontal: 12 },
+  applyButton: { minWidth: 48 },
+  applyText: { fontSize: 16, fontWeight: '700', textAlign: 'right' },
+  content: { padding: 16, paddingBottom: 32 },
+  card: { borderRadius: 24, borderWidth: 1, overflow: 'hidden' },
+  optionRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 18 },
+  optionText: { flex: 1, fontSize: 15, fontWeight: '600', paddingRight: 16 },
+  radioOuter: { alignItems: 'center', borderRadius: 12, borderWidth: 1.5, height: 24, justifyContent: 'center', width: 24 },
+  radioInner: { borderRadius: 5, height: 10, width: 10 },
 });

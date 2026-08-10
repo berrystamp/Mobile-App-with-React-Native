@@ -1,5 +1,12 @@
 import type { Design } from "@/types";
 
+export interface DraftMock {
+  id: number;
+  name: string;
+  imagePath: string;
+  price: number;
+}
+
 export interface CustomDesignDraft {
   designFor: string;
   designTheme: string;
@@ -9,6 +16,10 @@ export interface CustomDesignDraft {
   sourceDesignImage?: string;
   designerId?: number;
   designerName?: string;
+  /** Mocks available on the source product — used to let the user pick one */
+  availableMocks?: DraftMock[];
+  /** The mock id the user selected (from availableMocks) */
+  selectedMockId?: number;
 }
 
 export interface CustomDesignRecord {
@@ -102,6 +113,17 @@ export const decodeDraft = (value?: string): CustomDesignDraft | null => {
     const parsed = JSON.parse(decodeURIComponent(value));
     if (!parsed || typeof parsed !== "object") return null;
 
+    const availableMocks: DraftMock[] | undefined = Array.isArray(parsed.availableMocks)
+      ? parsed.availableMocks
+          .filter((m: unknown) => m && typeof m === "object")
+          .map((m: any) => ({
+            id: Number(m.id),
+            name: typeof m.name === "string" ? m.name : "",
+            imagePath: typeof m.imagePath === "string" ? m.imagePath : "",
+            price: Number(m.price) || 0,
+          }))
+      : undefined;
+
     return {
       designFor: typeof parsed.designFor === "string" ? parsed.designFor : "",
       designTheme:
@@ -127,6 +149,10 @@ export const decodeDraft = (value?: string): CustomDesignDraft | null => {
         : undefined,
       designerName:
         typeof parsed.designerName === "string" ? parsed.designerName : undefined,
+      availableMocks: availableMocks?.length ? availableMocks : undefined,
+      selectedMockId: Number.isFinite(Number(parsed.selectedMockId))
+        ? Number(parsed.selectedMockId)
+        : undefined,
     };
   } catch {
     return null;

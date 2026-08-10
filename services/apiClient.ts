@@ -326,10 +326,11 @@ class ApiService {
       }
 
       const headers = { profileType };
-
+     
       try {
         // Replaced the candidate loop with the exact endpoint provided
         const response = await api.get('/orders', { params, headers });
+         console.log(response.data)
         return response.data;
       } catch (error: any) {
         // Ignore 404s and return empty content, but throw on other server errors
@@ -944,10 +945,7 @@ async getManageOrderById(orderId: string | number, profileType?: ProfileTypeInte
   }
 
   async confirmOrder(orderId: string | number) {
-    const profileType = getProfileType();
-    const response = await api.patch(`/orders/${orderId}/confirm`, {}, {
-      headers: { profileType },
-    });
+    const response = await api.patch(`/orders/${orderId}/confirm`);
     return response.data;
   }
 
@@ -967,6 +965,46 @@ async getManageOrderById(orderId: string | number, profileType?: ProfileTypeInte
     return response.data;
   }
 
+  async createCustomizationOrderRequest(payload: {
+    designId: number;
+    designerId: number;
+    dateOfDelivery: string;
+    estimatedAmount: number;
+    mockTypes: string[];
+    purpose: string;
+    theme: string;
+  }) {
+    const profileType = getProfileType();
+    const response = await api.post('/orders-request/customization', payload, {
+      headers: { profileType },
+    });
+    return response.data;
+  }
+  async createCustomizeDesign(payload: {
+    designId?: number;
+    designerId: number;
+    dateOfDelivery: string;
+    estimatedAmount: number;
+    mockTypes: string[];
+    purpose: string;
+    theme: string;
+  }) {
+    // Map the payload to exactly what your backend JSON expects
+    const requestBody = {
+      designerProfileId: payload.designerId,
+      mockTypes: payload.mockTypes,
+      purpose: payload.purpose,
+      theme: payload.theme,
+      dateOfDelivery: payload.dateOfDelivery,
+      estimatedAmount: payload.estimatedAmount,
+    };
+
+    const profileType = getProfileType(); // Assuming you have this helper in your file
+    const response = await api.post('orders-request/design', requestBody, {
+      headers: { profileType },
+    });
+    return response.data;
+  }
   async createOrderRequest(payload: Record<string, unknown>) {
     const profileType = getProfileType();
     const candidates = [
@@ -1475,20 +1513,14 @@ async getManageOrderById(orderId: string | number, profileType?: ProfileTypeInte
   }
 
   async createCustomDesign(payload: Record<string, unknown>) {
-    const headers = { profileType: getProfileType() };
-    const candidates = [
-      () => api.post('/designs', payload, { headers }),
-      () => api.post('/custom-designs', payload, { headers }),
-    ];
-
-    for (const request of candidates) {
+    // const headers = { profileType: getProfileType() };
       try {
-        const response = await request();
+        const response = await api.get('/orders-request/design')
         return response.data;
       } catch (error: any) {
         if (error?.response?.status && ![400, 404, 405].includes(error.response.status)) throw error;
       }
-    }
+    
 
     return { requestSuccessful: false };
   }
