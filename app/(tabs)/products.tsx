@@ -1,11 +1,11 @@
 import { useAppAlert } from "@/components/common/AppAlert";
+import { useCustomDesignStore } from "@/context/CustomDesignContext"; // Import your shared state hook
 import { formatNaira } from "@/lib/currency";
 import { normalizeDesign, normalizeDesignListResponse } from "@/lib/designs";
 import { upsertLocalConversation } from "@/lib/localConversations";
 import { SearchFilters, addSearchHistory, getSearchFilters } from "@/lib/localStorage";
 import ApiService from "@/services/apiClient";
 import { Design, Mock } from "@/types";
-import { useCustomDesignStore } from "@/context/CustomDesignContext"; // Import your shared state hook
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -546,7 +546,7 @@ function ProductDetailScreen({
             </View>
           )}
 
-          {/* Styles Selection */}
+           {/* Styles Selection */}
           <View className="border-t border-[#F5F5F7] pt-6 dark:border-[#2C2C2E]">
             <Text className="mb-4 text-[15px] font-bold text-[#1C1C1E] dark:text-white">Available Styles</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-6">
@@ -560,15 +560,15 @@ function ProductDetailScreen({
                       setSelectedColour(mock.colours?.[0] || '');
                       setSelectedSize(getMockSizes(mock)[0] || '');
                     }}
-                    style={{ width:40 }}
+                    style={{ width: 80 }}
                     className={`mr-4 overflow-hidden rounded-xl border-2 ${isActive ? 'border-[#4A3298]' : 'border-transparent'}`}
                   >
-                    <View className="h-10 w-10 bg-[#F5F5F7] dark:bg-[#1C1C1E]">
+                    <View className="bg-[#F5F5F7] dark:bg-[#1C1C1E]" style={{ width: 80, height: 80 }}>
                       {mock.imagePath ? (
                         <Image source={{ uri: mock.imagePath }} className="h-full w-full" />
                       ) : (
                         <View className="flex-1 items-center justify-center">
-                          <Ionicons name="shirt-outline" size={24} className="text-[#CCC] dark:text-[#555]" />
+                          <Ionicons name="shirt-outline" size={32} className="text-[#CCC] dark:text-[#555]" />
                         </View>
                       )}
                     </View>

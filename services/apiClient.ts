@@ -72,6 +72,9 @@ const getProfileType = () => {
 };
 
 class ApiService {
+  removeFromCart(id: string) {
+    throw new Error("Method not implemented.");
+  }
   // --- Auth Methods ---
   async login(email: string, password: string, profileType: string = 'CUSTOMER') {
     const payload = { 

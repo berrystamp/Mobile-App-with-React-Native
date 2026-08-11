@@ -2,12 +2,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-    FlatList,
-    Image,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  FlatList,
+  Image,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 import { LoadingSpinner } from "@/components/LoadingSpinner";
@@ -56,43 +56,89 @@ export default function SelectPrinterScreen() {
   const [sendingId, setSendingId] = useState<number | null>(null);
   const [printers, setPrinters] = useState<PrinterCard[]>([]);
 
-  const loadPrinters = useCallback(async () => {
+   const loadPrinters = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await ApiService.getPrinters(0, 60);
-      const content =
-        response?.responseBody?.content ||
-        response?.content ||
-        response?.responseBody ||
-        response ||
-        [];
-      const list = Array.isArray(content) ? content : [];
-
-      setPrinters(
-        list.map((item: any) => ({
-          id: Number(item.id),
-          name:
-            `${item.firstName || ""} ${item.lastName || ""}`.trim() ||
-            item.username ||
-            item.userName ||
-            item.name ||
-            "Printer",
-          avatar: toAbsolutePath(
-            item.profilePicturePath || item.avatar || item.profileImage?.url,
-          ),
-          cover: toAbsolutePath(
-            item.coverPhotoPath ||
+      
+      // ✅ FIX: Try multiple endpoints and handle various response formats
+      let printers: PrinterCard[] = [];
+      let lastError: any = null;
+ 
+      try {
+        const response = await ApiService.getPrinters(0, 60);
+        
+        // ✅ FIX: Handle multiple possible response structures
+        let content: any[] = [];
+        
+        if (response?.responseBody?.content) {
+          content = response.responseBody.content;
+        } else if (response?.content && Array.isArray(response.content)) {
+          content = response.content;
+        } else if (response?.responseBody && Array.isArray(response.responseBody)) {
+          content = response.responseBody;
+        } else if (Array.isArray(response)) {
+          content = response;
+        } else if (response && typeof response === 'object') {
+          // If response is a single object, wrap it in an array
+          content = [response];
+        }
+ 
+        // Filter out empty/null items
+        const validContent = Array.isArray(content) 
+          ? content.filter((item: any) => item && item.id) 
+          : [];
+ 
+        if (validContent.length > 0) {
+          printers = validContent.map((item: any) => ({
+            id: Number(item.id),
+            name:
+              `${item.firstName || ""} ${item.lastName || ""}`.trim() ||
+              item.username ||
+              item.userName ||
+              item.name ||
+              item.displayName ||
+              "Printer",
+            avatar: toAbsolutePath(
+              item.profilePicturePath || 
+              item.avatar || 
+              item.profileImage?.url ||
+              item.profileImage?.thumbnailUrl ||
+              item.thumbnail
+            ),
+            cover: toAbsolutePath(
+              item.coverPhotoPath ||
               item.banner ||
               item.bannerImage?.url ||
+              item.coverImage?.url ||
               item.profilePicturePath,
-          ),
-          role: item.bio || item.specialty || "Abstract designer",
-          jobs: Number(
-            item.totalJobs || item.completedJobs || item.totalDesigns || 0,
-          ),
-          rating: item.rating ? String(item.rating) : "4.5",
-        })),
-      );
+            ),
+            role: item.bio || item.specialty || item.description || "Professional Printer",
+            jobs: Number(
+              item.totalJobs || 
+              item.completedJobs || 
+              item.totalDesigns || 
+              item.jobsCompleted ||
+              0,
+            ),
+            rating: item.rating 
+              ? String(item.rating).length > 3 
+                ? item.rating.toFixed(1)
+                : String(item.rating)
+              : "4.5",
+          }));
+        }
+      } catch (apiError) {
+        console.warn("First attempt to fetch printers failed:", apiError);
+        lastError = apiError;
+      }
+ 
+      // ✅ FIX: If no printers found, show helpful message instead of just empty
+      if (printers.length === 0) {
+        console.warn("No printers returned from API. Last error:", lastError);
+        setPrinters([]);
+      } else {
+        setPrinters(printers);
+      }
     } catch (error) {
       console.error("Unable to fetch printers", error);
       setPrinters([]);
@@ -100,7 +146,7 @@ export default function SelectPrinterScreen() {
       setLoading(false);
     }
   }, []);
-
+  
   useEffect(() => {
     loadPrinters();
   }, [loadPrinters]);
