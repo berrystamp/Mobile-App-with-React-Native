@@ -1,8 +1,8 @@
-import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import axios from "axios";
 import { router } from "expo-router"; // Added for automatic redirection
 
-const API_BASE_URL = 'https://backend-prod-api.berrystamp.com/api/v1';
+const API_BASE_URL = 'https://backend-dev-api.berrystamp.com/api/v1';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
