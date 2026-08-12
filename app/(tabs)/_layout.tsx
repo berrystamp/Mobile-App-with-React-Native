@@ -83,6 +83,7 @@ export default function TabsLayout() {
           <Stack.Screen name="filter-design-category" />
           <Stack.Screen name="messages" />
           <Stack.Screen name="manage-order" />
+          <Stack.Screen name="influencer-merch-orders" />
           <Stack.Screen name="order/[id]" />
           <Stack.Screen name="printers" />
           <Stack.Screen name="products" />

@@ -34,10 +34,10 @@ const FilterScreen = () => {
       background: isDark ? '#121212' : '#FFFFFF',
       card: isDark ? '#181818' : '#FFFFFF',
       text: isDark ? '#FFFFFF' : '#222222',
-      subtext: isDark ? '#B0B0B0' : '#8A8A8A',
+      subtext: isDark ? '#B0B0B0' : '#3E2F8A',
       border: isDark ? '#2A2A2A' : '#ECECF2',
-      chipBg: isDark ? '#241F45' : '#F1EEFF',
-      chipText: '#4B3A99',
+      chipBg: isDark ? '#241F45' : '#3E2F8A',
+      chipText: '#fff',
     }),
     [isDark],
   );
@@ -141,9 +141,9 @@ const FilterScreen = () => {
         <TouchableOpacity onPress={() => router.back()} style={styles.topIconButton}>
           <Ionicons name="arrow-back" size={20} color={theme.text} />
         </TouchableOpacity>
-        <Text style={[styles.topTitle, { color: theme.text }]}>Filter Result</Text>
+        <Text style={[styles.topTitle, { color: theme.text }]}>Filters</Text>
         <TouchableOpacity onPress={handleClear} style={styles.topTextButton}>
-          <Text style={styles.clearText}>Clear</Text>
+          <Text style={styles.clearText}>Clear all</Text>
         </TouchableOpacity>
       </View>
 

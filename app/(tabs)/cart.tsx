@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
+    Dimensions,
     Image,
     KeyboardAvoidingView,
     Modal,
@@ -61,6 +62,10 @@ type PreferenceErrors = {
   hasOwnItem?: string;
   pickupAddress?: string;
 };
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const CARD_WIDTH = (SCREEN_WIDTH - 48) / 2;
+const GALLERY_HEIGHT = SCREEN_WIDTH * 1.25; 
 
 export default function CartScreen() {
   const router = useRouter();
@@ -481,7 +486,7 @@ export default function CartScreen() {
             />
           </TouchableOpacity>
           <Text className="text-xl font-semibold text-[#333333] dark:text-white">
-            Cart
+           Shopping Cart
           </Text>
           <TouchableOpacity onPress={handleClearCart}>
             <Text className="text-lg font-semibold text-[#EB5757]">Clear</Text>
@@ -515,7 +520,7 @@ export default function CartScreen() {
           <>
             {cartItems.map((item) => (
               <View key={item.id} className="items-center">
-                <View className="my-2 flex-row w-[92%] rounded-xl border border-gray-100 bg-white p-3.5 shadow-sm dark:border-gray-800 dark:bg-[#1E1E1E]">
+                <View className="my-2 flex-row w-[92%] rounded-xl  bg-white p-3.5  dark:border-gray-800 dark:bg-[#1E1E1E]">
                   <TouchableOpacity
                     onPress={() => handleToggleCheck(item.id)}
                     className="my-auto mr-3 py-1"
@@ -601,7 +606,7 @@ export default function CartScreen() {
                           onPress={() =>
                             handleUpdateQuantity(item.id, "decrease")
                           }
-                          className="h-7 w-7 items-center justify-center rounded-md bg-[#2D71E3]"
+                          className="h-7 w-7 items-center justify-center rounded-md bg-[#3E2F8A]"
                         >
                           <Ionicons
                             name="remove-outline"
@@ -616,7 +621,7 @@ export default function CartScreen() {
                           onPress={() =>
                             handleUpdateQuantity(item.id, "increase")
                           }
-                          className="h-7 w-7 items-center justify-center rounded-md bg-[#2D71E3]"
+                          className="h-7 w-7 items-center justify-center rounded-md bg-[#3E2F8A]"
                         >
                           <Ionicons
                             name="add-outline"
@@ -716,7 +721,7 @@ export default function CartScreen() {
                     return (
                       <TouchableOpacity
                         key={design.id}
-                        className="relative mb-4 w-[48%] rounded-xl border border-gray-100 bg-white p-2 shadow-sm dark:border-gray-800 dark:bg-[#1E1E1E]"
+                         style={{ width: CARD_WIDTH }} className="mb-6 bg-transparent"
                         onPress={async () => {
                           await addRecentDesign(design.id);
                           router.push({
@@ -725,27 +730,23 @@ export default function CartScreen() {
                           });
                         }}
                       >
-                        <View className="mb-2 h-32 items-center justify-center overflow-hidden rounded-lg bg-[#F8F9FA] dark:bg-gray-800">
+                        <View className="mb-2 h-32
+                         items-center justify-center overflow-hidden rounded-lg bg-[#F8F9FA] dark:bg-gray-800">
                           {imageUri ? (
-                            <Image
-                              source={{ uri: imageUri }}
-                              resizeMode="cover"
-                              className="h-full w-full"
-                            />
-                          ) : null}
+          <Image source={{ uri: imageUri }} className="h-full w-full" />
+        ) : (
+          <View className="flex-1 items-center justify-center">
+            <Ionicons name="image-outline" size={28} color={isDark ? '#555' : '#CCC'} />
+          </View>
+        )}
                         </View>
-                        <TouchableOpacity className="absolute right-4 top-4 rounded-full bg-white/80 p-1.5 dark:bg-black/50">
-                          <Ionicons
-                            name={design.liked ? "heart" : "heart-outline"}
-                            size={18}
-                            color={
-                              design.liked
-                                ? "#FF4D67"
-                                : isDark
-                                  ? "#FFF"
-                                  : "#828282"
-                            }
-                          />
+                        <TouchableOpacity           className="absolute right-[10px] top-[10px] h-6 w-6 items-center justify-center rounded-full bg-[#3E2F8A] dark:bg-[#3E2F8A]"
+        >
+          <Ionicons
+            name={design.liked ? 'heart' : 'heart-outline'}
+            size={16}
+            color={design.liked ? '#FF3B30' : (isDark ? '#FFF' : '#FFF')}
+          />
                         </TouchableOpacity>
                         <Text
                           className="mb-1 text-sm font-semibold text-[#333333] dark:text-white"

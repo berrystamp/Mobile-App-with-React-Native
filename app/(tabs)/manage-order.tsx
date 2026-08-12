@@ -1,19 +1,19 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-    ActivityIndicator,Dimensions,RefreshControl, ScrollView,
-    StyleSheet, Text, TextInput, TouchableOpacity, View, useColorScheme
+  ActivityIndicator, Dimensions, RefreshControl, ScrollView,
+  StyleSheet, Text, TextInput, TouchableOpacity, View, useColorScheme
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
+import { useAppAlert } from '@/components/common/AppAlert';
 import { formatNaira } from '@/lib/currency';
 import { normalizeManageOrderListResponse } from '@/lib/orders';
 import ApiService from '@/services/apiClient';
 import { toProfileType, useAuthStore } from '@/store/authStore';
 import type { ManageOrderItem, ManageOrderStatus } from '@/types';
-import { useAppAlert } from '@/components/common/AppAlert';
 
 // 2. Get the screen width
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -186,60 +186,19 @@ export default function ManageOrderScreen() {
           )}
         </View>
 
-        {/* Date Range Filter */}
-<View style={styles.dateFilterRow}>
-  <TouchableOpacity
-    onPress={() => setShowFromPicker(true)}
-    style={[styles.dateBox, { borderColor: theme.border, backgroundColor: theme.inputBg }]}
-  >
-    <Ionicons name="calendar-outline" size={16} color={theme.subtext} style={{ marginRight: 6 }} />
-    <Text style={[styles.dateText, { color: fromDate ? theme.text : theme.muted }]}>
-      {fromDate ? formatDate(fromDate) : 'From'}
-    </Text>
-  </TouchableOpacity>
-
-  <Text style={[styles.toLabel, { color: theme.subtext }]}>to</Text>
-
-  <TouchableOpacity
-    onPress={() => setShowToPicker(true)}
-    style={[styles.dateBox, { borderColor: theme.border, backgroundColor: theme.inputBg }]}
-  >
-    <Ionicons name="calendar-outline" size={16} color={theme.subtext} style={{ marginRight: 6 }} />
-    <Text style={[styles.dateText, { color: toDate ? theme.text : theme.muted }]}>
-      {toDate ? formatDate(toDate) : 'To'}
-    </Text>
-  </TouchableOpacity>
-
-  {(fromDate || toDate) && (
-    <TouchableOpacity onPress={() => { setFromDate(null); setToDate(null); }} style={{ marginLeft: 8 }} className='my-4 text-xs'>
-      <Ionicons name="close-circle" size={20} color={theme.muted} />
-    </TouchableOpacity>
-  )}
-</View>
-
-{showFromPicker && (
-  <DateTimePicker
-    value={fromDate || new Date()}
-    mode="date"
-    display="default"
-    onChange={(_, selected) => {
-      setShowFromPicker(false);
-      if (selected) setFromDate(selected);
-    }}
-  />
-)}
-
-{showToPicker && (
-  <DateTimePicker
-    value={toDate || new Date()}
-    mode="date"
-    display="default"
-    onChange={(_, selected) => {
-      setShowToPicker(false);
-      if (selected) setToDate(selected);
-    }}
-  />
-)}
+        {toProfileType(role) === 'PRINTER' && (
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => router.push('/influencer-merch-orders')}
+            style={[styles.influencerBanner, { backgroundColor: isDark ? '#1E1C3A' : '#EEF0FF' }]}
+          >
+            <MaterialCommunityIcons name="crown" size={18} color="#F9A70D" />
+            <Text style={[styles.influencerBannerText, { color: theme.text }]} numberOfLines={2}>
+              Influencer Merch orders are managed separately as grouped, instant-checkout batches.
+            </Text>
+            <Ionicons name="chevron-forward" size={16} color={theme.pillActive} />
+          </TouchableOpacity>
+        )}
 
         {/* Orders List */}
         <ScrollView
@@ -342,6 +301,8 @@ const styles = StyleSheet.create({
   countText: { fontSize: 13, fontWeight: '700' },
   searchWrap: { flexDirection: 'row', alignItems: 'center', borderRadius: 14, borderWidth: 1, height: 48, paddingHorizontal: 14, marginBottom: 14 },
   searchInput: { flex: 1, fontSize: 14, marginLeft: 8 },
+  influencerBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 14, padding: 14, marginBottom: 14 },
+  influencerBannerText: { flex: 1, fontSize: 12.5, fontWeight: '500', lineHeight: 17 },
   scrollContent: { paddingTop: 4, paddingBottom: 16 },
   orderCard: { borderRadius: 16, marginBottom: 12, padding: 14, borderWidth: 1, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
   orderRow: { flexDirection: 'row', alignItems: 'center' },

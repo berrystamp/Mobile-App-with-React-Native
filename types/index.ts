@@ -102,6 +102,10 @@ export interface Design {
   designerId?: number;
   designerName?: string;
   designerShopName?: string;
+  // Influencer Merch: fixed pricing, direct checkout, an assigned printer,
+  // and instant purchase are all bundled together (no negotiation).
+  influencerMerch?: boolean;
+  autographMessage?: string;
 }
 
 export interface User {
@@ -239,6 +243,65 @@ export interface ManageOrderItem {
   purpose: string;
   itemsToPrint: string[];
   uploadedDesigns?: string[];
+}
+
+// ─── Influencer Merch order management (printer flow) ─────────────────────
+// Instant-checkout orders skip printer selection/negotiation entirely, so
+// printers manage them as grouped-by-design batches instead of one-by-one.
+export type InstantOrderStatus = 'ACTIVE' | 'CANCELLED' | 'COMPLETED';
+
+// One row per Influencer Merch design assigned to this printer.
+export interface InfluencerMerchDesignSummary {
+  designId: number;
+  designName: string;
+  designPreviewUrl?: string;
+  influencerName: string;
+  totalOrders: number;
+  amount: number;
+  dueDate: string;
+  status: InstantOrderStatus;
+}
+
+// One customer's instant order for a given Influencer Merch design.
+export interface InfluencerMerchOrderItem {
+  id: number;
+  username: string;
+  avatarUrl?: string;
+  itemOrdered: string;
+  quantity: number;
+  amount: number;
+  dateInitiated: string;
+  dueDate: string;
+  status: InstantOrderStatus;
+}
+
+// Full detail view for a single Influencer Merch order.
+export interface InfluencerMerchOrderDetails {
+  id: number;
+  orderRef: string;
+  description: string;
+  influencerName: string;
+  orderDate: string;
+  deliveryDate: string;
+  designAmount: number;
+  deliveryAmount: number;
+  deliveryAddress: string;
+  totalAmount: number;
+  status: InstantOrderStatus;
+  design: {
+    name: string;
+    imageUrl?: string;
+    pngUrl?: string;
+    svgUrl?: string;
+  };
+  mockup: {
+    imageUrl?: string;
+    name: string;
+    amount: number;
+    colour: string;
+    size: string;
+    quantity: number;
+  };
 }
 
 export interface Conversation {

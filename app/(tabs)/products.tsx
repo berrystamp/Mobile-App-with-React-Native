@@ -6,11 +6,13 @@ import { SearchFilters, addSearchHistory, getSearchFilters } from "@/lib/localSt
 import ApiService from "@/services/apiClient";
 import { Design, Mock } from "@/types";
 import { useCustomDesignStore } from "@/context/CustomDesignContext"; // Import your shared state hook
-import { Feather, Ionicons } from "@expo/vector-icons";
+import { Feather, Ionicons , MaterialCommunityIcons} from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Dimensions, FlatList, Image, Modal, Pressable, SafeAreaView, ScrollView, Share, Text, TextInput, TouchableOpacity, View, useColorScheme } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { BlurView } from "expo-blur";
+
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CARD_WIDTH = (SCREEN_WIDTH - 48) / 2;
@@ -78,8 +80,10 @@ function ProductCard({
   const imageUrl = design.imagePath?.startsWith('http') ? design.imagePath : design.imagePath ? `https://backend-prod-api.berrystamp.com/${design.imagePath}` : '';
 
   return (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.9} style={{ width: CARD_WIDTH }} className="mb-6 bg-transparent">
-      <View style={{ height: CARD_WIDTH * 1.3 }} className="mb-[10px] overflow-hidden rounded-xl bg-[#F5F5F7] dark:bg-[#1C1C1E]">
+    <TouchableOpacity onPress={onPress} activeOpacity={0.9} 
+    style={{ width: CARD_WIDTH }} className="mb-6 bg-transparent">
+      <View style={{ height: CARD_WIDTH * 1.3 }} 
+      className="mb-[10px] overflow-hidden rounded-xl bg-[#F5F5F7] dark:bg-[#1C1C1E]">
         {imageUrl ? (
           <Image source={{ uri: imageUrl }} className="h-full w-full" />
         ) : (
@@ -87,14 +91,27 @@ function ProductCard({
             <Ionicons name="image-outline" size={28} color={isDark ? '#555' : '#CCC'} />
           </View>
         )}
+        <View className="absolute bottom-2 left-2  overflow-hidden rounded-full bg-[#0050BA]">
+  <View className="flex-row items-center px-2.5 py-1.5">
+    <MaterialCommunityIcons
+      name="crown"
+      size={13}
+      color="#FFFFFF"
+    />
+
+    <Text className="ml-1 text-[10px] font-semibold text-white">
+      Influencer
+    </Text>
+  </View>
+</View>
         <TouchableOpacity
           onPress={() => onFavorite(design.id)}
-          className="absolute right-[10px] top-[10px] h-8 w-8 items-center justify-center rounded-full bg-white/80 dark:bg-black/60"
+          className="absolute right-[10px] top-[10px] h-6 w-6 items-center justify-center rounded-full bg-[#3E2F8A] dark:bg-[#3E2F8A]"
         >
           <Ionicons
             name={design.liked ? 'heart' : 'heart-outline'}
-            size={18}
-            color={design.liked ? '#FF3B30' : (isDark ? '#FFF' : '#1C1C1E')}
+            size={16}
+            color={design.liked ? '#FF3B30' : (isDark ? '#FFF' : '#FFF')}
           />
         </TouchableOpacity>
       </View>
@@ -351,6 +368,7 @@ function ProductDetailScreen({
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { show: showAlert } = useAppAlert();
+  console.log('ProductDetailScreen render', { design });
 
   // 1. Hook straight into the shared context mutations
   const { setDesignFor, setTheme, setItems, setProductContext } = useCustomDesignStore();
@@ -490,26 +508,114 @@ function ProductDetailScreen({
               </View>
             ))}
           </ScrollView>
+          
+           
 
+{/* Influencer Badge */}
+<View className="absolute bottom-5 left-4 mb-4 overflow-hidden rounded-full bg-[#0050BA]">
+  <View className="flex-row items-center px-2.5 py-1.5">
+    <MaterialCommunityIcons
+      name="crown"
+      size={13}
+      color="#FFFFFF"
+    />
+
+    <Text className="ml-1 text-[10px] font-semibold text-white">
+      Influencer
+    </Text>
+  </View>
+</View>
+          
           {/* Floating Action Header */}
-          <View style={{ top: Math.max(insets.top, 20) }} className="absolute left-0 right-0 z-10 flex-row justify-between px-4">
-            <TouchableOpacity onPress={onClose} className="h-10 w-10 items-center justify-center rounded-full bg-white/70">
-              <Ionicons name="chevron-back" size={24} color="#000" />
-            </TouchableOpacity>
+          <View
+  style={{ top: Math.max(insets.top, 20) }}
+  className="absolute left-0 right-0 z-10 overflow-hidden"
+>
+  <BlurView
+    intensity={40}
+    tint="light"
+    className="flex-row items-center px-4 py-2"
+  >
+    {/* Back */}
+    <TouchableOpacity
+      onPress={onClose}
+      className="mr-3 h-10 w-10 items-center justify-center"
+    >
+      <Ionicons
+        name="chevron-back"
+        size={24}
+        color="#FFFFFF"
+      />
+    </TouchableOpacity>
 
-            <View className="flex-row gap-3">
-              <TouchableOpacity onPress={handleFavorite} className="h-10 w-10 items-center justify-center rounded-full bg-white/70">
-                <Ionicons name={isFavorite ? 'heart' : 'heart-outline'} size={22} color={isFavorite ? '#FF3B30' : '#000'} />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => setShowShare(true)} className="h-10 w-10 items-center justify-center rounded-full bg-white/70">
-                <Feather name="share" size={20} color="#000" />
-              </TouchableOpacity>
-            </View>
+    {/* Designer */}
+    <View className="flex-1 flex-row items-center">
+      {/* Profile Picture */}
+      <View className="mr-2.5 h-9 w-9 overflow-hidden rounded-full border border-white/40">
+        {design.profile?.profilePicturePath ? (
+          <Image
+            source={{
+              uri: design.profile.profilePicturePath,
+            }}
+            className="h-full w-full"
+            resizeMode="cover"
+          />
+        ) : (
+          <View className="h-full w-full items-center justify-center bg-[#4A3298]">
+            <Text className="text-[13px] font-bold text-white">
+              {artistName?.charAt(0)?.toUpperCase()}
+            </Text>
           </View>
+        )}
+      </View>
 
+      {/* Name + Shop */}
+      <View className="flex-1">
+        <Text
+          numberOfLines={1}
+          className="text-[13px] font-semibold text-white"
+        >
+          {design.profile?.username || artistName}
+        </Text>
+
+        <Text
+          numberOfLines={1}
+          className="mt-0.5 text-[10px] text-white/75"
+        >
+          {artistName}
+        </Text>
+      </View>
+    </View>
+
+    {/* Like + Share */}
+    <View className="ml-3 flex-row items-center gap-3">
+      <TouchableOpacity
+        onPress={handleFavorite}
+        className="h-10 w-10 items-center justify-center"
+      >
+        <Ionicons
+          name={isFavorite ? "heart" : "heart-outline"}
+          size={22}
+          color={isFavorite ? "#FF3B30" : "#FFFFFF"}
+        />
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        onPress={() => setShowShare(true)}
+        className="h-10 w-10 items-center justify-center"
+      >
+        <Feather
+          name="share"
+          size={20}
+          color="#FFFFFF"
+        />
+      </TouchableOpacity>
+    </View>
+  </BlurView>
+</View>
           {/* Pagination Counter */}
           {gallery.length > 1 && (
-            <View className="absolute bottom-[30px] align-self-center rounded-xl bg-black/50 px-3 py-1.5">
+            <View className="absolute bottom-[30px] right-0 align-self-center rounded-xl bg-black/50 px-3 py-1.5">
               <Text className="text-[12px] font-semibold tracking-widest text-white">
                 {galleryIndex + 1} / {gallery.length}
               </Text>
@@ -518,76 +624,86 @@ function ProductDetailScreen({
         </View>
 
         {/* Content Box Container */}
-        <View className="-mt-5 rounded-t-[24px] bg-white px-5 pt-7 pb-[120px] dark:bg-black">
-          <View className="mb-2 flex-row items-flex-start justify-between gap-4">
-            <Text className="flex-1 text-[22px] font-extrabold tracking-tight text-[#1C1C1E] dark:text-white">
+        <View className="-mt-5  bg-white px-5 pt-7 pb-[120px] dark:bg-black">
+          <Text className=" font-light text-[15px] text-[#636366] dark:text-[#8E8E93]">
+            Description
+          </Text>
+          <View className=" flex items-flex-start justify-between gap-4">
+            <Text className="flex-1 text-[22px] font-light tracking-tight text-[#1C1C1E] dark:text-white">
               {design.title}
             </Text>
-            <Text className="text-[22px] font-extrabold text-[#1C1C1E] dark:text-white">
-              {formatNaira(lowestPrice)}
-            </Text>
+            <Text className="mb-2 text-[15px] font-light leading-6 text-[#3A3A3C] dark:text-[#E5E5EA]">
+            {design.description || "Premium quality design crafted for exceptional aesthetics and comfort."}
+          </Text> 
           </View>
 
           <Text className="mb-5 text-[15px] text-[#636366] dark:text-[#8E8E93]">
-            Designed by <Text className="font-semibold text-[#4A3298]">{artistName}</Text>
+            Designed by <Text className="font-semibold text-[#0050BA]">{artistName}</Text>
           </Text>
+          <Text className="text-[22px] mb-3 font-extrabold text-[#1C1C1E] dark:text-white">
+              {formatNaira(lowestPrice)}
+            </Text>
 
-          <Text className="mb-7 text-[15px] leading-6 text-[#3A3A3C] dark:text-[#E5E5EA]">
+          {/* <Text className="mb-7 text-[15px] leading-6 text-[#3A3A3C] dark:text-[#E5E5EA]">
             {design.description || "Premium quality design crafted for exceptional aesthetics and comfort."}
-          </Text>
+          </Text> */}
+          
 
-          {cartSuccess && (
-            <View className="mb-6 flex-row items-center rounded-6 border border-[#34C759] bg-[#F0FFF4] p-3.5 dark:bg-[#1C2E1C]">
-              <Ionicons name="checkmark-circle" size={20} color="#34C759" />
-              <Text className="ml-2.5 flex-1 text-[14px] font-semibold text-[#34C759]">Added to cart successfully</Text>
-              <TouchableOpacity onPress={() => { router.push('/cart'); onClose(); }}>
-                <Text className="text-[14px] font-bold text-[#1C1C1E] underline dark:text-white">View Cart</Text>
-              </TouchableOpacity>
-            </View>
-          )}
+          
 
           {/* Styles Selection */}
           <View className="border-t border-[#F5F5F7] pt-6 dark:border-[#2C2C2E]">
-            <Text className="mb-4 text-[15px] font-bold text-[#1C1C1E] dark:text-white">Available Styles</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-6">
-              {design.mocks.map((mock) => {
-                const isActive = selectedMock?.id === mock.id;
-                return (
-                  <TouchableOpacity
-                    key={mock.id}
-                    onPress={() => {
-                      setSelectedMock(mock);
-                      setSelectedColour(mock.colours?.[0] || '');
-                      setSelectedSize(getMockSizes(mock)[0] || '');
-                    }}
-                    style={{ width:40 }}
-                    className={`mr-4 overflow-hidden rounded-xl border-2 ${isActive ? 'border-[#4A3298]' : 'border-transparent'}`}
-                  >
-                    <View className="h-10 w-10 bg-[#F5F5F7] dark:bg-[#1C1C1E]">
-                      {mock.imagePath ? (
-                        <Image source={{ uri: mock.imagePath }} className="h-full w-full" />
-                      ) : (
-                        <View className="flex-1 items-center justify-center">
-                          <Ionicons name="shirt-outline" size={24} className="text-[#CCC] dark:text-[#555]" />
-                        </View>
-                      )}
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
+            <Text className="mb-4 text-[15px] font-light text-[#1C1C1E] dark:text-white">
+              Select Mockup</Text>
+            <View className="mb-6 flex-row flex-wrap justify-between">
+  {design.mocks.map((mock) => {
+    const isActive = selectedMock?.id === mock.id;
+
+    return (
+      <TouchableOpacity
+        key={mock.id}
+        onPress={() => {
+          setSelectedMock(mock);
+          setSelectedColour(mock.colours?.[0] || '');
+          setSelectedSize(getMockSizes(mock)[0] || '');
+        }}
+        className={`mb-4 w-[48%] overflow-hidden rounded-2xl border-2 ${
+          isActive ? 'border-[#4A3298]' : 'border-transparent'
+        }`}
+      >
+        <View className="h-44 w-full overflow-hidden rounded-xl bg-[#F5F5F7] dark:bg-[#1C1C1E]">
+          {mock.imagePath ? (
+            <Image
+              source={{ uri: mock.imagePath }}
+              className="h-full w-full"
+              resizeMode="cover"
+            />
+          ) : (
+            <View className="flex-1 items-center justify-center">
+              <Ionicons
+                name="shirt-outline"
+                size={48}
+                color={isDark ? '#555' : '#CCC'}
+              />
+            </View>
+          )}
+        </View>
+      </TouchableOpacity>
+    );
+  })}
+</View>
 
             {/* Colors Selection */}
             {!!selectedMock?.colours?.length && (
               <View className="mb-6">
-                <Text className="mb-4 text-[15px] font-bold text-[#1C1C1E] dark:text-white">Color Options</Text>
+                <Text className="mb-4 text-[15px] font-light text-[#1C1C1E] dark:text-white">Color Options</Text>
                 <View className="flex-row flex-wrap gap-3">
                   {selectedMock.colours.map((colour) => (
                     <TouchableOpacity
                       key={colour}
                       onPress={() => setSelectedColour(colour)}
                       style={{ backgroundColor: colour, borderColor: selectedColour === colour ? '#4A3298' : (isDark ? '#2C2C2E' : '#E5E5EA') }}
-                      className="h-10 w-10 rounded-full border-2 shadow-sm"
+                      className="h-10 w-10 rounded-md border-2 shadow-sm"
                     />
                   ))}
                 </View>
@@ -597,7 +713,7 @@ function ProductDetailScreen({
             {/* Size Selection */}
             {!!mockSizes.length && (
               <View className="mb-6">
-                <Text className="mb-4 text-[15px] font-bold text-[#1C1C1E] dark:text-white">Size Selection</Text>
+                <Text className="mb-4 text-[15px] font-light text-[#1C1C1E] dark:text-white">Size Selection</Text>
                 <View className="flex-row flex-wrap gap-3">
                   {mockSizes.map((size) => (
                     <TouchableOpacity
@@ -613,15 +729,15 @@ function ProductDetailScreen({
             )}
 
             {/* Quantity Selector */}
-            <View className="mb-8 flex-row items-center justify-between">
-              <Text className="text-[15px] font-bold text-[#1C1C1E] dark:text-white">Quantity</Text>
-              <View className="flex-row items-center rounded-lg bg-[#F5F5F7] p-1 dark:bg-[#1C1C1E]">
+            <View className="mb-8 flex items-start gap-2">
+              <Text className="text-[15px] font-light text-[#1C1C1E] dark:text-white"> Select quantity</Text>
+              <View className="flex-row items-center rounded-lg ">
                 <TouchableOpacity onPress={() => setQuantity((q) => Math.max(1, q - 1))} className="h-9 w-9 items-center justify-center">
-                  <Text className="text-[20px] font-medium text-[#1C1C1E] dark:text-white">−</Text>
+                  <Text className="text-[20px] font-medium p-[6px] rounded-[5px] w-[28px] h-[28px] text-center text-white dark:text-white bg-[#3E2F8A]">−</Text>
                 </TouchableOpacity>
                 <Text className="w-10 text-center text-[16px] font-bold text-[#1C1C1E] dark:text-white">{quantity}</Text>
                 <TouchableOpacity onPress={() => setQuantity((q) => q + 1)} className="h-9 w-9 items-center justify-center">
-                  <Text className="text-[20px] font-medium text-[#1C1C1E] dark:text-white">+</Text>
+                  <Text className="text-[20px] font-medium p-[6px] rounded-[5px] w-[28px] h-[28px] text-center text-white dark:text-white bg-[#3E2F8A]">+</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -633,8 +749,9 @@ function ProductDetailScreen({
             </TouchableOpacity>
 
             <View className="mb-10 flex-row gap-4">
-              <TouchableOpacity onPress={() => handleAddToCart(false)} disabled={addingToCart} className="flex-1 items-center rounded-xl border border-[#1C1C1E] py-[18px] bg-transparent dark:border-white">
-                {addingToCart ? <ActivityIndicator size="small" className="text-[#1C1C1E] dark:text-white" /> : <Text className="text-[15px] font-bold text-[#1C1C1E] dark:text-white">Add to Cart</Text>}
+              <TouchableOpacity onPress={() => handleAddToCart(false)} disabled={addingToCart} className="flex-1 items-center rounded-xl border border-[#3E2F8A] py-[18px] bg-transparent dark:border-white">
+                {addingToCart ? <ActivityIndicator size="small" className="text-[#1C1C1E] dark:text-white" /> :
+                 <Text className="text-[15px] font-bold text-[#3E2F8A] dark:text-white">Add to Cart</Text>}
               </TouchableOpacity>
               <TouchableOpacity onPress={() => handleAddToCart(true)} disabled={addingToCart} className="flex-1 items-center rounded-xl bg-[#4A3298] py-[18px]">
                 <Text className="text-[15px] font-bold text-white">Print Now</Text>
@@ -660,6 +777,42 @@ function ProductDetailScreen({
           </View>
         </View>
       </ScrollView>
+     { cartSuccess && (
+    <View className="absolute bottom-6 left-4 right-4 z-50">
+      <View className="flex-row items-center rounded-2xl border border-[#34C759]/30 bg-white px-4 py-3.5 shadow-lg dark:border-[#34C759]/30 dark:bg-[#1C1C1E]">
+
+        {/* Success Icon */}
+        <View className="h-9 w-9 items-center justify-center rounded-full bg-[#34C759]/10">
+          <Ionicons
+            name="checkmark-circle"
+            size={22}
+            color="#34C759"
+          />
+        </View>
+
+        {/* Message */}
+        <View className="ml-3 flex-1">
+          <Text className="mt-0.5 text-[11px] text-[#8E8E93]">
+            Item added successfully
+          </Text>
+        </View>
+
+        {/* View Cart */}
+        <TouchableOpacity
+          onPress={() => {
+            router.push('/cart');
+            onClose();
+          }}
+          className="rounded-full  px-3.5 py-2"
+        >
+          <Text className="text-[12px] text-[#3E2F8A] font-bold">
+            Go to cart
+          </Text>
+        </TouchableOpacity>
+
+      </View>
+    </View>
+  )}
       <ShareSheet visible={showShare} design={design} onClose={() => setShowShare(false)} />
     </View>
   );
@@ -794,24 +947,28 @@ export default function ProductsScreen() {
   return (
     <View className="flex-1 bg-white dark:bg-black">
       {/* Search Header area */}
-      <View style={{ paddingTop: insets.top + 12 }} className="flex-row items-center bg-white px-5 pb-4 dark:bg-black">
+      <View style={{ paddingTop: insets.top + 12 }} className="flex-row justify-between items-center bg-white px-5 pb-4 dark:bg-black">
         <TouchableOpacity onPress={() => router.back()} className="-ml-2.5 mr-3 h-10 w-10 items-center justify-center">
-          <Ionicons name="arrow-back" size={24} className="text-[#1C1C1E] dark:text-white" />
+          <Ionicons
+    name="arrow-back"
+    size={24}
+    color={isDark ? "#FFFFFF" : "#1C1C1E"}
+  />
         </TouchableOpacity>
-        <View className="flex-1">
+        <View className="flex-1 text-center">
           <Text numberOfLines={1} className="text-[20px] font-extrabold tracking-tight text-[#1C1C1E] dark:text-white">
             {artistNameParam ? `${artistNameParam}'s Catalog` : 'The Marketplace'}
           </Text>
         </View>
         <TouchableOpacity onPress={() => loadProducts(searchQuery, filters)} className="h-10 w-10 items-end justify-center">
-          <Ionicons name="refresh-outline" size={22} className="text-[#1C1C1E] dark:text-white" />
+          <Ionicons name="refresh-outline" size={22} color={isDark ? "#FFFFFF" : "#1C1C1E"} />
         </TouchableOpacity>
       </View>
 
       {!designId && (
         <View className="flex-row items-center gap-3 px-5 py-3">
           <View className="h-12 flex-1 flex-row items-center rounded-xl bg-[#F5F5F7] px-4 dark:bg-[#1C1C1E]">
-            <Ionicons name="search-outline" size={18} className="mr-2.5 text-[#8E8E93]" />
+            <Ionicons name="search-outline" size={18} color={isDark ? "#8E8E93" : "#8E8E93"} />
             <TextInput
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -827,8 +984,8 @@ export default function ProductsScreen() {
               </TouchableOpacity>
             )}
           </View>
-          <TouchableOpacity onPress={() => router.push('/Filter')} className="h-12 w-12 items-center justify-center rounded-xl bg-[#F5F5F7] dark:bg-[#1C1C1E]">
-            <Ionicons name="options-outline" size={22} className="text-[#1C1C1E] dark:text-white" />
+          <TouchableOpacity onPress={() => router.push('/Filter')} className="h-12 bg-[#3E2F8A] w-12 items-center justify-center rounded-xl ">
+            <Ionicons name="options-outline" size={22} color="white" className="text-white dark:text-[black]" />
           </TouchableOpacity>
         </View>
       )}

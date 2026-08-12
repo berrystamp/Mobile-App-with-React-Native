@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
@@ -73,6 +73,8 @@ export default function UploadDesignScreen() {
   const [tags, setTags] = useState('');
   const [categories, setCategories] = useState('');
   const [openForCustomization, setOpenForCustomization] = useState(true);
+  const [influencerMerch, setInfluencerMerch] = useState(false);
+  const [autographMessage, setAutographMessage] = useState('');
   const [frontImageUri, setFrontImageUri] = useState('');
   const [frontImagePath, setFrontImagePath] = useState('');
   const [designUploadUris, setDesignUploadUris] = useState<string[]>([]);
@@ -120,6 +122,8 @@ export default function UploadDesignScreen() {
         setTags(Array.isArray(design?.tags) ? design.tags.join(', ') : '');
         setCategories(Array.isArray(design?.categories) ? design.categories.join(', ') : '');
         setOpenForCustomization(Boolean(design?.openForCustomization));
+        setInfluencerMerch(Boolean(design?.influencerMerch));
+        setAutographMessage(String(design?.autographMessage || ''));
         setFrontImageUri(String(design?.imageUrlFront || design?.previewUrlFront || design?.thumbnailUrlFront || design?.coverImage?.url || ''));
         setFrontImagePath(String(design?.imageUrlFront || design?.coverImage?.path || ''));
         setExistingDesignUploads(Array.isArray(design?.designUploads) ? design.designUploads.map((item: any) => String(item?.fileUpload?.url || item?.fileUpload?.path || '')).filter(Boolean) : []);
@@ -268,6 +272,15 @@ export default function UploadDesignScreen() {
         categories: splitCsv(categories),
         mocks: normalizedMocks.map((m) => m.payload),
         ...(printerId.trim() ? { printerId: Number(printerId) } : {}),
+        // Influencer Merch bundles fixed pricing, direct checkout, an
+        // assigned printer and instant purchase, so those flags always
+        // mirror the toggle.
+        influencerMerch,
+        autographMessage: autographMessage.trim(),
+        fixedPricing: influencerMerch,
+        directCheckout: influencerMerch,
+        assignedPrinterOnly: influencerMerch,
+        instantPurchase: influencerMerch,
       };
 
       // Combine existing design uploads with any newly picked ones
@@ -374,6 +387,37 @@ export default function UploadDesignScreen() {
             setFrontImagePath('');
           },
         })}
+
+        <View style={[styles.section, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <View style={styles.sectionHeader}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <MaterialCommunityIcons name="crown" size={18} color="#F9A70D" />
+              <Text style={[styles.label, { color: theme.text, marginBottom: 0 }]}>Enable Influencer Merch</Text>
+            </View>
+            <Switch value={influencerMerch} onValueChange={setInfluencerMerch} trackColor={{ false: '#CFCFD6', true: theme.primary }} />
+          </View>
+          <Text style={[styles.helper, { color: theme.muted, marginBottom: influencerMerch ? 12 : 0 }]}>
+            Customers will purchase directly without negotiation or messaging.
+          </Text>
+          {influencerMerch ? (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              {['Fixed Pricing', 'Direct Checkout', 'Assigned Printer Only', 'Instant Purchase'].map((feature) => (
+                <View key={feature} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: theme.primary, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 }}>
+                  <Ionicons name="checkmark" size={12} color="#fff" />
+                  <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>{feature}</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
+        </View>
+
+        <View style={[styles.section, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <Text style={[styles.label, { color: theme.text }]}>Digital autograph message</Text>
+          <Text style={[styles.helper, { color: theme.muted }]}>
+            Leave a message for customers who purchase this merch. This message will be displayed on their downloadable autograph after order completion.
+          </Text>
+          <Input label="Message" value={autographMessage} onChangeText={setAutographMessage} multiline theme={theme} placeholder="Write message" />
+        </View>
 
         <View style={[styles.section, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <Text style={[styles.label, { color: theme.text }]}>Design details</Text>

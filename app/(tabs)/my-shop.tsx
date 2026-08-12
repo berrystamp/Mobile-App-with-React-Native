@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -77,6 +77,18 @@ function SheetRow({ label, icon, color, onPress }: { label: string; icon?: any; 
   );
 }
 
+// ─── InfluencerBadge ──────────────────────────────────────────────────────────
+// Shown on designs with Influencer Merch enabled (fixed pricing, direct
+// checkout, an assigned printer, instant purchase — no negotiation needed).
+function InfluencerBadge() {
+  return (
+    <View style={{ position: 'absolute', bottom: 6, left: 6, flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#0050BA', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 }}>
+      <MaterialCommunityIcons name="crown" size={12} color="#fff" />
+      <Text style={{ fontSize: 11, fontWeight: '600', color: '#fff' }}>Influencer</Text>
+    </View>
+  );
+}
+
 // ─── DesignCard ───────────────────────────────────────────────────────────────
 function DesignCard({ item, theme, readOnly, username, onMenu, onPress }: { item: any; theme: ReturnType<typeof useTheme>; readOnly: boolean; username: string; onMenu: () => void; onPress: () => void }) {
   return (
@@ -89,6 +101,7 @@ function DesignCard({ item, theme, readOnly, username, onMenu, onPress }: { item
             <Ionicons name="image-outline" size={28} color={theme.muted} />
           </View>
         )}
+        {item.influencerMerch ? <InfluencerBadge /> : null}
         {!readOnly && (
           <TouchableOpacity onPress={onMenu} style={{ position: 'absolute', top: 6, right: 6, width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.85)', alignItems: 'center', justifyContent: 'center' }}>
             <Ionicons name="ellipsis-horizontal" size={16} color="#444" />
@@ -1181,6 +1194,7 @@ export default function MyShopScreen() {
       imagePath: toAbsoluteImage(item.imagePath || item.frontImageUrl || item.mocks?.[0]?.imagePath),
       price: item.amount || item.price || 0,
       type: 'design',
+      influencerMerch: Boolean(item.influencerMerch),
     })), [shop?.designs]);
 
   const collectionItems: CollectionItem[] = useMemo(() =>
