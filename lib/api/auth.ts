@@ -2,7 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios, { AxiosInstance, AxiosRequestConfig } from "axios";
 
 // Berrystamp Backend API Base URL
-const API_BASE_URL = "https://backend-prod-api.berrystamp.com/api/v1";
+const API_BASE_URL = "https://backend-dev-api.berrystamp.com/api/v1";
 
 type TProfileType = "CUSTOMER" | "DESIGNER" | "PRINTER";
 
