@@ -3,13 +3,13 @@ import { Design } from "@/types";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
 import {
-    Dimensions,
-    Image,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    useColorScheme,
-    View,
+  Dimensions,
+  Image,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  useColorScheme,
+  View,
 } from "react-native";
 
 interface DesignCardProps {
@@ -56,7 +56,7 @@ export const DesignCard: React.FC<DesignCardProps> = ({
         return design.imagePath;
       }
       // Otherwise, construct the full URL
-      return `https://backend-prod-api.berrystamp.com/${design.imagePath}`;
+      return `https://berrystamp-backend.onrender.app/${design.imagePath}`;
     }
     return null;
   };

@@ -1,49 +1,214 @@
-import { Ionicons } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+/**
+ * Select Printer Screen
+ *
+ * Displays printers sorted by proximity to the customer's delivery address.
+ * Each card has a "View Profile" and a "Message" button.
+ * Tapping "Message" creates a real backend print order and opens the chat
+ * with the conversationId returned from the backend response.
+ */
+
+import { useAppAlert } from '@/components/common/AppAlert';
+import { LoadingSpinner } from '@/components/LoadingSpinner';
+import ApiService, { type PrintOrderPayloadItem } from '@/services/apiClient';
+import { Ionicons } from '@expo/vector-icons';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
+  Dimensions,
   FlatList,
   Image,
-  StyleSheet,
   Text,
   TouchableOpacity,
-  View,
-} from "react-native";
+  View
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { LoadingSpinner } from "@/components/LoadingSpinner";
-import { decodeDraft, encodeDraft } from "@/lib/customDesign";
-import { upsertLocalConversation } from "@/lib/localConversations";
-import ApiService from "@/services/apiClient";
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface PrinterCard {
   id: number;
+  userId: number;
   name: string;
-  avatar: string;
-  cover: string;
-  role: string;
-  jobs: number;
-  rating: string;
+  avatar: string | null;
+  cover: string | null;
+  bio: string;
+  categories: string[];
+  rating: number;
+  totalCompletedOrders: number;
+  jobSuccessPercentage: number;
+  distanceInKm: number;
 }
 
-const fallbackImage =
-  "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=400";
+interface ParsedCartItem {
+  id: string;
+  designId: number;
+  mockId: number;
+  name: string;
+  colour: string;
+  size: string;
+  quantity: number;
+  price: number;
+  imageUrl?: string;
+  variantText?: string;
+  designerName?: string;
+}
 
-const toAbsolutePath = (path?: string) => {
-  if (!path) return fallbackImage;
-  if (path.startsWith("http")) return path;
-  return `https://backend-prod-api.berrystamp.com/${path.replace(/^\/+/, "")}`;
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const toAbsUrl = (path?: string) => {
+  if (!path) return null;
+  if (path.startsWith('http')) return path;
+  return `https://berrystamp-backend.onrender.app/${path.replace(/^\/+/, '')}`;
 };
+
+const normalizePrinter = (item: any): PrinterCard => ({
+  id: Number(item.id),
+  userId: Number(item.userId ?? item.id),
+  name:
+    item.name ||
+    `${item.firstName || ''} ${item.lastName || ''}`.trim() ||
+    item.userName ||
+    item.username ||
+    'Printer',
+  avatar: toAbsUrl(
+    item.profileImage?.thumbnailUrl ||
+    item.profileImage?.url ||
+    item.thumbnailProfilePic ||
+    item.profilePic ||
+    item.avatar,
+  ),
+  cover: toAbsUrl(item.coverImage?.url || item.coverPic || item.profileImage?.url),
+  bio: item.bio || item.specialty || 'Commercial Printer',
+  categories: Array.isArray(item.categories) ? item.categories : [],
+  rating: Number(item.insight?.rating?.avgStars ?? 0),
+  totalCompletedOrders: Number(item.insight?.totalCompletedOrders ?? 0),
+  jobSuccessPercentage: Number(item.insight?.jobSuccessPercentage ?? 0),
+  distanceInKm: Number(item.distanceInKm ?? item.insight?.distanceInKm ?? 0),
+});
+
+// ─── Printer Card Component ───────────────────────────────────────────────────
+
+function PrinterCardItem({
+  printer,
+  isSending,
+  onViewProfile,
+  onMessage,
+}: {
+  printer: PrinterCard;
+  isSending: boolean;
+  onViewProfile: () => void;
+  onMessage: () => void;
+}) {
+  const CARD_WIDTH = (SCREEN_WIDTH - 48) / 2;
+
+  return (
+    <View
+      style={{ width: CARD_WIDTH }}
+      className="mb-4 overflow-hidden rounded-2xl border border-[#E5E5EA] bg-white dark:border-[#2C2C2E] dark:bg-[#1C1C1E]"
+    >
+      {/* Cover */}
+      <View className="h-20 bg-[#F5F5F7] dark:bg-[#2C2C2E]">
+        {printer.cover ? (
+          <Image source={{ uri: printer.cover }} className="h-full w-full" resizeMode="cover" />
+        ) : null}
+        {/* Avatar */}
+        <View
+          className="absolute bottom-[-20px] left-0 right-0 items-center"
+          style={{ alignItems: 'center' }}
+        >
+          <View className="h-11 w-11 overflow-hidden rounded-full border-2 border-white bg-[#4A3298] dark:border-[#1C1C1E]">
+            {printer.avatar ? (
+              <Image source={{ uri: printer.avatar }} className="h-full w-full" />
+            ) : (
+              <View className="flex-1 items-center justify-center">
+                <Text className="text-[14px] font-bold text-white">
+                  {printer.name.slice(0, 1).toUpperCase()}
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
+      </View>
+
+      {/* Info */}
+      <View className="items-center px-3 pb-3 pt-7">
+        <View className="mb-0.5 flex-row items-center">
+          <Text
+            numberOfLines={1}
+            className="text-[13px] font-bold text-[#1C1C1E] dark:text-white"
+          >
+            {printer.name}
+          </Text>
+          <Ionicons name="checkmark-circle" size={13} color="#4A3298" style={{ marginLeft: 3 }} />
+        </View>
+        <Text numberOfLines={1} className="mb-1 text-[11px] text-[#8E8E93]">
+          {printer.bio}
+        </Text>
+        <Text className="mb-1 text-[10px] text-[#AEAEB2] dark:text-[#636366]">
+          {printer.totalCompletedOrders} orders
+          {printer.rating > 0 ? ` · ★ ${printer.rating.toFixed(1)}` : ''}
+        </Text>
+        {printer.distanceInKm > 0 && (
+          <Text className="mb-3 text-[10px] text-[#AEAEB2] dark:text-[#636366]">
+            {printer.distanceInKm.toFixed(1)} km away
+          </Text>
+        )}
+
+        {/* View Profile */}
+        <TouchableOpacity
+          onPress={onViewProfile}
+          className="mb-2 w-full items-center rounded-full border border-[#4A3298] py-2"
+        >
+          <Text className="text-[12px] font-semibold text-[#4A3298]">View Profile</Text>
+        </TouchableOpacity>
+
+        {/* Message */}
+        <TouchableOpacity
+          onPress={onMessage}
+          disabled={isSending}
+          className={`w-full items-center rounded-full py-2 ${isSending ? 'bg-[#9B8BCC]' : 'bg-[#4A3298]'
+            }`}
+        >
+          {isSending ? (
+            <View className="flex-row items-center gap-1.5">
+              <ActivityIndicator size="small" color="#FFF" />
+              <Text className="text-[12px] font-semibold text-white">Sending…</Text>
+            </View>
+          ) : (
+            <Text className="text-[12px] font-semibold text-white">Message</Text>
+          )}
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function SelectPrinterScreen() {
   const router = useRouter();
-  const { draft, cartItems: cartItemsParam } = useLocalSearchParams<{
-    draft?: string;
-    cartItems?: string;
-  }>();
-  const parsed = useMemo(() => decodeDraft(draft), [draft]);
+  const { show: showAlert, element: alertElement } = useAppAlert();
 
-  // Parse cartItems passed from Print Now (products) or from cart print flow
-  const cartItems = useMemo(() => {
+  const {
+    cartItems: cartItemsParam,
+    estimatedAmount,
+    dateOfDelivery,
+    deliveryAddress: deliveryAddressParam,
+    hasOwnItem: hasOwnItemParam,
+  } = useLocalSearchParams<{
+    cartItems?: string;
+    estimatedAmount?: string;
+    dateOfDelivery?: string;
+    deliveryAddress?: string;
+    hasOwnItem?: string;
+    pickupAddress?: string;
+  }>();
+
+  // Parse route params
+  const cartItems = useMemo<ParsedCartItem[]>(() => {
     if (!cartItemsParam) return [];
     try {
       return JSON.parse(cartItemsParam);
@@ -52,302 +217,201 @@ export default function SelectPrinterScreen() {
     }
   }, [cartItemsParam]);
 
-  const [loading, setLoading] = useState(true);
-  const [sendingId, setSendingId] = useState<number | null>(null);
-  const [printers, setPrinters] = useState<PrinterCard[]>([]);
+  const deliveryAddress = useMemo<{ name: string; latitude: number; longitude: number } | null>(() => {
+    if (!deliveryAddressParam) return null;
+    try {
+      return JSON.parse(deliveryAddressParam);
+    } catch {
+      return null;
+    }
+  }, [deliveryAddressParam]);
 
-   const loadPrinters = useCallback(async () => {
+  const hasOwnItem = hasOwnItemParam === 'true';
+
+  // Screen state
+  const [printers, setPrinters] = useState<PrinterCard[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [sendingId, setSendingId] = useState<number | null>(null);
+
+  const loadPrinters = useCallback(async () => {
+    if (!deliveryAddress) {
+      setError('Delivery address with coordinates is required to find nearby printers.');
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
-      
-      // ✅ FIX: Try multiple endpoints and handle various response formats
-      let printers: PrinterCard[] = [];
-      let lastError: any = null;
- 
-      try {
-        const response = await ApiService.getPrinters(0, 60);
-        
-        // ✅ FIX: Handle multiple possible response structures
-        let content: any[] = [];
-        
-        if (response?.responseBody?.content) {
-          content = response.responseBody.content;
-        } else if (response?.content && Array.isArray(response.content)) {
-          content = response.content;
-        } else if (response?.responseBody && Array.isArray(response.responseBody)) {
-          content = response.responseBody;
-        } else if (Array.isArray(response)) {
-          content = response;
-        } else if (response && typeof response === 'object') {
-          // If response is a single object, wrap it in an array
-          content = [response];
-        }
- 
-        // Filter out empty/null items
-        const validContent = Array.isArray(content) 
-          ? content.filter((item: any) => item && item.id) 
-          : [];
- 
-        if (validContent.length > 0) {
-          printers = validContent.map((item: any) => ({
-            id: Number(item.id),
-            name:
-              `${item.firstName || ""} ${item.lastName || ""}`.trim() ||
-              item.username ||
-              item.userName ||
-              item.name ||
-              item.displayName ||
-              "Printer",
-            avatar: toAbsolutePath(
-              item.profilePicturePath || 
-              item.avatar || 
-              item.profileImage?.url ||
-              item.profileImage?.thumbnailUrl ||
-              item.thumbnail
-            ),
-            cover: toAbsolutePath(
-              item.coverPhotoPath ||
-              item.banner ||
-              item.bannerImage?.url ||
-              item.coverImage?.url ||
-              item.profilePicturePath,
-            ),
-            role: item.bio || item.specialty || item.description || "Professional Printer",
-            jobs: Number(
-              item.totalJobs || 
-              item.completedJobs || 
-              item.totalDesigns || 
-              item.jobsCompleted ||
-              0,
-            ),
-            rating: item.rating 
-              ? String(item.rating).length > 3 
-                ? item.rating.toFixed(1)
-                : String(item.rating)
-              : "4.5",
-          }));
-        }
-      } catch (apiError) {
-        console.warn("First attempt to fetch printers failed:", apiError);
-        lastError = apiError;
-      }
- 
-      // ✅ FIX: If no printers found, show helpful message instead of just empty
-      if (printers.length === 0) {
-        console.warn("No printers returned from API. Last error:", lastError);
-        setPrinters([]);
-      } else {
-        setPrinters(printers);
-      }
-    } catch (error) {
-      console.error("Unable to fetch printers", error);
+      setError(null);
+      const res = await ApiService.getPrintersNearby(
+        deliveryAddress.latitude,
+        deliveryAddress.longitude,
+        0,
+        20,
+      );
+      const content: any[] =
+        res?.responseBody?.content ||
+        res?.content ||
+        (Array.isArray(res?.responseBody) ? res.responseBody : []) ||
+        [];
+      setPrinters(content.map(normalizePrinter));
+    } catch (err: any) {
+      setError(
+        err?.response?.data?.responseMessage ||
+        err?.message ||
+        'Failed to load printers. Please try again.',
+      );
       setPrinters([]);
     } finally {
       setLoading(false);
     }
-  }, []);
-  
+  }, [deliveryAddress]);
+
   useEffect(() => {
     loadPrinters();
   }, [loadPrinters]);
 
-  const handleMessage = async (printer: PrinterCard) => {
-    setSendingId(printer.id);
-    try {
-      // Build bundle message from cartItems if available, otherwise plain text
-      const initialMessages =
-        cartItems.length > 0
-          ? [
-              {
-                id: `print-req-${printer.id}-${Date.now()}`,
-                type: "bundle" as const,
-                text: "[Print request]",
-                previewText: "[Print request]",
-                author: "me" as const,
-                createdAt: new Date().toISOString(),
-                status: "sent" as const,
-                bundle: {
-                  title: "Print request",
-                  productCount: cartItems.length,
-                  footerLabel:
-                    cartItems.length > 1
-                      ? "View all product details"
-                      : "View product details",
-                  items: cartItems.map((item: any, index: number) => ({
-                    id: item.id,
-                    imageUrl: item.imageUrl,
-                    overlayText:
-                      index === 3 && cartItems.length > 4
-                        ? `+${cartItems.length - 3} Items`
-                        : undefined,
-                    name: item.name,
-                    title: item.name,
-                    price: item.price,
-                    quantity: item.quantity,
-                    colour: item.colour,
-                    color: item.colour,
-                    size: item.size,
-                    variantText: item.variantText,
-                    budget: item.budget,
-                    deliveryDate: item.deliveryDate,
-                    deliveryAddress: item.deliveryAddress,
-                    pickupAddress: item.pickupAddress,
-                    hasOwnItem: item.hasOwnItem,
-                  })),
-                },
-              },
-            ]
-          : [
-              {
-                id: `print-req-${printer.id}-${Date.now()}`,
-                type: "text" as const,
-                text: "Hi, I'd like to request printing services.",
-                previewText: "Hi, I'd like to request printing services.",
-                author: "me" as const,
-                createdAt: new Date().toISOString(),
-                status: "sent" as const,
-              },
-            ];
+  const handleViewProfile = (printer: PrinterCard) => {
+    router.push({
+      pathname: '/(tabs)/my-shop',
+      params: { profileId: String(printer.id) },
+    });
+  };
 
-      await upsertLocalConversation({
-        participantId: printer.id,
-        name: printer.name,
-        role: "Printers",
-        initialMessages,
-      });
+  const handleMessage = async (printer: PrinterCard) => {
+    if (!deliveryAddress) return;
+    setSendingId(printer.id);
+
+    try {
+      const payload: PrintOrderPayloadItem[] = cartItems.map((item) => ({
+        designId: Number(item.designId),
+        colour: item.colour || '',
+        quantity: Number(item.quantity) || 1,
+        size: item.size || '',
+        mockItemId: Number(item.mockId),
+        customDesign: false,
+        sourceOfItem: hasOwnItem ? 'From Customer' : 'From Printer',
+        estimatedAmount: estimatedAmount || '',
+        dateOfDelivery: dateOfDelivery || '',
+        deliveryAddress: {
+          name: deliveryAddress.name,
+          latitude: deliveryAddress.latitude,
+          longitude: deliveryAddress.longitude,
+        },
+        printerId: printer.id,
+      }));
+      console.log(payload)
+      const res = await ApiService.createPrintOrders(payload);
+      const responseBody: any[] = res?.responseBody ?? res ?? [];
+      const firstOrder = Array.isArray(responseBody) ? responseBody[0] : responseBody;
+      const conversationId = firstOrder?.conversationId;
+
+      if (!conversationId) {
+        throw new Error('No conversation ID returned from the server.');
+      }
 
       router.push({
-        pathname: "/(tabs)/chat",
+        pathname: '/(tabs)/chat',
         params: {
-          participantId: String(printer.id),
+          conversationId: String(conversationId),
+          participantId: String(printer.userId ?? printer.id),
           participantName: printer.name,
-          participantRole: "Printers",
+          participantRole: 'Printers',
         },
       });
-    } catch (err) {
-      console.error("[SelectPrinter] Failed to start conversation:", err);
+    } catch (err: any) {
+      const msg =
+        err?.response?.data?.responseMessage ||
+        err?.response?.data?.message ||
+        err?.message ||
+        'Failed to send order. Please try again.';
+      showAlert({ type: 'error', title: 'Order Failed', message: msg });
     } finally {
       setSendingId(null);
     }
   };
 
+  // ─── Render ─────────────────────────────────────────────────────────────────
+
   if (loading) {
-    return <LoadingSpinner message="Loading printers..." />;
+    return <LoadingSpinner message="Finding nearby printers…" />;
   }
 
-  const encodedDraft = encodeDraft(
-    parsed || { designFor: "", designTheme: "", items: [] },
-  );
+  if (error) {
+    return (
+      <SafeAreaView className="flex-1 items-center justify-center bg-[#F7F7FA] px-6 dark:bg-black">
+        <Ionicons name="alert-circle-outline" size={56} color="#FF3B30" />
+        <Text className="mt-4 text-center text-[15px] text-[#FF3B30]">{error}</Text>
+        <TouchableOpacity
+          onPress={loadPrinters}
+          className="mt-6 rounded-xl bg-[#4A3298] px-8 py-3.5"
+        >
+          <Text className="text-[15px] font-semibold text-white">Retry</Text>
+        </TouchableOpacity>
+        {alertElement}
+      </SafeAreaView>
+    );
+  }
 
   return (
-    <View style={styles.screen}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="#252039" />
+    <SafeAreaView className="flex-1 bg-[#F5F5F7] dark:bg-black">
+      {/* Header */}
+      <View className="flex-row items-center justify-between bg-white px-4 py-4 dark:bg-[#1C1C1E]">
+        <TouchableOpacity onPress={() => router.back()} className="mr-3">
+          <Ionicons name="arrow-back" size={24} color="#4A3298" />
         </TouchableOpacity>
-        <Text style={styles.title}>Select Printer</Text>
+        <View className="flex-1">
+          <Text className="text-[18px] font-bold text-[#1C1C1E] dark:text-white">
+            Select Print Partner
+          </Text>
+          {deliveryAddress ? (
+            <Text numberOfLines={1} className="mt-0.5 text-[12px] text-[#8E8E93]">
+              Near {deliveryAddress.name}
+            </Text>
+          ) : null}
+        </View>
         <TouchableOpacity onPress={loadPrinters}>
-          <Ionicons name="refresh-outline" size={22} color="#252039" />
+          <Ionicons name="refresh-outline" size={22} color="#4A3298" />
         </TouchableOpacity>
       </View>
 
-      <Text style={styles.subtitle}>
-        Select and message a printer of your choice for printing preferences and
-        cost negotiation
+      <Text className="px-5 py-2 text-[13px] text-[#736E80]">
+        Choose a verified print partner for production and fulfilment.
       </Text>
 
-      <FlatList
-        data={printers}
-        keyExtractor={(item) => String(item.id)}
-        numColumns={2}
-        contentContainerStyle={styles.grid}
-        renderItem={({ item }) => (
-          <View style={styles.card}>
-            <Image source={{ uri: item.cover }} style={styles.cover} />
-            <View style={styles.avatarWrap}>
-              <Image source={{ uri: item.avatar }} style={styles.avatar} />
-            </View>
+      {printers.length === 0 ? (
+        <View className="flex-1 items-center justify-center px-8">
+          <Ionicons name="print-outline" size={64} color="#D1D1D6" />
+          <Text className="mt-4 text-center text-[16px] text-[#8E8E93]">
+            No print partners available in this region.
+          </Text>
+          <TouchableOpacity
+            onPress={loadPrinters}
+            className="mt-5 rounded-xl bg-[#4A3298] px-8 py-3.5"
+          >
+            <Text className="text-[14px] font-semibold text-white">Retry</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <FlatList
+          data={printers}
+          keyExtractor={(item) => String(item.id)}
+          numColumns={2}
+          contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
+          columnWrapperStyle={{ gap: 16 }}
+          showsVerticalScrollIndicator={false}
+          renderItem={({ item }) => (
+            <PrinterCardItem
+              printer={item}
+              isSending={sendingId === item.id}
+              onViewProfile={() => handleViewProfile(item)}
+              onMessage={() => handleMessage(item)}
+            />
+          )}
+        />
+      )}
 
-            <Text style={styles.name} numberOfLines={1}>
-              {item.name}
-            </Text>
-            <Text style={styles.role} numberOfLines={1}>
-              {item.role}
-            </Text>
-            <Text style={styles.stats}>
-              {item.jobs} jobs | ★ {item.rating}
-            </Text>
-
-            <TouchableOpacity
-              style={[
-                styles.messageButton,
-                sendingId === item.id && { opacity: 0.6 },
-              ]}
-              disabled={sendingId === item.id}
-              onPress={() => handleMessage(item)}
-            >
-              <Text style={styles.messageButtonText}>
-                {sendingId === item.id ? "Sending…" : "Message"}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
-        ListEmptyComponent={
-          <Text style={styles.empty}>No printers available right now.</Text>
-        }
-      />
-    </View>
+      {alertElement}
+    </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#F7F7FA" },
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 58,
-    paddingBottom: 14,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  title: { fontSize: 30, fontWeight: "600", color: "#252039" },
-  subtitle: {
-    paddingHorizontal: 20,
-    color: "#736E80",
-    fontSize: 15,
-    marginBottom: 8,
-  },
-  grid: { paddingHorizontal: 12, paddingBottom: 24 },
-  card: {
-    flex: 1,
-    margin: 8,
-    borderRadius: 16,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#ECE8F3",
-    overflow: "hidden",
-    alignItems: "center",
-    paddingBottom: 14,
-  },
-  cover: { width: "100%", height: 62 },
-  avatarWrap: {
-    marginTop: -24,
-    borderRadius: 24,
-    padding: 2,
-    backgroundColor: "#FFFFFF",
-  },
-  avatar: { width: 48, height: 48, borderRadius: 24 },
-  name: { marginTop: 8, fontSize: 16, fontWeight: "600", color: "#2A2537" },
-  role: { marginTop: 2, fontSize: 13, color: "#8A8598" },
-  stats: { marginTop: 6, fontSize: 12, color: "#928BA2" },
-  messageButton: {
-    marginTop: 10,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: "#3C2D90",
-    paddingVertical: 7,
-    paddingHorizontal: 22,
-  },
-  messageButtonText: { color: "#3C2D90", fontWeight: "600" },
-  empty: { textAlign: "center", marginTop: 40, fontSize: 15, color: "#888193" },
-});

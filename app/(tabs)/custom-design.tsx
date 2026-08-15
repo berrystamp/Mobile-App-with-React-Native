@@ -4,12 +4,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import {
-    ActivityIndicator, FlatList, Image, RefreshControl,
-    Text, TouchableOpacity, View, useColorScheme
+  ActivityIndicator, FlatList, Image, RefreshControl,
+  Text, TouchableOpacity, View, useColorScheme
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const BASE_URL = 'https://backend-prod-api.berrystamp.com';
+const BASE_URL = 'https://berrystamp-backend.onrender.app';
 
 const toImageUrl = (path?: string) => {
   if (!path) return null;
@@ -39,7 +39,7 @@ export default function CustomDesignHubScreen() {
       const body = response?.responseBody || response?.data || response || {};
       const list = Array.isArray(body) ? body
         : Array.isArray(body?.content) ? body.content
-        : [];
+          : [];
       setDesigns(list);
     } catch {
       setDesigns([]);

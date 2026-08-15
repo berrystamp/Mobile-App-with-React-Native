@@ -31,7 +31,7 @@ const fallbackImage = 'https://images.unsplash.com/photo-1521572163474-6864f9cf1
 const toAbsolutePath = (path?: string) => {
   if (!path) return fallbackImage;
   if (path.startsWith('http')) return path;
-  return `https://backend-prod-api.berrystamp.com/${path.replace(/^\/+/, '')}`;
+  return `https://berrystamp-backend.onrender.app/${path.replace(/^\/+/, '')}`;
 };
 
 const unwrapList = (response: any) => {
@@ -45,7 +45,7 @@ export default function SelectDesignerScreen() {
   const router = useRouter();
   const isDark = useColorScheme() === 'dark';
   const { show: showAlert, element: alertElement } = useAppAlert();
-  
+
   // 1. Pull clearDraft in addition to the variables
   const { designFor, theme, items, clearDraft } = useCustomDesignStore();
 
@@ -94,8 +94,8 @@ export default function SelectDesignerScreen() {
         purpose: designFor,
         theme: theme,
         // Format to YYYY-MM-DD to match the backend expectation
-        dateOfDelivery: new Date().toISOString().split('T')[0], 
-        estimatedAmount: 0,                       
+        dateOfDelivery: new Date().toISOString().split('T')[0],
+        estimatedAmount: 0,
       });
 
       const body = response?.responseBody || response?.data || response || {};
@@ -157,7 +157,7 @@ export default function SelectDesignerScreen() {
         renderItem={({ item }) => (
           <View className="m-2 flex-1 items-center overflow-hidden rounded-2xl border border-[#ECE8F3] bg-white pb-4 dark:border-[#33333A] dark:bg-[#1C1C1E]">
             <Image source={{ uri: item.cover }} className="h-[62px] w-full" />
-            
+
             <View className="-mt-6 rounded-full bg-white p-[2px] dark:bg-[#1C1C1E]">
               <Image source={{ uri: item.avatar }} className="h-12 w-12 rounded-full" />
             </View>

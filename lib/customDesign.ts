@@ -78,7 +78,7 @@ export const DEFAULT_PRINT_ITEMS = [
 const absoluteImage = (path?: string) => {
   if (!path) return "";
   if (path.startsWith("http")) return path;
-  return `https://backend-prod-api.berrystamp.com/${path.replace(/^\/+/, "")}`;
+  return `https://berrystamp-backend.onrender.app/${path.replace(/^\/+/, "")}`;
 };
 
 export const toCustomDesignRecord = (design: Design): CustomDesignRecord => {
@@ -115,13 +115,13 @@ export const decodeDraft = (value?: string): CustomDesignDraft | null => {
 
     const availableMocks: DraftMock[] | undefined = Array.isArray(parsed.availableMocks)
       ? parsed.availableMocks
-          .filter((m: unknown) => m && typeof m === "object")
-          .map((m: any) => ({
-            id: Number(m.id),
-            name: typeof m.name === "string" ? m.name : "",
-            imagePath: typeof m.imagePath === "string" ? m.imagePath : "",
-            price: Number(m.price) || 0,
-          }))
+        .filter((m: unknown) => m && typeof m === "object")
+        .map((m: any) => ({
+          id: Number(m.id),
+          name: typeof m.name === "string" ? m.name : "",
+          imagePath: typeof m.imagePath === "string" ? m.imagePath : "",
+          price: Number(m.price) || 0,
+        }))
       : undefined;
 
     return {
@@ -130,8 +130,8 @@ export const decodeDraft = (value?: string): CustomDesignDraft | null => {
         typeof parsed.designTheme === "string" ? parsed.designTheme : "",
       items: Array.isArray(parsed.items)
         ? parsed.items.filter(
-            (item: unknown): item is string => typeof item === "string",
-          )
+          (item: unknown): item is string => typeof item === "string",
+        )
         : [],
       sourceDesignId: Number.isFinite(Number(parsed.sourceDesignId))
         ? Number(parsed.sourceDesignId)

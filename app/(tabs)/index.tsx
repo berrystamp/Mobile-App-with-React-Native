@@ -50,7 +50,7 @@ function HomeDesignCard({
   const imageUrl = design.imagePath?.startsWith("http")
     ? design.imagePath
     : design.imagePath
-      ? `https://backend-prod-api.berrystamp.com/${design.imagePath}`
+      ? `https://berrystamp-backend.onrender.app/${design.imagePath}`
       : "";
   const artistName = design.designerName || design.designerShopName;
   const mockPrices = design.mocks
@@ -151,7 +151,7 @@ export default function HomeScreen() {
   const isDark = useColorScheme() === "dark";
   const { width: screenWidth } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  
+
   const [profileLoading, setProfileLoading] = useState(true);
   const [dashboardRefreshing, setDashboardRefreshing] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -159,7 +159,7 @@ export default function HomeScreen() {
   const [walletHistory, setWalletHistory] = useState<any[]>([]);
   const [filterStage, setFilterStage] = useState<"hidden" | "range" | "calendar">("hidden");
   const [rangeLabel, setRangeLabel] = useState("This Month");
-  
+
   // NEW: State for toggling balance visibility
   const [showBalance, setShowBalance] = useState(true);
 
@@ -209,9 +209,9 @@ export default function HomeScreen() {
       setWallet(walletResponse?.responseBody || walletResponse || null);
       setWalletHistory(
         walletHistoryResponse?.responseBody?.content ||
-          walletHistoryResponse?.responseBody ||
-          walletHistoryResponse?.content ||
-          [],
+        walletHistoryResponse?.responseBody ||
+        walletHistoryResponse?.content ||
+        [],
       );
 
       // ── Fetch real insights once we have the profile id ──────────────────
@@ -434,7 +434,7 @@ export default function HomeScreen() {
         contentContainerStyle={[styles.contentContainer, { paddingBottom: 100 }]}
         showsVerticalScrollIndicator={false}
       >
-  
+
 
         <View style={styles.section}>
           <SectionHeader title="Top Artists" showViewAll={false} />
@@ -631,7 +631,7 @@ export default function HomeScreen() {
             >
               <Ionicons name="stats-chart" size={22} color="#4A34A7" />
             </View>
-            <Text style={{ fontSize: 13,width:"100%", textAlign:"center", color: "#8A8A8A", marginBottom: 4 }}>
+            <Text style={{ fontSize: 13, width: "100%", textAlign: "center", color: "#8A8A8A", marginBottom: 4 }}>
               Business Performance
             </Text>
             <Text style={{ fontSize: 22, fontWeight: "700", color: "#322783" }}>
@@ -858,7 +858,7 @@ export default function HomeScreen() {
               </View>
               {/* X-axis labels */}
               <View style={{ flexDirection: "row", justifyContent: "space-around", paddingLeft: 36, marginTop: 4 }}>
-                {["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"].map((m) => (
+                {["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].map((m) => (
                   <Text key={m} style={{ color: theme.subtext, fontSize: 9 }}>{m}</Text>
                 ))}
               </View>

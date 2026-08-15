@@ -15,7 +15,9 @@ import {
   View,
   useColorScheme,
   useWindowDimensions,
+  SafeAreaView,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context"; // ✅ Added this import
 
 import { useAppAlert } from "@/components/common/AppAlert";
 import { formatNaira } from "@/lib/currency";
@@ -29,6 +31,7 @@ import {
 import ApiService from "@/services/apiClient";
 import { isCustomerRole, useAuthStore } from "@/store/authStore";
 import type { Design } from "@/types";
+import PrintPreferencesModal, { PrintPreferencesResult } from "@/components/PrintPreferencesModal";
 
 type CartItemType = {
   id: string;
@@ -72,6 +75,9 @@ export default function CartScreen() {
   const role = useAuthStore((state) => state.role);
   const { show: showAlert, element: alertElement } = useAppAlert();
 
+  // ✅ Get safe area insets to calculate bottom nav spacing dynamically
+  const insets = useSafeAreaInsets();
+
   const [isLoading, setIsLoading] = useState(true);
   const [cartItems, setCartItems] = useState<CartItemType[]>([]);
   const [recentDesigns, setRecentDesigns] = useState<Design[]>([]);
@@ -85,6 +91,8 @@ export default function CartScreen() {
   const [date, setDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [prefErrors, setPrefErrors] = useState<PreferenceErrors>({});
+  // Print Now flow – separate from "Send to Designer"
+  const [showPrintModal, setShowPrintModal] = useState(false);
 
   // ✅ MAIN FETCH EFFECT - Fetches from API and saves to localStorage
   useEffect(() => {
@@ -328,6 +336,46 @@ export default function CartScreen() {
     setPrefModalVisible(false);
   };
 
+  const handlePrintNow = () => {
+    if (selectedItems.length === 0) {
+      showAlert({
+        type: "warning",
+        title: "No items selected",
+        message: "Please select at least one item to print.",
+      });
+      return;
+    }
+    setShowPrintModal(true);
+  };
+
+  const handlePrintPreferencesContinue = (result: PrintPreferencesResult) => {
+    setShowPrintModal(false);
+    const printCartItems = selectedItems.map((item) => ({
+      id: item.id,
+      designId: Number(item.designId),
+      mockId: Number(item.mockId),
+      name: item.name,
+      colour: item.colour,
+      size: item.size,
+      quantity: item.quantity,
+      price: item.price,
+      imageUrl: item.imageUrl || "",
+      variantText: item.variantText,
+      designerName: item.designerName,
+    }));
+    router.push({
+      pathname: "/(tabs)/select-printer",
+      params: {
+        cartItems: JSON.stringify(printCartItems),
+        estimatedAmount: result.estimatedAmount,
+        dateOfDelivery: result.dateOfDelivery,
+        deliveryAddress: JSON.stringify(result.deliveryAddress),
+        hasOwnItem: String(result.hasOwnItem),
+        ...(result.pickupAddress ? { pickupAddress: JSON.stringify(result.pickupAddress) } : {}),
+      },
+    });
+  };
+
   const sendOrderToDesigners = async () => {
     setConfirmVisible(false);
 
@@ -445,15 +493,19 @@ export default function CartScreen() {
 
   if (isLoading) {
     return (
-      <View className="flex-1 items-center justify-center bg-white dark:bg-[#121212]">
-        <ActivityIndicator size="large" color="#3B2D85" />
-      </View>
+      // ✅ Using SafeAreaView for loading screen
+      <SafeAreaView className="flex-1 bg-white dark:bg-[#121212]">
+        <View className="flex-1 items-center justify-center">
+          <ActivityIndicator size="large" color="#3B2D85" />
+        </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View className="flex-1 bg-[#F8F8FB] dark:bg-[#121212]">
-      <View className="flex-row items-center justify-between border-b border-[#E8E8EC] bg-white px-4 py-4 dark:border-[#2C2C2E] dark:bg-[#1C1C1E]">
+    // ✅ Replaced main container View with SafeAreaView
+    <SafeAreaView className="flex-1 bg-[#F8F8FB] dark:bg-[#121212]">
+      <View className="flex-row items-center justify-between border-b border-[#E8E8EC] bg-white px-4 pt-14 pb-4 dark:border-[#2C2C2E] dark:bg-[#1C1C1E]">
         <Text className="text-lg font-bold text-[#1C1C1E] dark:text-white">
           Shopping Cart
         </Text>
@@ -585,7 +637,11 @@ export default function CartScreen() {
             </View>
           </ScrollView>
 
-          <View className="border-t border-[#E8E8EC] bg-white px-4 py-4 dark:border-[#2C2C2E] dark:bg-[#1C1C1E]">
+          {/* ✅ Added dynamic paddingBottom based on the device insets and average bottom tab bar height (65px) */}
+          <View
+            className="border-t border-[#E8E8EC] bg-white px-4 pt-4 dark:border-[#2C2C2E] dark:bg-[#1C1C1E]"
+            style={{ paddingBottom: Math.max(insets.bottom, 16) + 65 }}
+          >
             <View className="mb-4 flex-row justify-between">
               <Text className="text-[15px] text-[#828282]">Design Cost:</Text>
               <Text className="font-semibold text-[#1C1C1E] dark:text-white">
@@ -593,19 +649,29 @@ export default function CartScreen() {
               </Text>
             </View>
 
-            <TouchableOpacity
-              onPress={() => setConfirmVisible(true)}
-              disabled={selectedItems.length === 0}
-              className={`items-center rounded-full py-4 ${
-                selectedItems.length === 0
-                  ? "bg-gray-300"
-                  : "bg-[#3B2D85]"
-              }`}
-            >
-              <Text className="text-base font-bold text-white">
-                Send to Designer ({selectedItems.length})
-              </Text>
-            </TouchableOpacity>
+            <View className="flex-row gap-3">
+              <TouchableOpacity
+                onPress={() => setConfirmVisible(true)}
+                disabled={selectedItems.length === 0}
+                className={`flex-1 items-center rounded-full py-4 ${selectedItems.length === 0 ? "bg-gray-300" : "bg-[#3B2D85]"
+                  }`}
+              >
+                <Text className="text-sm font-bold text-white">
+                  Send to Designer ({selectedItems.length})
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={handlePrintNow}
+                disabled={selectedItems.length === 0}
+                className={`flex-1 items-center rounded-full py-4 ${selectedItems.length === 0 ? "bg-gray-300" : "bg-[#4A3298]"
+                  }`}
+              >
+                <Text className="text-sm font-bold text-white">
+                  Print Now ({selectedItems.length})
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </>
       )}
@@ -614,7 +680,7 @@ export default function CartScreen() {
         animationType="slide"
         transparent
         visible={isPrefModalVisible}
-        onRequestClose={() => {}}
+        onRequestClose={() => { }}
       >
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -654,11 +720,10 @@ export default function CartScreen() {
               >
                 <Field label="Budget (Estimated Amount)">
                   <View
-                    className={`flex-row items-center rounded-xl border px-4 py-3.5 ${
-                      prefErrors.estimatedAmount
-                        ? "border-[#EB5757]"
-                        : "border-[#3B2D85] dark:border-[#5E4CBA]"
-                    }`}
+                    className={`flex-row items-center rounded-xl border px-4 py-3.5 ${prefErrors.estimatedAmount
+                      ? "border-[#EB5757]"
+                      : "border-[#3B2D85] dark:border-[#5E4CBA]"
+                      }`}
                   >
                     <Ionicons
                       name="pricetags-outline"
@@ -676,7 +741,7 @@ export default function CartScreen() {
                       }}
                       placeholder="e.g., ₦50,000 - ₦100,000"
                       placeholderTextColor="#BDBDBD"
-                      className="ml-3 flex-1 text-[#333] dark:text-white"
+                      className="ml-3  text-[#333] dark:text-white"
                     />
                   </View>
                   {prefErrors.estimatedAmount ? (
@@ -686,11 +751,10 @@ export default function CartScreen() {
 
                 <Field label="Delivery Date">
                   <View
-                    className={`flex-row items-center justify-between rounded-xl border px-4 py-3.5 ${
-                      prefErrors.deliveryDate
-                        ? "border-[#EB5757]"
-                        : "border-[#3B2D85] dark:border-[#5E4CBA]"
-                    }`}
+                    className={`flex-row items-center justify-between rounded-xl border px-4 py-3.5 ${prefErrors.deliveryDate
+                      ? "border-[#EB5757]"
+                      : "border-[#3B2D85] dark:border-[#5E4CBA]"
+                      }`}
                   >
                     <TouchableOpacity
                       onPress={() => setShowDatePicker(true)}
@@ -728,11 +792,10 @@ export default function CartScreen() {
 
                 <Field label="Delivery Address">
                   <View
-                    className={`flex-row items-center rounded-xl border px-4 py-3.5 ${
-                      prefErrors.deliveryAddress
-                        ? "border-[#EB5757]"
-                        : "border-[#3B2D85] dark:border-[#5E4CBA]"
-                    }`}
+                    className={`flex-row items-center rounded-xl border px-4 py-3.5 ${prefErrors.deliveryAddress
+                      ? "border-[#EB5757]"
+                      : "border-[#3B2D85] dark:border-[#5E4CBA]"
+                      }`}
                   >
                     <Ionicons
                       name="location-outline"
@@ -791,11 +854,10 @@ export default function CartScreen() {
                 {hasOwnItem ? (
                   <Field label="Pickup Address">
                     <View
-                      className={`flex-row items-center rounded-xl border px-4 py-3.5 ${
-                        prefErrors.pickupAddress
-                          ? "border-[#EB5757]"
-                          : "border-[#3B2D85] dark:border-[#5E4CBA]"
-                      }`}
+                      className={`flex-row items-center rounded-xl border px-4 py-3.5 ${prefErrors.pickupAddress
+                        ? "border-[#EB5757]"
+                        : "border-[#3B2D85] dark:border-[#5E4CBA]"
+                        }`}
                     >
                       <Ionicons
                         name="location-outline"
@@ -896,7 +958,13 @@ export default function CartScreen() {
         </View>
       </Modal>
       {alertElement}
-    </View>
+      {/* Print Now flow – PrintPreferencesModal */}
+      <PrintPreferencesModal
+        visible={showPrintModal}
+        onClose={() => setShowPrintModal(false)}
+        onContinue={handlePrintPreferencesContinue}
+      />
+    </SafeAreaView>
   );
 }
 
@@ -932,9 +1000,8 @@ function ChoiceRow({
       className="mb-4 flex-row items-start gap-x-3"
     >
       <View
-        className={`mt-0.5 h-5 w-5 items-center justify-center rounded-full border-2 ${
-          selected ? "border-[#3B2D85]" : "border-gray-300"
-        }`}
+        className={`mt-0.5 h-5 w-5 items-center justify-center rounded-full border-2 ${selected ? "border-[#3B2D85]" : "border-gray-300"
+          }`}
       >
         {selected ? (
           <View className="h-2.5 w-2.5 rounded-full bg-[#3B2D85]" />

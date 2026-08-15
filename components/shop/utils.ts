@@ -8,7 +8,7 @@ import ApiService from "@/services/apiClient";
 import type { User } from "@/types";
 import type { CollectionItem, ReviewItem, ShopData } from "./types";
 
-const API_ORIGIN = "https://backend-prod-api.berrystamp.com";
+const API_ORIGIN = "https://berrystamp-backend.onrender.app";
 export const FALLBACK_COVER =
   "https://images.unsplash.com/photo-1511795409834-ef04bbd61622?w=1200";
 export const FALLBACK_AVATAR =
@@ -46,8 +46,8 @@ export async function fetchShopData(
 ): Promise<ShopData> {
   const myProfileResponse = targetProfileId
     ? await ApiService.getUserProfile(targetProfileId).catch(() =>
-        ApiService.getMyProfile(),
-      )
+      ApiService.getMyProfile(),
+    )
     : await ApiService.getMyProfile();
 
   const normalized = normalizeProfileResponse(myProfileResponse);
@@ -62,7 +62,7 @@ export async function fetchShopData(
         : merged.customerProfile;
 
   const insight = roleProfile?.insight || myProfileResponse?.responseBody?.insight || {};
-  
+
   // The ID is now directly at the root in the flat payload.
   // When viewing as owner (no targetProfileId), prefer the nested role profile's id
   // since merged.id may be the user ID rather than the profile ID used by the API.
@@ -106,7 +106,7 @@ export async function fetchShopData(
       imagePath: toAbsoluteImage(
         item?.picture,
       ),
-      description:item.description,
+      description: item.description,
       designCount: Number(
         item?.designCount || item?.designsCount || item?.designs?.length || 0,
       ),
@@ -122,8 +122,8 @@ export async function fetchShopData(
         ),
         avatar: toAbsoluteImage(
           item?.profile?.profilePicturePath ||
-            item?.user?.profilePicturePath ||
-            item?.avatar,
+          item?.user?.profilePicturePath ||
+          item?.avatar,
         ),
         comment: String(item?.comment || item?.review || item?.message || ""),
         stars: Number(item?.stars || item?.rating || item?.rate || 0),
@@ -139,7 +139,7 @@ export async function fetchShopData(
     targetProfileId &&
     followers.some(
       (item: any) =>
-          item?.userId === currentUser?.id,
+        item?.userId === currentUser?.id,
     ),
   );
 
@@ -153,32 +153,32 @@ export async function fetchShopData(
       profileId,
       fullName: shopName,
       username: merged.username || merged.fullName || "shop",
-      
+
       // Pull bio and categories from the merged root, fallback to roleProfile
       bio: merged.bio || roleProfile?.bio || "",
       categories: Array.isArray(merged.categories) && merged.categories.length > 0
         ? merged.categories
         : Array.isArray(roleProfile?.categories)
-        ? roleProfile.categories
-        : [],
-        
+          ? roleProfile.categories
+          : [],
+
       cover: toAbsoluteImage(
         merged.cover ||
         roleProfile?.coverPic ||
         roleProfile?.coverPhotoPath
       ),
-      
+
       avatar: toAbsoluteImage(
-        merged.avatar || 
+        merged.avatar ||
         roleProfile?.profilePic
       ),
-      
+
       // Look at the new root properties first, fallback to insight/arrays
       followers: Number(merged.followersCount || insight.totalFollowers || followers.length || 0),
       following: Number(merged.followingCount || insight.totalFollowing || following.length || 0),
       reviews: Number(insight.totalReviews || reviews.length || 0),
       uploads: Number(insight.totalUploads || designs.length || 0),
-      
+
       isFollowing,
     },
     designs,

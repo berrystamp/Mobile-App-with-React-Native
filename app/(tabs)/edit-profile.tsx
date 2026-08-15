@@ -10,18 +10,18 @@ import * as ImagePicker from "expo-image-picker";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
 import {
-    ActivityIndicator,
-    Image,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    useColorScheme,
-    View,
+  ActivityIndicator,
+  Image,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  useColorScheme,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -44,16 +44,16 @@ const defaultAvatar = "https://ui-avatars.com/api/?background=4B3A99&color=fff&s
 const toImage = (path?: string) => {
   if (!path || path === "string") return "";
   if (path.startsWith("http") || path.startsWith("file:") || path.startsWith("content:")) return path;
-  return "https://backend-prod-api.berrystamp.com/" + path.replace(/^\/+/, "");
+  return "https://berrystamp-backend.onrender.app/" + path.replace(/^\/+/, "");
 };
 
 // Spec categories matching the design
 const SPEC_CATEGORIES = [
-  "Abstract art", "Minimalist","Illustration","Geometry art","Creative art", "Conceptual", "Fun and playful",
+  "Abstract art", "Minimalist", "Illustration", "Geometry art", "Creative art", "Conceptual", "Fun and playful",
   "Typographic", "Feminine", "Masculine", "Nature", "Kiddies",
   ...DEFAULT_DESIGN_THEMES.filter(
-    (t) => !["Abstract art", "Minimalist","Illustration","Geometry art","Creative art", "Conceptual", "Fun and playful",
-  "Typographic", "Feminine", "Masculine", "Nature", "Kiddies"].includes(t)
+    (t) => !["Abstract art", "Minimalist", "Illustration", "Geometry art", "Creative art", "Conceptual", "Fun and playful",
+      "Typographic", "Feminine", "Masculine", "Nature", "Kiddies"].includes(t)
   ),
 ];
 
@@ -222,8 +222,8 @@ function DeactivateDeleteScreen({
                 {loading
                   ? <ActivityIndicator color="#FFFFFF" size="small" />
                   : <Text style={{ color: "#FFFFFF", fontSize: 15, fontWeight: "700" }}>
-                      {confirmModal === "deactivate" ? "Deactivate" : "Logout"}
-                    </Text>
+                    {confirmModal === "deactivate" ? "Deactivate" : "Logout"}
+                  </Text>
                 }
               </TouchableOpacity>
             </View>
@@ -282,8 +282,8 @@ export default function EditProfileScreen() {
       const merged = mergeUserAndProfile(user, normalized);
       const currentProfile =
         role === "DESIGNER" ? merged.designerProfile
-        : role === "PRINTER" ? merged.printerProfile
-        : merged.customerProfile;
+          : role === "PRINTER" ? merged.printerProfile
+            : merged.customerProfile;
 
       const profilePic = currentProfile?.profileImage?.url || currentProfile?.profilePic || normalized.profilePicturePath || "";
       const coverPic = currentProfile?.coverPic || currentProfile?.coverPhotoPath || currentProfile?.coverImage?.url || normalized.coverPic || "";
@@ -341,8 +341,8 @@ export default function EditProfileScreen() {
         // send both field names so the backend accepts whichever it expects
         ...(role === "DESIGNER" || role === "PRINTER"
           ? {
-              categories: specifications.filter(Boolean),
-            }
+            categories: specifications.filter(Boolean),
+          }
           : {}),
       };
 

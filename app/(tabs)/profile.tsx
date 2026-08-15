@@ -3,8 +3,8 @@ import { Image } from "expo-image";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
 import {
-    ActivityIndicator, Alert, Modal, SafeAreaView,
-    ScrollView, Text, TouchableOpacity, View, useColorScheme,
+  ActivityIndicator, Alert, Modal, SafeAreaView,
+  ScrollView, Text, TouchableOpacity, View, useColorScheme,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
@@ -14,7 +14,7 @@ import ApiService from "@/services/apiClient";
 import { toAccountType, toProfileType, useAuthStore } from "@/store/authStore";
 import type { TProfileType, User } from "@/types";
 
-const BASE_URL = "https://backend-prod-api.berrystamp.com";
+const BASE_URL = "https://berrystamp-backend.onrender.app";
 
 const defaultAvatar = "https://ui-avatars.com/api/?background=4B3A99&color=fff&size=128&name=U";
 

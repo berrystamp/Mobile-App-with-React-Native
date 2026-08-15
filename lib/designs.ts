@@ -1,6 +1,6 @@
 import { Artist, Design, Mock } from "@/types";
 
-const API_BASE_URL = "https://backend-prod-api.berrystamp.com";
+const API_BASE_URL = "https://berrystamp-backend.onrender.app";
 
 interface BackendImage {
   url?: string;
@@ -122,34 +122,34 @@ export function normalizeMock(mock: BackendMock, amount = 0): Mock {
 export function normalizeDesign(input: BackendDesign): Design {
   const profile = input.profile
     ? {
-        id: input.profile.id || input.designer?.id || 0,
-        firstName:
-          input.profile.firstName ||
-          splitDisplayName(input.profile.username).firstName,
-        lastName:
-          input.profile.lastName ||
-          splitDisplayName(input.profile.username).lastName,
-        username:
-          input.profile.username ||
-          `${input.profile.firstName || ""} ${input.profile.lastName || ""}`.trim(),
-        profilePicturePath: input.profile.profilePicturePath,
-      }
+      id: input.profile.id || input.designer?.id || 0,
+      firstName:
+        input.profile.firstName ||
+        splitDisplayName(input.profile.username).firstName,
+      lastName:
+        input.profile.lastName ||
+        splitDisplayName(input.profile.username).lastName,
+      username:
+        input.profile.username ||
+        `${input.profile.firstName || ""} ${input.profile.lastName || ""}`.trim(),
+      profilePicturePath: input.profile.profilePicturePath,
+    }
     : (() => {
-        const artist = normalizeArtist(input.designer);
-        return {
-          id: artist.id,
-          firstName: artist.firstName,
-          lastName: artist.lastName,
-          username: artist.username,
-          profilePicturePath: artist.profilePicturePath,
-        };
-      })();
+      const artist = normalizeArtist(input.designer);
+      return {
+        id: artist.id,
+        firstName: artist.firstName,
+        lastName: artist.lastName,
+        username: artist.username,
+        profilePicturePath: artist.profilePicturePath,
+      };
+    })();
 
   const imagePath = toAbsoluteUrl(
     input.imageUrlFront ||
-      input.coverImage?.url ||
-      input.coverImage?.path ||
-      "",
+    input.coverImage?.url ||
+    input.coverImage?.path ||
+    "",
   );
   const title = input.title || input.name || "Untitled design";
   const amount = input.amount || 0;

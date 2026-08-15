@@ -221,7 +221,7 @@ export default function ChatScreen() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showReportReasons, setShowReportReasons] = useState(false);
   const [showReportSuccess, setShowReportSuccess] = useState(false);
-  
+
   const [orderRequestDetail, setOrderRequestDetail] = useState<any>(null);
   const [orderDetailsByMessageId, setOrderDetailsByMessageId] = useState<Record<string, any>>({});
   const [orderRequestDetailsByMessageId, setOrderRequestDetailsByMessageId] = useState<Record<string, any>>({});
@@ -257,8 +257,8 @@ export default function ChatScreen() {
           Number(senderId) === Number(otherProfileId)
             ? 'other'
             : Number(receiverId) === Number(otherProfileId)
-            ? 'me'
-            : item.author;
+              ? 'me'
+              : item.author;
         const imageUrl = isImageContent(item.text) ? resolveImageUri(item.text) : undefined;
 
         return { ...item, author: resolvedAuthor, imageUrl } as ChatMessageDto & { imageUrl?: string };
@@ -310,7 +310,7 @@ export default function ChatScreen() {
             ApiService.getConversations(0, 80),
             ApiService.getConversationMessages(String(conversationId), 0, 100),
           ]);
-          
+
           const allConversations = normalizeConversationsResponse(convoRes);
           const selected = allConversations.find((item) => item.id === String(conversationId));
           if (selected) setConversation((c) => ({ ...c, ...selected }));
@@ -320,10 +320,10 @@ export default function ChatScreen() {
           setMessages(normalized);
 
           const unread = normalized
-            .filter((m) => m.author === 'other' && m.readDateTime === null )
-            .map((m) => String( m.id)).filter(Boolean);
+            .filter((m) => m.author === 'other' && m.readDateTime === null)
+            .map((m) => String(m.id)).filter(Boolean);
           if (unread.length) {
-            Promise.allSettled(unread.map((id) => ApiService.markMessageAsRead(id))).catch(() => {});
+            Promise.allSettled(unread.map((id) => ApiService.markMessageAsRead(id))).catch(() => { });
           }
         }
       } catch (err) {
@@ -425,7 +425,7 @@ export default function ChatScreen() {
 
       const oid = getMessageOrderId(m);
       const valid = Number.isFinite(Number(oid)) && Number(oid) > 0;
-      
+
       if (!valid) {
         console.warn('[Chat] ORDER message has no resolvable orderId', {
           messageId: m.id,
@@ -447,7 +447,7 @@ export default function ChatScreen() {
           m.chatType === 'ORDER_REQUEST'
             ? await ApiService.getOrderRequestById(oid)
             : await ApiService.getOrderById(oid);
-            
+
         const data = normalizeOrderDetail(res);
         return { messageId: m.id, data, type: m.chatType };
       }),
@@ -647,7 +647,7 @@ export default function ChatScreen() {
     if (!detail?.id) return;
     setUpdatingOrderId(String(detail.id));
     try {
-      await ApiService.declineOrder(detail.id); 
+      await ApiService.declineOrder(detail.id);
       await refreshOrderDetail(detail.id);
       showAlert({ type: 'success', title: 'Order cancelled', message: 'The order has been cancelled.' });
     } catch (err: any) {
@@ -705,42 +705,42 @@ export default function ChatScreen() {
     }
   };
 
-const handlePaystackNavigationChange = async (navState: { url: string }) => {
-  const { url } = navState;
-  console.log(url)
-  // Paystack redirects to the callback URL or adds ?trxref= / ?reference= on success
-  const isCallback =
-    url.includes('/payment/callback') ||
-    url.includes('trxref=') ||
-    url.includes('reference=');
+  const handlePaystackNavigationChange = async (navState: { url: string }) => {
+    const { url } = navState;
+    console.log(url)
+    // Paystack redirects to the callback URL or adds ?trxref= / ?reference= on success
+    const isCallback =
+      url.includes('/payment/callback') ||
+      url.includes('trxref=') ||
+      url.includes('reference=');
 
-  if (!isCallback) return;
+    if (!isCallback) return;
 
-  setShowPaystackWebView(false);
-  
-  try {
-    if (paystackOrderId) {
-      await refreshOrderDetail(paystackOrderId)
-      showAlert({ 
-        type: 'success', 
-        title: 'Payment successful', 
-        message: 'Your order has been paid for successfully.' 
+    setShowPaystackWebView(false);
+
+    try {
+      if (paystackOrderId) {
+        await refreshOrderDetail(paystackOrderId)
+        showAlert({
+          type: 'success',
+          title: 'Payment successful',
+          message: 'Your order has been paid for successfully.'
         });
+      }
+    } catch (error) {
+      // Good practice to log the error so you know what went wrong during debugging
+      console.error("Payment navigation error:", error);
+
+      showAlert({
+        type: 'success', // Kept as success per your original fallback logic
+        title: 'Payment received',
+        message: 'Your payment was processed. Your order will be updated shortly.'
+      });
+    } finally {
+      setPaystackOrderId(null);
+      setPaystackUrl('');
     }
-  } catch (error) {
-    // Good practice to log the error so you know what went wrong during debugging
-    console.error("Payment navigation error:", error); 
-    
-    showAlert({ 
-      type: 'success', // Kept as success per your original fallback logic
-      title: 'Payment received', 
-      message: 'Your payment was processed. Your order will be updated shortly.' 
-    });
-  } finally {
-    setPaystackOrderId(null);
-    setPaystackUrl('');
-  }
-};
+  };
 
   const resolveOtherAvatar = (message: ChatMessageDto & { imageUrl?: string }) => {
     const senderProfile = message.author === 'other' ? message.sender : message.receiver;
@@ -796,13 +796,13 @@ const handlePaystackNavigationChange = async (navState: { url: string }) => {
     );
   };
 
-  const renderOrderRequestCard = (orderRequestDetailParams:any) => {
+  const renderOrderRequestCard = (orderRequestDetailParams: any) => {
     if (!orderRequestDetailParams) return null;
     const detail = orderRequestDetailParams;
     const hasOffer = detail.hasOffer || Boolean(detail.id && detail.title);
     const canRespondToOffer = isCustomer && hasOffer && isReviewStatus(detail.orderStatus);
     const isUpdatingThisOrder = updatingOrderId === String(detail.id);
-    
+
     return (
       <View className="mx-4 my-3">
         {hasOffer ? (
@@ -849,16 +849,16 @@ const handlePaystackNavigationChange = async (navState: { url: string }) => {
                   onPress={() => handleRejectOffer(detail)}>
                   <Text className="text-slate-700 dark:text-slate-200 text-[14px] font-semibold">Reject Offer</Text>
                 </TouchableOpacity>
-              <TouchableOpacity
-                className={`flex-1 items-center rounded-full py-3 ${updatingOrderId === String(detail.id) ? 'bg-slate-400' : 'bg-[#4A3298]'}`}
-                disabled={updatingOrderId === String(detail.id)}
-                onPress={() => handlePayForOrder(detail)}>
-                {updatingOrderId === String(detail.id) ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <Text className="text-[14px] font-semibold text-white">Pay for Order</Text>
-                )}
-              </TouchableOpacity>
+                <TouchableOpacity
+                  className={`flex-1 items-center rounded-full py-3 ${updatingOrderId === String(detail.id) ? 'bg-slate-400' : 'bg-[#4A3298]'}`}
+                  disabled={updatingOrderId === String(detail.id)}
+                  onPress={() => handlePayForOrder(detail)}>
+                  {updatingOrderId === String(detail.id) ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Text className="text-[14px] font-semibold text-white">Pay for Order</Text>
+                  )}
+                </TouchableOpacity>
               </View>
             ) : isAcceptedStatus(detail.orderStatus) ? (
               <Text className="text-[12px] text-green-600 dark:text-green-400 text-center mt-3 font-semibold">Offer accepted</Text>
@@ -879,8 +879,8 @@ const handlePaystackNavigationChange = async (navState: { url: string }) => {
 
   const renderMessage = (message: ChatMessageDto & { imageUrl?: string }) => {
     const orderDetail = orderDetailsByMessageId[message.id];
-    const orderRequest = orderRequestDetailsByMessageId[message.id]; 
-    
+    const orderRequest = orderRequestDetailsByMessageId[message.id];
+
     if (message.chatType === 'ORDER' && orderDetail) {
       return renderOrderRequestCard(orderDetail);
     }
@@ -912,11 +912,10 @@ const handlePaystackNavigationChange = async (navState: { url: string }) => {
           </View>
         )}
         <View
-          className={`max-w-[78%] rounded-2xl px-4 py-3 ${
-            isMe
+          className={`max-w-[78%] rounded-2xl px-4 py-3 ${isMe
               ? 'bg-[#4A3298] rounded-br-sm'
               : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-bl-sm'
-          }`}>
+            }`}>
           {isImage ? (
             <TouchableOpacity onPress={() => setSelectedImage(finalImageUrl)} activeOpacity={0.8}>
               <Image source={{ uri: finalImageUrl }} style={{ width: 200, height: 200, borderRadius: 8 }} contentFit="cover" />
@@ -977,8 +976,8 @@ const handlePaystackNavigationChange = async (navState: { url: string }) => {
             contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 20, flexGrow: 1 }}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
-            onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({animated:true})}
-            >
+            onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
+          >
             {isLoading ? (
               <View className="py-10 items-center justify-center gap-3">
                 <ActivityIndicator size="small" color="#4A3298" />
@@ -1000,7 +999,7 @@ const handlePaystackNavigationChange = async (navState: { url: string }) => {
             className="flex-row items-end px-4 pt-3 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 gap-3"
             style={{ paddingBottom: Math.max(insets.bottom, 12) }}>
             <View className="flex-1 flex-row items-end bg-slate-100 dark:bg-slate-800 rounded-3xl px-1 py-1 min-h-[50px] max-h-[120px]">
-          
+
               <TextInput
                 value={draft}
                 onChangeText={setDraft}
@@ -1010,7 +1009,7 @@ const handlePaystackNavigationChange = async (navState: { url: string }) => {
                 className="flex-1 px-3 pt-3 pb-3 text-[15px] text-slate-900 dark:text-slate-100 max-h-[100px]"
                 textAlignVertical="top"
               />
-          
+
               <TouchableOpacity onPress={handlePickAndUploadImage} disabled={uploading} className="w-9 h-[42px] items-center justify-center mr-1">
                 {uploading ? (
                   <ActivityIndicator size="small" color="#64748b" />
@@ -1290,7 +1289,7 @@ const handlePaystackNavigationChange = async (navState: { url: string }) => {
             </Text>
 
             <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 480 }}>
-              
+
               {selectedOrderDetail ? (
                 <>
                   <View className="mb-4">
@@ -1325,17 +1324,17 @@ const handlePaystackNavigationChange = async (navState: { url: string }) => {
                       {selectedOrderDetail.itemProvidedByCustomer ? 'Yes' : 'No'}
                     </Text>
                   </View>
-                {canShowModalCreateOffer && (
-                <TouchableOpacity
-                className="bg-[#4A3298] rounded-full py-3 items-center mt-2"
-                onPress={() => setShowCreateOrder(true)}>
-                <Text className="text-white text-[15px] font-bold">Create Offer</Text>
-                </TouchableOpacity>
-                )}
+                  {canShowModalCreateOffer && (
+                    <TouchableOpacity
+                      className="bg-[#4A3298] rounded-full py-3 items-center mt-2"
+                      onPress={() => setShowCreateOrder(true)}>
+                      <Text className="text-white text-[15px] font-bold">Create Offer</Text>
+                    </TouchableOpacity>
+                  )}
                 </>
               ) : null}
             </ScrollView>
-            
+
             {/* Added modal cancel view for designers too, just to be thorough */}
             {selectedOrderDetail && isDesigner && isReviewStatus(selectedOrderDetail.orderStatus) ? (
               <View className="mt-4 flex-row gap-3 border-t border-slate-100 pt-4 dark:border-slate-800">
@@ -1375,7 +1374,7 @@ const handlePaystackNavigationChange = async (navState: { url: string }) => {
           </Pressable>
         </Pressable>
       </Modal>
-      
+
       {/* Paystack Payment Modal (MISSING COMPONENT ADDED) */}
       <Modal visible={showPaystackWebView} animationType="slide" onRequestClose={() => setShowPaystackWebView(false)}>
         <SafeAreaView style={{ flex: 1, backgroundColor: isDark ? '#020617' : '#fff' }}>

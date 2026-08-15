@@ -5,15 +5,15 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    Animated,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Animated,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -72,13 +72,12 @@ const FloatingLabelInput = ({
 
   return (
     <View
-      className={`border rounded-xl h-[60px] flex-row items-center relative ${
-        isFocused
-          ? "border-[#4B3A99] dark:border-[#7A6AE6]"
-          : isDark
-            ? "border-[#333333] bg-[#1E1E1E]"
-            : "border-[#E5E5EA] bg-white"
-      }`}
+      className={`border rounded-xl h-[60px] flex-row items-center relative ${isFocused
+        ? "border-[#4B3A99] dark:border-[#7A6AE6]"
+        : isDark
+          ? "border-[#333333] bg-[#1E1E1E]"
+          : "border-[#E5E5EA] bg-white"
+        }`}
     >
       {/* Optional Left Element (e.g., Country Code) */}
       {leftElement && (
@@ -190,7 +189,7 @@ export default function SignUpScreen() {
 
     try {
       const response = await fetch(
-        "https://backend-prod-api.berrystamp.com/api/v1/auth/register",
+        "https://berrystamp-backend.onrender.app/api/v1/auth/register",
         {
           method: "POST",
           headers: {
