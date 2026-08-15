@@ -1,6 +1,6 @@
 import { AccountType } from '@/store/authStore';
 
-const API_BASE_URL = 'https://your-api.example.com/api/v1';
+const API_BASE_URL = 'https://backend-dev-api.berrystamp.com';
 
 interface AuthPayload {
   email: string;
