@@ -50,7 +50,7 @@ function HomeDesignCard({
   const imageUrl = design.imagePath?.startsWith("http")
     ? design.imagePath
     : design.imagePath
-      ? `https://berrystamp-backend.onrender.app/${design.imagePath}`
+      ? `https://backend-dev-api.berrystamp.com/${design.imagePath}`
       : "";
   const artistName = design.designerName || design.designerShopName;
   const mockPrices = design.mocks

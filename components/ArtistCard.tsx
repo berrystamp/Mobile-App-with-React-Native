@@ -63,7 +63,7 @@ export const ArtistCard: React.FC<ArtistCardProps> = ({ artist, onPress }) => {
         return artist.profilePicturePath;
       }
 
-      return `https://berrystamp-backend.onrender.app/${artist.profilePicturePath}`;
+      return `https://backend-dev-api.berrystamp.com/${artist.profilePicturePath}`;
     }
     return null;
   };

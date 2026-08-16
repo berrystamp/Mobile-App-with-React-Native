@@ -14,7 +14,7 @@ import ApiService from "@/services/apiClient";
 import { toAccountType, toProfileType, useAuthStore } from "@/store/authStore";
 import type { TProfileType, User } from "@/types";
 
-const BASE_URL = "https://berrystamp-backend.onrender.app";
+const BASE_URL = "https://backend-dev-api.berrystamp.com";
 
 const defaultAvatar = "https://ui-avatars.com/api/?background=4B3A99&color=fff&size=128&name=U";
 

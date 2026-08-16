@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const BASE_URL = 'https://berrystamp-backend.onrender.app';
+const BASE_URL = 'https://backend-dev-api.berrystamp.com';
 
 const toImageUrl = (path?: string) => {
   if (!path) return null;

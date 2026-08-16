@@ -78,7 +78,7 @@ export const DEFAULT_PRINT_ITEMS = [
 const absoluteImage = (path?: string) => {
   if (!path) return "";
   if (path.startsWith("http")) return path;
-  return `https://berrystamp-backend.onrender.app/${path.replace(/^\/+/, "")}`;
+  return `https://backend-dev-api.berrystamp.com/${path.replace(/^\/+/, "")}`;
 };
 
 export const toCustomDesignRecord = (design: Design): CustomDesignRecord => {

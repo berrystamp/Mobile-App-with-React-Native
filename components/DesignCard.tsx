@@ -56,7 +56,7 @@ export const DesignCard: React.FC<DesignCardProps> = ({
         return design.imagePath;
       }
       // Otherwise, construct the full URL
-      return `https://berrystamp-backend.onrender.app/${design.imagePath}`;
+      return `https://backend-dev-api.berrystamp.com/${design.imagePath}`;
     }
     return null;
   };

@@ -61,7 +61,7 @@ interface ParsedCartItem {
 const toAbsUrl = (path?: string) => {
   if (!path) return null;
   if (path.startsWith('http')) return path;
-  return `https://berrystamp-backend.onrender.app/${path.replace(/^\/+/, '')}`;
+  return `https://backend-dev-api.berrystamp.com/${path.replace(/^\/+/, '')}`;
 };
 
 const normalizePrinter = (item: any): PrinterCard => ({

@@ -8,7 +8,7 @@ import ApiService from "@/services/apiClient";
 import type { User } from "@/types";
 import type { CollectionItem, ReviewItem, ShopData } from "./types";
 
-const API_ORIGIN = "https://berrystamp-backend.onrender.app";
+const API_ORIGIN = "https://backend-dev-api.berrystamp.com";
 export const FALLBACK_COVER =
   "https://images.unsplash.com/photo-1511795409834-ef04bbd61622?w=1200";
 export const FALLBACK_AVATAR =

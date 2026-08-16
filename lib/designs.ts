@@ -1,6 +1,6 @@
 import { Artist, Design, Mock } from "@/types";
 
-const API_BASE_URL = "https://berrystamp-backend.onrender.app";
+const API_BASE_URL = "https://backend-dev-api.berrystamp.com";
 
 interface BackendImage {
   url?: string;
