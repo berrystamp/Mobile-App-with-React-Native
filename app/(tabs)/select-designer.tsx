@@ -31,7 +31,7 @@ const fallbackImage = 'https://images.unsplash.com/photo-1521572163474-6864f9cf1
 const toAbsolutePath = (path?: string) => {
   if (!path) return fallbackImage;
   if (path.startsWith('http')) return path;
-  return `https://backend-dev-api.berrystamp.com/${path.replace(/^\/+/, '')}`;
+  return `https://berrystamp-backend-production.up.railway.app/${path.replace(/^\/+/, '')}`;
 };
 
 const unwrapList = (response: any) => {

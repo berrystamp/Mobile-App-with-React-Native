@@ -189,7 +189,7 @@ export default function SignUpScreen() {
 
     try {
       const response = await fetch(
-        "https://backend-dev-api.berrystamp.com/api/v1/auth/register",
+        "https://berrystamp-backend-production.up.railway.app/api/v1/auth/register",
         {
           method: "POST",
           headers: {

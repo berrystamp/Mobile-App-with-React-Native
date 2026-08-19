@@ -26,7 +26,7 @@ const getLowestPrice = (design: Design) => {
 const toAbsUrl = (path?: string) => {
   if (!path) return '';
   if (path.startsWith('http')) return path;
-  return `https://backend-dev-api.berrystamp.com/${path.replace(/^\/+/, '')}`;
+  return `https://berrystamp-backend-production.up.railway.app/${path.replace(/^\/+/, '')}`;
 };
 
 const getMockSizes = (mock?: Mock | null): string[] => {
@@ -49,7 +49,7 @@ function ProductCard({
   const isDark = useColorScheme() === 'dark';
   const price = getLowestPrice(design);
   const artistName = `${design.profile.firstName} ${design.profile.lastName}`.trim() || design.profile.username;
-  const imageUrl = design.imagePath?.startsWith('http') ? design.imagePath : design.imagePath ? `https://backend-dev-api.berrystamp.com/${design.imagePath}` : '';
+  const imageUrl = design.imagePath?.startsWith('http') ? design.imagePath : design.imagePath ? `https://berrystamp-backend-production.up.railway.app/${design.imagePath}` : '';
 
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.9} style={{ width: CARD_WIDTH }} className="mb-6 bg-transparent">

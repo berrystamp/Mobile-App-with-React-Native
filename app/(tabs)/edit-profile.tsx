@@ -44,7 +44,7 @@ const defaultAvatar = "https://ui-avatars.com/api/?background=4B3A99&color=fff&s
 const toImage = (path?: string) => {
   if (!path || path === "string") return "";
   if (path.startsWith("http") || path.startsWith("file:") || path.startsWith("content:")) return path;
-  return "https://backend-dev-api.berrystamp.com/" + path.replace(/^\/+/, "");
+  return "https://berrystamp-backend-production.up.railway.app/" + path.replace(/^\/+/, "");
 };
 
 // Spec categories matching the design

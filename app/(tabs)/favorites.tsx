@@ -172,7 +172,7 @@ export default function FavoritesScreen() {
               const imageUri = item.imagePath?.startsWith("http")
                 ? item.imagePath
                 : item.imagePath
-                  ? `https://backend-dev-api.berrystamp.com/${item.imagePath.replace(/^\/+/, "")}`
+                  ? `https://berrystamp-backend-production.up.railway.app/${item.imagePath.replace(/^\/+/, "")}`
                   : "";
 
               return (
