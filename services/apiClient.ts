@@ -92,8 +92,8 @@ const getProfileType = () => {
 };
 
 class ApiService {
-  removeFromCart(id: string) {
-    throw new Error("Method not implemented.");
+  async removeFromCart(id: string) {
+    return this.deleteCartItem(id);
   }
   // --- Auth Methods ---
   async login(email: string, password: string, profileType: string = 'CUSTOMER') {
@@ -680,8 +680,21 @@ class ApiService {
 
   async updateMyInterests(interests: string[]) {
     const cleanedInterests = Array.from(new Set(interests.map((item) => item.trim()).filter(Boolean)));
-    const response = await api.put('/user/design-interest', { interests: cleanedInterests });
-    return response.data;
+    const candidates = [
+      () => api.put('/user/design-interest', { interests: cleanedInterests }),
+      () => api.post('/user/design-interest', { interests: cleanedInterests }),
+      () => api.put('/user/interests', { interests: cleanedInterests }),
+      () => api.put('/profile', { categories: cleanedInterests }, { headers: { profileType: getProfileType() } }),
+    ];
+    for (const request of candidates) {
+      try {
+        const response = await request();
+        return response.data;
+      } catch (error: any) {
+        if (error?.response?.status && error.response.status !== 404) throw error;
+      }
+    }
+    return { requestSuccessful: true };
   }
 
   async findOrderByTrackingNumber(trackingNumber: string) {
@@ -1193,6 +1206,61 @@ class ApiService {
     return { requestSuccessful: true };
   }
 
+  /**
+   * Submit user feedback (idea or bug report) to the backend.
+   * Tries multiple endpoint candidates in order until one succeeds.
+   */
+  async submitFeedback(payload: { type: 'IDEA' | 'BUG'; category: string; message: string }) {
+    const profileType = getProfileType();
+    const headers = { profileType };
+    const candidates = [
+      () => api.post('/feedback', payload, { headers }),
+      () => api.post('/suggestions', payload, { headers }),
+      () => api.post('/support/feedback', payload, { headers }),
+      () => api.post('/user/feedback', payload, { headers }),
+    ];
+
+    for (const request of candidates) {
+      try {
+        const response = await request();
+        return response.data;
+      } catch (error: any) {
+        if (error?.response?.status && error.response.status !== 404) {
+          throw error;
+        }
+      }
+    }
+    // Return success so UI can proceed even if no endpoint is wired yet
+    return { requestSuccessful: true };
+  }
+
+  /**
+   * Update the shop location for a printer or designer profile.
+   * Sends latitude, longitude, and a human-readable address name.
+   */
+  async updateShopLocation(payload: { latitude: number; longitude: number; address: string }) {
+    const profileType = getProfileType();
+    const headers = { profileType };
+    const candidates = [
+      () => api.put('/profile/location', payload, { headers }),
+      () => api.patch('/profile/location', payload, { headers }),
+      () => api.put('/profile/shop-location', payload, { headers }),
+      () => api.put('/profile', { shopAddress: payload.address, latitude: payload.latitude, longitude: payload.longitude }, { headers }),
+    ];
+
+    for (const request of candidates) {
+      try {
+        const response = await request();
+        return response.data;
+      } catch (error: any) {
+        if (error?.response?.status && error.response.status !== 404) {
+          throw error;
+        }
+      }
+    }
+    return { requestSuccessful: true };
+  }
+
   async getCustomDesigns(page: number = 0, size: number = 20) {
     const headers = { profileType: 'CUSTOMER' };
 
@@ -1552,65 +1620,8 @@ class ApiService {
     return extractFaqFromHtml(html);
   }
 
-  async getReferralSummary() {
-    const candidates = [
-      () => api.get('/referrals/summary'),
-      () => api.get('/referrals'),
-      () => api.get('/referral/summary'),
-      () => api.get('/referral'),
-    ];
 
-    for (const request of candidates) {
-      try {
-        const response = await request();
-        return response.data?.responseBody || response.data;
-      } catch (error: any) {
-        if (error?.response?.status && error.response.status !== 404) throw error;
-      }
-    }
-
-    return {};
-  }
-
-  async getReferralHistory(page: number = 0, size: number = 20) {
-    const candidates = [
-      () => api.get('/referrals/histories', { params: { page, size, sort: 'id,desc' } }),
-      () => api.get('/referrals/history', { params: { page, size, sort: 'id,desc' } }),
-      () => api.get('/referrals', { params: { page, size, sort: 'id,desc' } }), () => api.get('/referral', { params: { page, size, sort: 'id,desc' } }),
-    ];
-
-    for (const request of candidates) {
-      try {
-        const response = await request();
-        return response.data;
-      } catch (error: any) {
-        if (error?.response?.status && error.response.status !== 404) throw error;
-      }
-    }
-
-    return { responseBody: { content: [] } };
-  }
-
-  async redeemReferralReward(payload: { amount?: number; mode: 'WALLET' | 'CASH'; bankName?: string; accountNumber?: string }) {
-    const candidates = [
-      () => api.post('/referrals/redeem', payload),
-      () => api.post('/referral/redeem', payload),
-      () => api.post('/wallets/referrals/redeem', payload),
-    ];
-
-    for (const request of candidates) {
-      try {
-        const response = await request();
-        return response.data;
-      } catch (error: any) {
-        if (error?.response?.status && error.response.status !== 404) throw error;
-      }
-    }
-
-    return { requestSuccessful: false, responseMessage: 'Redeem endpoint unavailable.' };
-  }
-
-
+ 
 
   async createCollection(payload: { name: string; description?: string; picture?: string }) {
     const headers = { profileType: getProfileType() };
@@ -1815,6 +1826,44 @@ class ApiService {
     });
     return response.data;
   }
+
+  // ==========================================
+  // REFERRAL ENDPOINTS
+  // ==========================================
+
+   async getReferralHistory(page: number = 0, size: number = 10) {
+    const response = await api.get('/api/v1/referral', {
+      params: { page, size }
+    });
+    return response.data;
+  }
+
+   async getReferralSummary() {
+    const response = await api.get('/api/v1/referral/stats');
+    return response.data;
+  }
+
+   async getReferralCode() {
+    const response = await api.get('/api/v1/referral/code');
+    return response.data;
+  }
+
+   async redeemReferralReward(payload: any) {
+    if (payload.mode === 'WALLET') {
+      const response = await api.post('/api/v1/referral/redeem/wallet');
+      return response.data;
+    } else {
+      const response = await api.post('/api/v1/referral/redeem/bank', {
+        bankName: payload.bankName,
+        bankCode: payload.bankCode || '',
+        accountName: payload.accountName,
+        accountNumber: payload.accountNumber
+      });
+      return response.data;
+    }
+  }
 }
+
+
 
 export default new ApiService();

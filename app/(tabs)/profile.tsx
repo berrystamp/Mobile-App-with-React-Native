@@ -1,21 +1,22 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
+import * as ImagePicker from "expo-image-picker";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
 import {
-  ActivityIndicator, Alert, Modal, SafeAreaView,
-  ScrollView, Text, TouchableOpacity, View, useColorScheme,
+    ActivityIndicator, Alert, Modal, SafeAreaView,
+    ScrollView, Text, TouchableOpacity, View, useColorScheme,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
 
+import { useFileUpload } from "@/hooks/useFileUpload";
 import { getAvailableProfileTypes, mergeUserAndProfile, normalizeProfileResponse } from "@/lib/profile";
 import ApiService from "@/services/apiClient";
 import { toAccountType, toProfileType, useAuthStore } from "@/store/authStore";
 import type { TProfileType, User } from "@/types";
 
 const BASE_URL = "https://berrystamp-backend-production.up.railway.app";
-
 const defaultAvatar = "https://ui-avatars.com/api/?background=4B3A99&color=fff&size=128&name=U";
 
 const toAvatar = (path?: string) => {
@@ -47,7 +48,6 @@ function InAppBrowser({
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="fullScreen">
       <SafeAreaView style={{ flex: 1, backgroundColor: isDark ? "#121212" : "#FFFFFF" }}>
-        {/* Header */}
         <View
           style={{
             flexDirection: "row",
@@ -75,18 +75,11 @@ function InAppBrowser({
           </TouchableOpacity>
           <Text
             numberOfLines={1}
-            style={{
-              flex: 1,
-              fontSize: 15,
-              fontWeight: "600",
-              color: isDark ? "#FFFFFF" : "#2E2939",
-            }}
+            style={{ flex: 1, fontSize: 15, fontWeight: "600", color: isDark ? "#FFFFFF" : "#2E2939" }}
           >
             {title}
           </Text>
         </View>
-
-        {/* WebView */}
         <WebView
           source={{ uri: url }}
           style={{ flex: 1 }}
@@ -108,10 +101,13 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const isDark = useColorScheme() === "dark";
   const { role, setAccountType } = useAuthStore();
+  const { uploading, uploadFile } = useFileUpload();
+
   const [user, setUser] = useState<User | null>(null);
   const [profilePayload, setProfilePayload] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [notificationCount, setNotificationCount] = useState(0);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   // In-app browser state
   const [browserVisible, setBrowserVisible] = useState(false);
@@ -136,6 +132,7 @@ export default function ProfileScreen() {
     primary: "#4B3A99",
   };
 
+  // ─── Load profile data ───────────────────────────────────────────────────
   const load = useCallback(async () => {
     try {
       setLoading(true);
@@ -165,9 +162,46 @@ export default function ProfileScreen() {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
+  // ─── Profile photo update ────────────────────────────────────────────────
+  const handlePickProfilePhoto = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission required", "Allow access to your photos to update your profile picture.");
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: "images" as any,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.85,
+      });
+      if (result.canceled || !result.assets?.[0]?.uri) return;
+      setUploadingPhoto(true);
+      const { path } = await uploadFile(result.assets[0].uri);
+      await ApiService.updateMyProfile({
+        profilePic: path.replace("https://berry-stamp-prod.s3.amazonaws.com/", ""),
+      });
+      await load();
+    } catch (err: any) {
+      Alert.alert(
+        "Update failed",
+        err?.response?.data?.responseMessage || err?.message || "Could not update photo. Please try again.",
+      );
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
   const profile = useMemo(() => mergeUserAndProfile(user, {}), [user]);
-  const availableProfiles = useMemo(() => getAvailableProfileTypes(user, profilePayload || {}), [profilePayload, user]);
-  const switchTargets = useMemo(() => availableProfiles.filter((item) => item !== activeRole), [activeRole, availableProfiles]);
+  const availableProfiles = useMemo(
+    () => getAvailableProfileTypes(user, profilePayload || {}),
+    [profilePayload, user],
+  );
+  const switchTargets = useMemo(
+    () => availableProfiles.filter((item) => item !== activeRole),
+    [activeRole, availableProfiles],
+  );
 
   const displayName = useMemo(() => {
     if (!user) return profile.fullName || "User";
@@ -180,21 +214,33 @@ export default function ProfileScreen() {
     return profile.fullName || profile.username || "User";
   }, [user, activeRole, profile]);
 
+  // ─── Account menu items per role ────────────────────────────────────────
   const accountItems = useMemo(() => {
     if (activeRole === "DESIGNER") {
       return [
         { icon: "storefront-outline" as const, label: "My Shop", onPress: () => router.push("/my-shop") },
         { icon: "document-text-outline" as const, label: "Orders", onPress: () => router.push("/manage-order") },
         { icon: "wallet-outline" as const, label: "Wallet", onPress: () => router.push("/wallet") },
+        {
+          icon: "location-outline" as const,
+          label: "Update Shop Location",
+          onPress: () => router.push({ pathname: "/edit-profile", params: { section: "location" } } as any),
+        },
       ];
     }
     if (activeRole === "PRINTER") {
       return [
-        { icon: "document-text-outline" as const, label: "Manage Orders", onPress: () => router.push("/manage-order") },
-        { icon: "print-outline" as const, label: "Print Jobs", onPress: () => router.push("/printers") },
+        { icon: "storefront-outline" as const, label: "My Shop", onPress: () => router.push("/my-shop") },
+        { icon: "document-text-outline" as const, label: "Orders", onPress: () => router.push("/manage-order") },
         { icon: "wallet-outline" as const, label: "Wallet", onPress: () => router.push("/wallet") },
+        {
+          icon: "location-outline" as const,
+          label: "Update Shop Location",
+          onPress: () => router.push({ pathname: "/edit-profile", params: { section: "location" } } as any),
+        },
       ];
     }
+    // CUSTOMER
     return [
       { icon: "color-palette-outline" as const, label: "Custom Designs", onPress: () => router.push("/custom-design") },
       { icon: "receipt-outline" as const, label: "My Orders", onPress: () => router.push("/manage-order") },
@@ -210,7 +256,8 @@ export default function ProfileScreen() {
     {
       icon: "help-circle-outline" as const,
       label: "FAQ",
-      onPress: () => openInBrowser("https://berrystamp.com/faq", "FAQ"),
+      // Navigate to the in-app FAQ screen (not an external browser)
+      onPress: () => router.push("/faq"),
     },
     {
       icon: "document-text-outline" as const,
@@ -254,47 +301,104 @@ export default function ProfileScreen() {
         onClose={() => setBrowserVisible(false)}
       />
 
-      <ScrollView
-        contentContainerStyle={{ paddingBottom: 100 }}
-        showsVerticalScrollIndicator={false}
-      >
+      <ScrollView contentContainerStyle={{ paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
         {/* Purple header banner */}
-        <View style={{ backgroundColor: "#4330A2", paddingTop: insets.top + 12, paddingBottom: 20, paddingHorizontal: 20, borderBottomLeftRadius: 28, borderBottomRightRadius: 28, overflow: "hidden" }}>
+        <View
+          style={{
+            backgroundColor: "#4330A2",
+            paddingTop: insets.top + 12,
+            paddingBottom: 20,
+            paddingHorizontal: 20,
+            borderBottomLeftRadius: 28,
+            borderBottomRightRadius: 28,
+            overflow: "hidden",
+          }}
+        >
           <View style={{ position: "absolute", top: -10, left: -20, width: 120, height: 120, borderRadius: 60, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" }} />
           <View style={{ position: "absolute", top: 20, right: -10, width: 160, height: 160, borderRadius: 80, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" }} />
 
+          {/* Nav row */}
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-            <TouchableOpacity onPress={() => router.back()} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.12)", alignItems: "center", justifyContent: "center" }}>
+            <TouchableOpacity
+              onPress={() => router.back()}
+              style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.12)", alignItems: "center", justifyContent: "center" }}
+            >
               <Ionicons name="arrow-back" size={18} color="#FFFFFF" />
             </TouchableOpacity>
             <Text style={{ fontSize: 15, fontWeight: "600", color: "#FFFFFF" }}>Profile</Text>
-            <TouchableOpacity onPress={() => router.push("/notification")} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.12)", alignItems: "center", justifyContent: "center" }}>
+            <TouchableOpacity
+              onPress={() => router.push("/notification")}
+              style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.12)", alignItems: "center", justifyContent: "center" }}
+            >
               <Ionicons name="notifications-outline" size={18} color="#FFFFFF" />
               {notificationCount > 0 && (
-                <View style={{ position: "absolute", top: -2, right: -2, minWidth: 16, height: 16, borderRadius: 8, backgroundColor: "#FF6B63", alignItems: "center", justifyContent: "center", paddingHorizontal: 3 }}>
-                  <Text style={{ fontSize: 9, fontWeight: "700", color: "#FFFFFF" }}>{notificationCount > 99 ? "99+" : notificationCount}</Text>
+                <View
+                  style={{
+                    position: "absolute",
+                    top: -2,
+                    right: -2,
+                    minWidth: 16,
+                    height: 16,
+                    borderRadius: 8,
+                    backgroundColor: "#FF6B63",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    paddingHorizontal: 3,
+                  }}
+                >
+                  <Text style={{ fontSize: 9, fontWeight: "700", color: "#FFFFFF" }}>
+                    {notificationCount > 99 ? "99+" : notificationCount}
+                  </Text>
                 </View>
               )}
             </TouchableOpacity>
           </View>
 
+          {/* Avatar + name row */}
           <View style={{ flexDirection: "row", alignItems: "center" }}>
-            {activeRole !== "CUSTOMER" ? (
+            {/* Tappable avatar — works for all roles */}
+            <TouchableOpacity
+              onPress={handlePickProfilePhoto}
+              activeOpacity={0.85}
+              disabled={uploadingPhoto || uploading}
+              style={{ position: "relative" }}
+            >
               <Image
                 source={{ uri: toAvatar(profile.avatar) }}
                 style={{ width: 62, height: 62, borderRadius: 31, borderWidth: 2, borderColor: "rgba(255,255,255,0.2)" }}
                 contentFit="cover"
               />
-            ) : (
-              <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: "rgba(255,255,255,0.18)", alignItems: "center", justifyContent: "center" }}>
-                <Ionicons name="person" size={22} color="#FFFFFF" />
+              <View
+                style={{
+                  position: "absolute",
+                  bottom: 0,
+                  right: 0,
+                  width: 20,
+                  height: 20,
+                  borderRadius: 10,
+                  backgroundColor: "#FFFFFF",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                {uploadingPhoto || uploading ? (
+                  <ActivityIndicator size="small" color="#4B3A99" style={{ transform: [{ scale: 0.6 }] }} />
+                ) : (
+                  <Ionicons name="camera" size={12} color="#4B3A99" />
+                )}
               </View>
-            )}
+            </TouchableOpacity>
+
             <View style={{ marginLeft: 12, flex: 1 }}>
               <Text style={{ fontSize: 17, fontWeight: "700", color: "#FFFFFF" }}>{displayName}</Text>
-              <Text style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", marginTop: 2 }}>{profileLabels[activeRole]}</Text>
+              <Text style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", marginTop: 2 }}>
+                {profileLabels[activeRole]}
+              </Text>
             </View>
-            <TouchableOpacity onPress={() => router.push("/edit-profile")} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.12)", alignItems: "center", justifyContent: "center" }}>
+            <TouchableOpacity
+              onPress={() => router.push("/edit-profile")}
+              style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.12)", alignItems: "center", justifyContent: "center" }}
+            >
               <Ionicons name="create-outline" size={18} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
@@ -321,7 +425,15 @@ export default function ProfileScreen() {
               <TouchableOpacity
                 key={target}
                 onPress={() => handleSwitchAccount(target)}
-                style={{ flexDirection: "row", alignItems: "center", backgroundColor: isDark ? "#1E1E1E" : "#F0EEFF", borderRadius: 14, paddingHorizontal: 16, paddingVertical: 12, marginBottom: 8 }}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  backgroundColor: isDark ? "#1E1E1E" : "#F0EEFF",
+                  borderRadius: 14,
+                  paddingHorizontal: 16,
+                  paddingVertical: 12,
+                  marginBottom: 8,
+                }}
               >
                 <Ionicons name="swap-horizontal-outline" size={18} color={theme.primary} />
                 <Text style={{ marginLeft: 10, fontSize: 14, fontWeight: "600", color: theme.primary, flex: 1 }}>
@@ -335,15 +447,28 @@ export default function ProfileScreen() {
 
         {/* My Account section */}
         <View style={{ paddingHorizontal: 16, marginTop: 14 }}>
-          <Text style={{ fontSize: 13, fontWeight: "600", color: theme.subtext, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 }}>My Account</Text>
+          <Text
+            style={{ fontSize: 13, fontWeight: "600", color: theme.subtext, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 }}
+          >
+            My Account
+          </Text>
           <View style={{ backgroundColor: theme.surface, borderRadius: 18, overflow: "hidden" }}>
             {accountItems.map((item, index) => (
               <TouchableOpacity
                 key={item.label}
                 onPress={item.onPress}
-                style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: index < accountItems.length - 1 ? 1 : 0, borderBottomColor: theme.border }}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  paddingHorizontal: 16,
+                  paddingVertical: 14,
+                  borderBottomWidth: index < accountItems.length - 1 ? 1 : 0,
+                  borderBottomColor: theme.border,
+                }}
               >
-                <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: theme.row, alignItems: "center", justifyContent: "center", marginRight: 12 }}>
+                <View
+                  style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: theme.row, alignItems: "center", justifyContent: "center", marginRight: 12 }}
+                >
                   <Ionicons name={item.icon} size={18} color="#9693A1" />
                 </View>
                 <Text style={{ flex: 1, fontSize: 14, fontWeight: "500", color: theme.text }}>{item.label}</Text>
@@ -355,15 +480,28 @@ export default function ProfileScreen() {
 
         {/* Support & Settings section */}
         <View style={{ paddingHorizontal: 16, marginTop: 20 }}>
-          <Text style={{ fontSize: 13, fontWeight: "600", color: theme.subtext, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 }}>Support</Text>
+          <Text
+            style={{ fontSize: 13, fontWeight: "600", color: theme.subtext, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 }}
+          >
+            Support
+          </Text>
           <View style={{ backgroundColor: theme.surface, borderRadius: 18, overflow: "hidden" }}>
             {supportItems.map((item, index) => (
               <TouchableOpacity
                 key={item.label}
                 onPress={item.onPress}
-                style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: index < supportItems.length - 1 ? 1 : 0, borderBottomColor: theme.border }}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  paddingHorizontal: 16,
+                  paddingVertical: 14,
+                  borderBottomWidth: index < supportItems.length - 1 ? 1 : 0,
+                  borderBottomColor: theme.border,
+                }}
               >
-                <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: theme.row, alignItems: "center", justifyContent: "center", marginRight: 12 }}>
+                <View
+                  style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: theme.row, alignItems: "center", justifyContent: "center", marginRight: 12 }}
+                >
                   <Ionicons name={item.icon} size={18} color="#9693A1" />
                 </View>
                 <Text style={{ flex: 1, fontSize: 14, fontWeight: "500", color: theme.text }}>{item.label}</Text>
@@ -376,11 +514,27 @@ export default function ProfileScreen() {
         {/* Logout */}
         <View style={{ paddingHorizontal: 16, marginTop: 16, marginBottom: 8 }}>
           <TouchableOpacity
-            onPress={() => Alert.alert("Log out", "Are you sure you want to log out?", [
-              { text: "Cancel", style: "cancel" },
-              { text: "Log out", style: "destructive", onPress: async () => { await ApiService.logout(); router.replace("/(auth)/login"); } },
-            ])}
-            style={{ flexDirection: "row", alignItems: "center", backgroundColor: isDark ? "#2A0D0D" : "#FFF0F0", borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14 }}
+            onPress={() =>
+              Alert.alert("Log out", "Are you sure you want to log out?", [
+                { text: "Cancel", style: "cancel" },
+                {
+                  text: "Log out",
+                  style: "destructive",
+                  onPress: async () => {
+                    await ApiService.logout();
+                    router.replace("/(auth)/login");
+                  },
+                },
+              ])
+            }
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              backgroundColor: isDark ? "#2A0D0D" : "#FFF0F0",
+              borderRadius: 14,
+              paddingHorizontal: 16,
+              paddingVertical: 14,
+            }}
           >
             <Ionicons name="log-out-outline" size={18} color="#EF4444" />
             <Text style={{ marginLeft: 10, fontSize: 14, fontWeight: "600", color: "#EF4444", flex: 1 }}>Log out</Text>

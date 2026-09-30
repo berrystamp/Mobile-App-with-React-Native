@@ -7,24 +7,24 @@
  * with the conversationId returned from the backend response.
  */
 
-import { useAppAlert } from '@/components/common/AppAlert';
-import { LoadingSpinner } from '@/components/LoadingSpinner';
-import ApiService, { type PrintOrderPayloadItem } from '@/services/apiClient';
-import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useAppAlert } from "@/components/common/AppAlert";
+import { LoadingSpinner } from "@/components/LoadingSpinner";
+import ApiService, { type PrintOrderPayloadItem } from "@/services/apiClient";
+import { Ionicons } from "@expo/vector-icons";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
-  Dimensions,
-  FlatList,
-  Image,
-  Text,
-  TouchableOpacity,
-  View
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+    ActivityIndicator,
+    Dimensions,
+    FlatList,
+    Image,
+    Text,
+    TouchableOpacity,
+    View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -60,8 +60,8 @@ interface ParsedCartItem {
 
 const toAbsUrl = (path?: string) => {
   if (!path) return null;
-  if (path.startsWith('http')) return path;
-  return `https://berrystamp-backend-production.up.railway.app/${path.replace(/^\/+/, '')}`;
+  if (path.startsWith("http")) return path;
+  return `https://berrystamp-backend-production.up.railway.app/${path.replace(/^\/+/, "")}`;
 };
 
 const normalizePrinter = (item: any): PrinterCard => ({
@@ -69,19 +69,21 @@ const normalizePrinter = (item: any): PrinterCard => ({
   userId: Number(item.userId ?? item.id),
   name:
     item.name ||
-    `${item.firstName || ''} ${item.lastName || ''}`.trim() ||
+    `${item.firstName || ""} ${item.lastName || ""}`.trim() ||
     item.userName ||
     item.username ||
-    'Printer',
+    "Printer",
   avatar: toAbsUrl(
     item.profileImage?.thumbnailUrl ||
-    item.profileImage?.url ||
-    item.thumbnailProfilePic ||
-    item.profilePic ||
-    item.avatar,
+      item.profileImage?.url ||
+      item.thumbnailProfilePic ||
+      item.profilePic ||
+      item.avatar,
   ),
-  cover: toAbsUrl(item.coverImage?.url || item.coverPic || item.profileImage?.url),
-  bio: item.bio || item.specialty || 'Commercial Printer',
+  cover: toAbsUrl(
+    item.coverImage?.url || item.coverPic || item.profileImage?.url,
+  ),
+  bio: item.bio || item.specialty || "Commercial Printer",
   categories: Array.isArray(item.categories) ? item.categories : [],
   rating: Number(item.insight?.rating?.avgStars ?? 0),
   totalCompletedOrders: Number(item.insight?.totalCompletedOrders ?? 0),
@@ -112,16 +114,23 @@ function PrinterCardItem({
       {/* Cover */}
       <View className="h-20 bg-[#F5F5F7] dark:bg-[#2C2C2E]">
         {printer.cover ? (
-          <Image source={{ uri: printer.cover }} className="h-full w-full" resizeMode="cover" />
+          <Image
+            source={{ uri: printer.cover }}
+            className="h-full w-full"
+            resizeMode="cover"
+          />
         ) : null}
         {/* Avatar */}
         <View
           className="absolute bottom-[-20px] left-0 right-0 items-center"
-          style={{ alignItems: 'center' }}
+          style={{ alignItems: "center" }}
         >
           <View className="h-11 w-11 overflow-hidden rounded-full border-2 border-white bg-[#4A3298] dark:border-[#1C1C1E]">
             {printer.avatar ? (
-              <Image source={{ uri: printer.avatar }} className="h-full w-full" />
+              <Image
+                source={{ uri: printer.avatar }}
+                className="h-full w-full"
+              />
             ) : (
               <View className="flex-1 items-center justify-center">
                 <Text className="text-[14px] font-bold text-white">
@@ -142,14 +151,19 @@ function PrinterCardItem({
           >
             {printer.name}
           </Text>
-          <Ionicons name="checkmark-circle" size={13} color="#4A3298" style={{ marginLeft: 3 }} />
+          <Ionicons
+            name="checkmark-circle"
+            size={13}
+            color="#4A3298"
+            style={{ marginLeft: 3 }}
+          />
         </View>
         <Text numberOfLines={1} className="mb-1 text-[11px] text-[#8E8E93]">
           {printer.bio}
         </Text>
         <Text className="mb-1 text-[10px] text-[#AEAEB2] dark:text-[#636366]">
           {printer.totalCompletedOrders} orders
-          {printer.rating > 0 ? ` · ★ ${printer.rating.toFixed(1)}` : ''}
+          {printer.rating > 0 ? ` · ★ ${printer.rating.toFixed(1)}` : ""}
         </Text>
         {printer.distanceInKm > 0 && (
           <Text className="mb-3 text-[10px] text-[#AEAEB2] dark:text-[#636366]">
@@ -162,23 +176,30 @@ function PrinterCardItem({
           onPress={onViewProfile}
           className="mb-2 w-full items-center rounded-full border border-[#4A3298] py-2"
         >
-          <Text className="text-[12px] font-semibold text-[#4A3298]">View Profile</Text>
+          <Text className="text-[12px] font-semibold text-[#4A3298]">
+            View Profile
+          </Text>
         </TouchableOpacity>
 
         {/* Message */}
         <TouchableOpacity
           onPress={onMessage}
           disabled={isSending}
-          className={`w-full items-center rounded-full py-2 ${isSending ? 'bg-[#9B8BCC]' : 'bg-[#4A3298]'
-            }`}
+          className={`w-full items-center rounded-full py-2 ${
+            isSending ? "bg-[#9B8BCC]" : "bg-[#4A3298]"
+          }`}
         >
           {isSending ? (
             <View className="flex-row items-center gap-1.5">
               <ActivityIndicator size="small" color="#FFF" />
-              <Text className="text-[12px] font-semibold text-white">Sending…</Text>
+              <Text className="text-[12px] font-semibold text-white">
+                Sending…
+              </Text>
             </View>
           ) : (
-            <Text className="text-[12px] font-semibold text-white">Message</Text>
+            <Text className="text-[12px] font-semibold text-white">
+              Message
+            </Text>
           )}
         </TouchableOpacity>
       </View>
@@ -217,7 +238,11 @@ export default function SelectPrinterScreen() {
     }
   }, [cartItemsParam]);
 
-  const deliveryAddress = useMemo<{ name: string; latitude: number; longitude: number } | null>(() => {
+  const deliveryAddress = useMemo<{
+    name: string;
+    latitude: number;
+    longitude: number;
+  } | null>(() => {
     if (!deliveryAddressParam) return null;
     try {
       return JSON.parse(deliveryAddressParam);
@@ -226,7 +251,7 @@ export default function SelectPrinterScreen() {
     }
   }, [deliveryAddressParam]);
 
-  const hasOwnItem = hasOwnItemParam === 'true';
+  const hasOwnItem = hasOwnItemParam === "true";
 
   // Screen state
   const [printers, setPrinters] = useState<PrinterCard[]>([]);
@@ -236,7 +261,9 @@ export default function SelectPrinterScreen() {
 
   const loadPrinters = useCallback(async () => {
     if (!deliveryAddress) {
-      setError('Delivery address with coordinates is required to find nearby printers.');
+      setError(
+        "Delivery address with coordinates is required to find nearby printers.",
+      );
       setLoading(false);
       return;
     }
@@ -254,12 +281,24 @@ export default function SelectPrinterScreen() {
         res?.content ||
         (Array.isArray(res?.responseBody) ? res.responseBody : []) ||
         [];
-      setPrinters(content.map(normalizePrinter));
+      setPrinters(
+        content.map(normalizePrinter).sort((left, right) => {
+          const leftDistance =
+            left.distanceInKm > 0
+              ? left.distanceInKm
+              : Number.POSITIVE_INFINITY;
+          const rightDistance =
+            right.distanceInKm > 0
+              ? right.distanceInKm
+              : Number.POSITIVE_INFINITY;
+          return leftDistance - rightDistance;
+        }),
+      );
     } catch (err: any) {
       setError(
         err?.response?.data?.responseMessage ||
-        err?.message ||
-        'Failed to load printers. Please try again.',
+          err?.message ||
+          "Failed to load printers. Please try again.",
       );
       setPrinters([]);
     } finally {
@@ -273,7 +312,7 @@ export default function SelectPrinterScreen() {
 
   const handleViewProfile = (printer: PrinterCard) => {
     router.push({
-      pathname: '/(tabs)/my-shop',
+      pathname: "/(tabs)/my-shop",
       params: { profileId: String(printer.id) },
     });
   };
@@ -285,14 +324,14 @@ export default function SelectPrinterScreen() {
     try {
       const payload: PrintOrderPayloadItem[] = cartItems.map((item) => ({
         designId: Number(item.designId),
-        colour: item.colour || '',
+        colour: item.colour || "",
         quantity: Number(item.quantity) || 1,
-        size: item.size || '',
+        size: item.size || "",
         mockItemId: Number(item.mockId),
         customDesign: false,
-        sourceOfItem: hasOwnItem ? 'From Customer' : 'From Printer',
-        estimatedAmount: estimatedAmount || '',
-        dateOfDelivery: dateOfDelivery || '',
+        sourceOfItem: hasOwnItem ? "From Customer" : "From Printer",
+        estimatedAmount: estimatedAmount || "",
+        dateOfDelivery: dateOfDelivery || "",
         deliveryAddress: {
           name: deliveryAddress.name,
           latitude: deliveryAddress.latitude,
@@ -300,23 +339,48 @@ export default function SelectPrinterScreen() {
         },
         printerId: printer.id,
       }));
-      console.log(payload)
+      console.log(payload);
       const res = await ApiService.createPrintOrders(payload);
       const responseBody: any[] = res?.responseBody ?? res ?? [];
-      const firstOrder = Array.isArray(responseBody) ? responseBody[0] : responseBody;
+      const firstOrder = Array.isArray(responseBody)
+        ? responseBody[0]
+        : responseBody;
       const conversationId = firstOrder?.conversationId;
 
       if (!conversationId) {
-        throw new Error('No conversation ID returned from the server.');
+        throw new Error("No conversation ID returned from the server.");
       }
 
+      // ─── Remove ordered items from the cart ───────────────────────────────
+      // Delete each ordered item from the backend cart and local storage
+      await Promise.allSettled(
+        cartItems.map((item) =>
+          ApiService.deleteCartItem(String(item.id)).catch(() => {}),
+        ),
+      );
+
+      // Prune the local cart cache so the cart screen reflects the change
+      try {
+        const { getCartItems: getLocalCart, saveCartItems } =
+          await import("@/lib/localStorage");
+        const localCart = await getLocalCart();
+        const orderedIds = new Set(cartItems.map((i) => String(i.id)));
+        const remaining = localCart.filter(
+          (c: any) => !orderedIds.has(String(c.id)),
+        );
+        await saveCartItems(remaining);
+      } catch {
+        // best-effort — cart screen will re-fetch on next mount
+      }
+      // ─────────────────────────────────────────────────────────────────────
+
       router.push({
-        pathname: '/(tabs)/chat',
+        pathname: "/(tabs)/chat",
         params: {
           conversationId: String(conversationId),
           participantId: String(printer.userId ?? printer.id),
           participantName: printer.name,
-          participantRole: 'Printers',
+          participantRole: "Printers",
         },
       });
     } catch (err: any) {
@@ -324,8 +388,8 @@ export default function SelectPrinterScreen() {
         err?.response?.data?.responseMessage ||
         err?.response?.data?.message ||
         err?.message ||
-        'Failed to send order. Please try again.';
-      showAlert({ type: 'error', title: 'Order Failed', message: msg });
+        "Failed to send order. Please try again.";
+      showAlert({ type: "error", title: "Order Failed", message: msg });
     } finally {
       setSendingId(null);
     }
@@ -341,7 +405,9 @@ export default function SelectPrinterScreen() {
     return (
       <SafeAreaView className="flex-1 items-center justify-center bg-[#F7F7FA] px-6 dark:bg-black">
         <Ionicons name="alert-circle-outline" size={56} color="#FF3B30" />
-        <Text className="mt-4 text-center text-[15px] text-[#FF3B30]">{error}</Text>
+        <Text className="mt-4 text-center text-[15px] text-[#FF3B30]">
+          {error}
+        </Text>
         <TouchableOpacity
           onPress={loadPrinters}
           className="mt-6 rounded-xl bg-[#4A3298] px-8 py-3.5"
@@ -365,7 +431,10 @@ export default function SelectPrinterScreen() {
             Select Print Partner
           </Text>
           {deliveryAddress ? (
-            <Text numberOfLines={1} className="mt-0.5 text-[12px] text-[#8E8E93]">
+            <Text
+              numberOfLines={1}
+              className="mt-0.5 text-[12px] text-[#8E8E93]"
+            >
               Near {deliveryAddress.name}
             </Text>
           ) : null}

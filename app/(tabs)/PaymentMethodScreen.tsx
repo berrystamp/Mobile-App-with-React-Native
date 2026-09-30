@@ -1,6 +1,6 @@
 import { Button } from "@/components/UIComponents";
 import { PaymentFunder, RootStackParamList } from "@/types";
-import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import type { NativeStackScreenProps } from "expo-router";
 import React, { useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { COLORS, RADIUS, SHADOW, SPACING } from "../../utils/theme";

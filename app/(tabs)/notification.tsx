@@ -1,18 +1,23 @@
-import ApiService from '@/services/apiClient';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import ApiService from "@/services/apiClient";
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
-  Image,
-  SectionList,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-  useColorScheme
-} from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+    ActivityIndicator,
+    Image,
+    Modal,
+    ScrollView,
+    SectionList,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+    useColorScheme,
+} from "react-native";
+import {
+    SafeAreaView,
+    useSafeAreaInsets,
+} from "react-native-safe-area-context";
 
 type NotificationItem = {
   id: number;
@@ -25,43 +30,59 @@ type NotificationItem = {
   avatar?: string;
 };
 
-type FilterTab = 'All' | 'Read' | 'Unread';
+type FilterTab = "All" | "Read" | "Unread";
 
 function normalizeDate(value?: string): { label: string; raw: Date } {
   const raw = value ? new Date(value) : new Date();
-  if (Number.isNaN(raw.getTime())) return { label: value || 'Now', raw: new Date() };
+  if (Number.isNaN(raw.getTime()))
+    return { label: value || "Now", raw: new Date() };
   const now = new Date();
   const diff = now.getTime() - raw.getTime();
   const minute = 60 * 1000;
   const hour = 60 * minute;
   const day = 24 * hour;
   let label: string;
-  if (diff < minute) label = 'Now';
-  else if (diff < hour) label = Math.floor(diff / minute) + 'm ago';
-  else if (diff < day) label = Math.floor(diff / hour) + 'h ago';
-  else label = raw.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  if (diff < minute) label = "Now";
+  else if (diff < hour) label = Math.floor(diff / minute) + "m ago";
+  else if (diff < day) label = Math.floor(diff / hour) + "h ago";
+  else
+    label = raw.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   return { label, raw };
 }
 
 function typeLabel(type: string): string {
-  if (type.includes('PROFILE')) return 'PROFILE';
-  if (type.includes('MESSAGE') || type.includes('CHAT')) return 'MESSAGE';
-  if (type.includes('ORDER')) return 'ORDER';
-  if (type.includes('DELIVER')) return 'DELIVERY';
-  return type.split('_')[0] || 'NOTICE';
+  if (type.includes("PROFILE")) return "PROFILE";
+  if (type.includes("MESSAGE") || type.includes("CHAT")) return "MESSAGE";
+  if (type.includes("ORDER")) return "ORDER";
+  if (type.includes("DELIVER")) return "DELIVERY";
+  return type.split("_")[0] || "NOTICE";
 }
 
-function iconByType(type: string): { name: keyof typeof Ionicons.glyphMap; bg: string; color: string } {
-  if (type.includes('PROFILE')) return { name: 'person-circle-outline', bg: '#EDE8FF', color: '#4732A1' };
-  if (type.includes('MESSAGE') || type.includes('CHAT')) return { name: 'mail-outline', bg: '#E8F4FF', color: '#2F80ED' };
-  if (type.includes('ORDER')) return { name: 'cube-outline', bg: '#FFF3E8', color: '#F2994A' };
-  if (type.includes('DELIVER')) return { name: 'bicycle-outline', bg: '#E8FFF3', color: '#27AE60' };
-  return { name: 'notifications-outline', bg: '#F4F2FB', color: '#4732A1' };
+function iconByType(type: string): {
+  name: keyof typeof Ionicons.glyphMap;
+  bg: string;
+  color: string;
+} {
+  if (type.includes("PROFILE"))
+    return { name: "person-circle-outline", bg: "#EDE8FF", color: "#4732A1" };
+  if (type.includes("MESSAGE") || type.includes("CHAT"))
+    return { name: "mail-outline", bg: "#E8F4FF", color: "#2F80ED" };
+  if (type.includes("ORDER"))
+    return { name: "cube-outline", bg: "#FFF3E8", color: "#F2994A" };
+  if (type.includes("DELIVER"))
+    return { name: "bicycle-outline", bg: "#E8FFF3", color: "#27AE60" };
+  return { name: "notifications-outline", bg: "#F4F2FB", color: "#4732A1" };
 }
 
-function groupByRecency(items: NotificationItem[]): { title: string; data: NotificationItem[] }[] {
+function groupByRecency(
+  items: NotificationItem[],
+): { title: string; data: NotificationItem[] }[] {
   const now = new Date();
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfToday = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+  );
   const startOfWeek = new Date(startOfToday);
   startOfWeek.setDate(startOfToday.getDate() - startOfToday.getDay());
 
@@ -80,31 +101,35 @@ function groupByRecency(items: NotificationItem[]): { title: string; data: Notif
   });
 
   const sections: { title: string; data: NotificationItem[] }[] = [];
-  if (newItems.length) sections.push({ title: 'New', data: newItems });
-  if (thisWeekItems.length) sections.push({ title: 'This Week', data: thisWeekItems });
-  if (olderItems.length) sections.push({ title: 'Earlier', data: olderItems });
+  if (newItems.length) sections.push({ title: "New", data: newItems });
+  if (thisWeekItems.length)
+    sections.push({ title: "This Week", data: thisWeekItems });
+  if (olderItems.length) sections.push({ title: "Earlier", data: olderItems });
   return sections;
 }
 
 export default function NotificationScreen() {
   const router = useRouter();
-  const isDark = useColorScheme() === 'dark';
+  const isDark = useColorScheme() === "dark";
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [markingAll, setMarkingAll] = useState(false);
-  const [activeTab, setActiveTab] = useState<FilterTab>('All');
+  const [activeTab, setActiveTab] = useState<FilterTab>("All");
+  const [selectedNotif, setSelectedNotif] = useState<NotificationItem | null>(
+    null,
+  );
 
   // Theme
-  const bg = isDark ? '#0F0F13' : '#FFFFFF';
-  const surface = isDark ? '#1A1A22' : '#FFFFFF';
-  const border = isDark ? '#2A2A35' : '#F0EFF5';
-  const text = isDark ? '#FFFFFF' : '#1A1A1A';
-  const subtext = isDark ? '#9090A0' : '#7A7A8A';
-  const sectionHeaderBg = isDark ? '#0F0F13' : '#FFFFFF';
-  const primary = '#4732A1';
-  const unreadBg = isDark ? '#1C1830' : '#F7F5FF';
-  const unreadBorder = isDark ? '#352D6A' : '#E5E0FF';
+  const bg = isDark ? "#0F0F13" : "#FFFFFF";
+  const surface = isDark ? "#1A1A22" : "#FFFFFF";
+  const border = isDark ? "#2A2A35" : "#F0EFF5";
+  const text = isDark ? "#FFFFFF" : "#1A1A1A";
+  const subtext = isDark ? "#9090A0" : "#7A7A8A";
+  const sectionHeaderBg = isDark ? "#0F0F13" : "#FFFFFF";
+  const primary = "#4732A1";
+  const unreadBg = isDark ? "#1C1830" : "#F7F5FF";
+  const unreadBorder = isDark ? "#352D6A" : "#E5E0FF";
 
   const loadNotifications = useCallback(async () => {
     try {
@@ -114,16 +139,21 @@ export default function NotificationScreen() {
         response?.responseBody?.content ||
         response?.responseBody ||
         response?.content ||
-        response?.data || [];
+        response?.data ||
+        [];
       const normalized = (Array.isArray(content) ? content : [])
         .map((item: any, index: number) => {
-          const { label, raw } = normalizeDate(item.createdAt || item.createdDate || item.updatedAt);
+          const { label, raw } = normalizeDate(
+            item.createdAt || item.createdDate || item.updatedAt,
+          );
           return {
             id: Number(item.id ?? index + 1),
-            title: String(item.title || item.subject || 'Notification'),
-            message: String(item.message || item.body || item.description || item.title || ''),
+            title: String(item.title || item.subject || "Notification"),
+            message: String(
+              item.message || item.body || item.description || item.title || "",
+            ),
             read: Boolean(item.read || item.isRead),
-            type: String(item.type || item.category || 'GENERAL').toUpperCase(),
+            type: String(item.type || item.category || "GENERAL").toUpperCase(),
             createdAt: label,
             rawDate: raw,
             avatar: item.avatar || item.senderAvatar || undefined,
@@ -136,17 +166,25 @@ export default function NotificationScreen() {
     }
   }, []);
 
-  useEffect(() => { loadNotifications(); }, [loadNotifications]);
+  useEffect(() => {
+    loadNotifications();
+  }, [loadNotifications]);
 
-  const unreadCount = useMemo(() => items.filter((i) => !i.read).length, [items]);
+  const unreadCount = useMemo(
+    () => items.filter((i) => !i.read).length,
+    [items],
+  );
 
   const markAsRead = useCallback(async (item: NotificationItem) => {
-    if (item.read) return;
-    setItems((prev) => prev.map((e) => (e.id === item.id ? { ...e, read: true } : e)));
+    setItems((prev) =>
+      prev.map((e) => (e.id === item.id ? { ...e, read: true } : e)),
+    );
     try {
-      await ApiService.markNotificationAsRead(item.id);
+      if (!item.read) await ApiService.markNotificationAsRead(item.id);
     } catch {
-      setItems((prev) => prev.map((e) => (e.id === item.id ? { ...e, read: false } : e)));
+      setItems((prev) =>
+        prev.map((e) => (e.id === item.id ? { ...e, read: false } : e)),
+      );
     }
   }, []);
 
@@ -164,20 +202,30 @@ export default function NotificationScreen() {
   }, [markingAll, unreadCount, loadNotifications]);
 
   const filteredItems = useMemo(() => {
-    if (activeTab === 'Read') return items.filter((i) => i.read);
-    if (activeTab === 'Unread') return items.filter((i) => !i.read);
+    if (activeTab === "Read") return items.filter((i) => i.read);
+    if (activeTab === "Unread") return items.filter((i) => !i.read);
     return items;
   }, [items, activeTab]);
 
-  const sections = useMemo(() => groupByRecency(filteredItems), [filteredItems]);
+  const sections = useMemo(
+    () => groupByRecency(filteredItems),
+    [filteredItems],
+  );
 
   const renderItem = ({ item }: { item: NotificationItem }) => {
-    const { name: iconName, bg: iconBg, color: iconColor } = iconByType(item.type);
+    const {
+      name: iconName,
+      bg: iconBg,
+      color: iconColor,
+    } = iconByType(item.type);
     const label = typeLabel(item.type);
 
     return (
       <TouchableOpacity
-        onPress={() => markAsRead(item)}
+        onPress={() => {
+          markAsRead(item);
+          setSelectedNotif(item);
+        }}
         activeOpacity={0.75}
         style={[
           styles.notifRow,
@@ -188,7 +236,12 @@ export default function NotificationScreen() {
         ]}
       >
         {/* Avatar / Icon */}
-        <View style={[styles.avatarWrap, { backgroundColor: isDark ? '#252535' : iconBg }]}>
+        <View
+          style={[
+            styles.avatarWrap,
+            { backgroundColor: isDark ? "#252535" : iconBg },
+          ]}
+        >
           {item.avatar ? (
             <Image source={{ uri: item.avatar }} style={styles.avatarImg} />
           ) : (
@@ -200,16 +253,28 @@ export default function NotificationScreen() {
         <View style={styles.notifContent}>
           <View style={styles.notifTopRow}>
             <View style={{ flex: 1, marginRight: 8 }}>
-              <Text style={[styles.notifTitle, { color: text }]} numberOfLines={2}>
-                <Text style={[styles.notifTypeLabel, { color: primary }]}>{label}</Text>
-                <Text style={{ color: isDark ? '#C0C0D0' : '#555' }}>{' | '}</Text>
+              <Text
+                style={[styles.notifTitle, { color: text }]}
+                numberOfLines={2}
+              >
+                <Text style={[styles.notifTypeLabel, { color: primary }]}>
+                  {label}
+                </Text>
+                <Text style={{ color: isDark ? "#C0C0D0" : "#555" }}>
+                  {" | "}
+                </Text>
                 {item.title}
               </Text>
-              <Text style={[styles.notifMessage, { color: subtext }]} numberOfLines={2}>
+              <Text
+                style={[styles.notifMessage, { color: subtext }]}
+                numberOfLines={2}
+              >
                 {item.message}
               </Text>
             </View>
-            <Text style={[styles.notifDate, { color: subtext }]}>{item.createdAt}</Text>
+            <Text style={[styles.notifDate, { color: subtext }]}>
+              {item.createdAt}
+            </Text>
           </View>
         </View>
 
@@ -222,7 +287,10 @@ export default function NotificationScreen() {
   };
 
   return (
-    <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1, backgroundColor: bg }}>
+    <SafeAreaView
+      edges={["top", "left", "right"]}
+      style={{ flex: 1, backgroundColor: bg }}
+    >
       <View style={{ flex: 1 }}>
         {/* Header */}
         <View style={[styles.header, { borderBottomColor: border }]}>
@@ -234,7 +302,9 @@ export default function NotificationScreen() {
             <Ionicons name="arrow-back" size={22} color={text} />
           </TouchableOpacity>
 
-          <Text style={[styles.headerTitle, { color: text }]}>Notification</Text>
+          <Text style={[styles.headerTitle, { color: text }]}>
+            Notification
+          </Text>
 
           <View style={styles.headerRight}>
             {unreadCount > 0 && (
@@ -251,28 +321,38 @@ export default function NotificationScreen() {
             style={styles.markAllRow}
           >
             <Text style={styles.markAllText}>
-              {markingAll ? 'Marking...' : 'Mark all as read'}
+              {markingAll ? "Marking..." : "Mark all as read"}
             </Text>
           </TouchableOpacity>
         )}
 
         {loading ? (
-          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <View
+            style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
+          >
             <ActivityIndicator size="large" color={primary} />
           </View>
         ) : items.length === 0 ? (
           /* Empty State */
           <View style={styles.emptyWrap}>
-            <View style={[styles.emptyIconWrap, { borderColor: isDark ? '#333' : '#D8D5E8' }]}>
+            <View
+              style={[
+                styles.emptyIconWrap,
+                { borderColor: isDark ? "#333" : "#D8D5E8" },
+              ]}
+            >
               <Ionicons
                 name="notifications-outline"
                 size={52}
-                color={isDark ? '#555' : '#C0BBDA'}
+                color={isDark ? "#555" : "#C0BBDA"}
               />
             </View>
-            <Text style={[styles.emptyTitle, { color: text }]}>No notification yet</Text>
+            <Text style={[styles.emptyTitle, { color: text }]}>
+              No notification yet
+            </Text>
             <Text style={[styles.emptySubtitle, { color: subtext }]}>
-              You will be updated about activities{'\n'}going on your account here.
+              You will be updated about activities{"\n"}going on your account
+              here.
             </Text>
           </View>
         ) : (
@@ -283,8 +363,15 @@ export default function NotificationScreen() {
             showsVerticalScrollIndicator={false}
             stickySectionHeadersEnabled={false}
             renderSectionHeader={({ section }) => (
-              <View style={[styles.sectionHeader, { backgroundColor: sectionHeaderBg }]}>
-                <Text style={[styles.sectionTitle, { color: text }]}>{section.title}</Text>
+              <View
+                style={[
+                  styles.sectionHeader,
+                  { backgroundColor: sectionHeaderBg },
+                ]}
+              >
+                <Text style={[styles.sectionTitle, { color: text }]}>
+                  {section.title}
+                </Text>
               </View>
             )}
             renderItem={renderItem}
@@ -296,15 +383,17 @@ export default function NotificationScreen() {
 
         {/* Bottom Filter Tabs */}
         {!loading && (
-          <View style={[
-            styles.tabBar,
-            {
-              backgroundColor: isDark ? '#16161E' : '#F5F4FA',
-              borderTopColor: border,
-              paddingBottom: insets.bottom > 0 ? insets.bottom : 12,
-            },
-          ]}>
-            {(['All', 'Read', 'Unread'] as FilterTab[]).map((tab) => {
+          <View
+            style={[
+              styles.tabBar,
+              {
+                backgroundColor: isDark ? "#16161E" : "#F5F4FA",
+                borderTopColor: border,
+                paddingBottom: insets.bottom > 0 ? insets.bottom : 12,
+              },
+            ]}
+          >
+            {(["All", "Read", "Unread"] as FilterTab[]).map((tab) => {
               const isActive = activeTab === tab;
               return (
                 <TouchableOpacity
@@ -319,8 +408,14 @@ export default function NotificationScreen() {
                   <Text
                     style={[
                       styles.tabText,
-                      { color: isActive ? '#FFFFFF' : isDark ? '#9090A0' : '#7A7A8A' },
-                      isActive && { fontWeight: '700' },
+                      {
+                        color: isActive
+                          ? "#FFFFFF"
+                          : isDark
+                            ? "#9090A0"
+                            : "#7A7A8A",
+                      },
+                      isActive && { fontWeight: "700" },
                     ]}
                   >
                     {tab}
@@ -331,14 +426,164 @@ export default function NotificationScreen() {
           </View>
         )}
       </View>
+
+      {/* ─── Notification Detail Modal ─────────────────────────────────── */}
+      <Modal
+        visible={Boolean(selectedNotif)}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setSelectedNotif(null)}
+      >
+        <View
+          style={{
+            flex: 1,
+            justifyContent: "flex-end",
+            backgroundColor: "rgba(0,0,0,0.45)",
+          }}
+        >
+          <TouchableOpacity
+            style={{ flex: 1 }}
+            activeOpacity={1}
+            onPress={() => setSelectedNotif(null)}
+          />
+          <View
+            style={{
+              backgroundColor: isDark ? "#1A1A22" : "#FFFFFF",
+              borderTopLeftRadius: 24,
+              borderTopRightRadius: 24,
+              paddingHorizontal: 24,
+              paddingTop: 20,
+              paddingBottom: insets.bottom + 28,
+              maxHeight: "80%",
+            }}
+          >
+            {/* Handle bar */}
+            <View
+              style={{
+                width: 36,
+                height: 4,
+                borderRadius: 2,
+                backgroundColor: isDark ? "#444" : "#DDD",
+                alignSelf: "center",
+                marginBottom: 18,
+              }}
+            />
+
+            {/* Type badge */}
+            {selectedNotif &&
+              (() => {
+                const {
+                  name: iconName,
+                  bg: iconBg,
+                  color: iconColor,
+                } = iconByType(selectedNotif.type);
+                const label = typeLabel(selectedNotif.type);
+                return (
+                  <>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        marginBottom: 14,
+                      }}
+                    >
+                      <View
+                        style={{
+                          width: 44,
+                          height: 44,
+                          borderRadius: 22,
+                          backgroundColor: isDark ? "#252535" : iconBg,
+                          alignItems: "center",
+                          justifyContent: "center",
+                          marginRight: 12,
+                        }}
+                      >
+                        <Ionicons name={iconName} size={22} color={iconColor} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 6,
+                            flexWrap: "wrap",
+                          }}
+                        >
+                          <Text
+                            style={{
+                              fontSize: 12,
+                              fontWeight: "700",
+                              color: primary,
+                            }}
+                          >
+                            {label}
+                          </Text>
+                          <Text
+                            style={{
+                              fontSize: 11,
+                              color: isDark ? "#9090A0" : "#7A7A8A",
+                            }}
+                          >
+                            {selectedNotif.createdAt}
+                          </Text>
+                        </View>
+                        <Text
+                          style={{
+                            fontSize: 16,
+                            fontWeight: "700",
+                            color: isDark ? "#FFFFFF" : "#1A1A1A",
+                            marginTop: 2,
+                          }}
+                          numberOfLines={2}
+                        >
+                          {selectedNotif.title}
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => setSelectedNotif(null)}
+                        style={{ padding: 4 }}
+                      >
+                        <Ionicons
+                          name="close"
+                          size={22}
+                          color={isDark ? "#9090A0" : "#7A7A8A"}
+                        />
+                      </TouchableOpacity>
+                    </View>
+
+                    <View
+                      style={{
+                        height: StyleSheet.hairlineWidth,
+                        backgroundColor: isDark ? "#2A2A35" : "#F0EFF5",
+                        marginBottom: 16,
+                      }}
+                    />
+
+                    <ScrollView showsVerticalScrollIndicator={false}>
+                      <Text
+                        style={{
+                          fontSize: 14,
+                          lineHeight: 22,
+                          color: isDark ? "#C0C0D0" : "#555555",
+                        }}
+                      >
+                        {selectedNotif.message || selectedNotif.title}
+                      </Text>
+                    </ScrollView>
+                  </>
+                );
+              })()}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 20,
     paddingTop: 12,
     paddingBottom: 14,
@@ -346,35 +591,35 @@ const styles = StyleSheet.create({
   },
   backBtn: {
     width: 36,
-    alignItems: 'flex-start',
-    justifyContent: 'center',
+    alignItems: "flex-start",
+    justifyContent: "center",
   },
   headerTitle: {
     flex: 1,
-    textAlign: 'center',
+    textAlign: "center",
     fontSize: 17,
-    fontWeight: '600',
+    fontWeight: "600",
     letterSpacing: 0.2,
   },
   headerRight: {
     width: 36,
-    alignItems: 'flex-end',
-    justifyContent: 'center',
+    alignItems: "flex-end",
+    justifyContent: "center",
   },
   unreadBadge: {
-    color: '#2F80ED',
+    color: "#2F80ED",
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   markAllRow: {
-    alignItems: 'flex-end',
+    alignItems: "flex-end",
     paddingHorizontal: 20,
     paddingVertical: 8,
   },
   markAllText: {
-    color: '#E53935',
+    color: "#E53935",
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   sectionHeader: {
     paddingHorizontal: 20,
@@ -383,22 +628,22 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   notifRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    alignItems: "flex-start",
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    position: 'relative',
+    position: "relative",
   },
   avatarWrap: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 12,
     flexShrink: 0,
   },
@@ -411,16 +656,16 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   notifTopRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    alignItems: "flex-start",
   },
   notifTypeLabel: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   notifTitle: {
     fontSize: 12,
-    fontWeight: '500',
+    fontWeight: "500",
     lineHeight: 17,
     marginBottom: 3,
   },
@@ -434,7 +679,7 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   unreadDot: {
-    position: 'absolute',
+    position: "absolute",
     top: 14,
     right: 16,
     width: 7,
@@ -447,8 +692,8 @@ const styles = StyleSheet.create({
   },
   emptyWrap: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: 40,
   },
   emptyIconWrap: {
@@ -456,29 +701,29 @@ const styles = StyleSheet.create({
     height: 100,
     borderRadius: 50,
     borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: 24,
   },
   emptyTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
     marginBottom: 10,
-    textAlign: 'center',
+    textAlign: "center",
   },
   emptySubtitle: {
     fontSize: 14,
-    textAlign: 'center',
+    textAlign: "center",
     lineHeight: 21,
   },
   tabBar: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     paddingTop: 10,
     paddingHorizontal: 20,
     borderTopWidth: StyleSheet.hairlineWidth,
@@ -486,13 +731,13 @@ const styles = StyleSheet.create({
   },
   tabItem: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 10,
     borderRadius: 24,
   },
   tabText: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: "500",
   },
 });

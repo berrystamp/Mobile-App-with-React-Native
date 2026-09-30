@@ -2,14 +2,14 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  FlatList,
-  Image,
-  SafeAreaView,
-  Text,
-  TouchableOpacity,
-  View,
-  useColorScheme,
+    ActivityIndicator,
+    FlatList,
+    Image,
+    SafeAreaView,
+    Text,
+    TouchableOpacity,
+    View,
+    useColorScheme,
 } from "react-native";
 
 import { useAppAlert } from "@/components/common/AppAlert";
@@ -18,11 +18,13 @@ import { normalizeDesignListResponse } from "@/lib/designs";
 import ApiService from "@/services/apiClient";
 import { isCustomerRole, useAuthStore } from "@/store/authStore";
 import type { Design } from "@/types";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function FavoritesScreen() {
   const router = useRouter();
   const isDark = useColorScheme() === "dark";
   const role = useAuthStore((state) => state.role);
+  const insets = useSafeAreaInsets();
   const [designs, setDesigns] = useState<Design[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -161,7 +163,7 @@ export default function FavoritesScreen() {
             onRefresh={() => fetchData(true)}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{
-              paddingBottom: 28,
+              paddingBottom: insets.bottom + 80, // Extra space so navbar doesn't cover last items
               flexGrow: designs.length ? 0 : 1,
             }}
             renderItem={({ item }) => {

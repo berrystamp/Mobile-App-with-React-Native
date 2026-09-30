@@ -1,8 +1,8 @@
 import ApiService from "@/services/apiClient";
 import {
-  getPushPermissionStatus,
-  pushNotificationsSupported,
-  registerForPushNotifications,
+    getPushPermissionStatus,
+    pushNotificationsSupported,
+    registerForPushNotifications,
 } from "@/services/notificationService";
 import { useNotificationStore } from "@/store/notificationStore";
 import { Ionicons } from "@expo/vector-icons";
@@ -10,18 +10,18 @@ import { useRouter } from "expo-router";
 import { useColorScheme } from "nativewind";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Linking,
-  Modal,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Linking,
+    Modal,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Switch,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -704,9 +704,13 @@ function ChangePasswordScreen({
           }
           placeholderTextColor={subtext}
           secureTextEntry={!show}
+          blurOnSubmit={false}
+          autoCorrect={false}
+          autoCapitalize="none"
+          textContentType="none"
           style={[styles.pwInput, { color: text }]}
         />
-        <TouchableOpacity onPress={onToggle} style={{ padding: 4 }}>
+        <TouchableOpacity onPress={onToggle} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ padding: 4 }}>
           <Ionicons name={show ? "eye-off-outline" : "eye-outline"} size={20} color={subtext} />
         </TouchableOpacity>
       </View>

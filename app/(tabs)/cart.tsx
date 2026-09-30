@@ -1,37 +1,40 @@
-import { Feather, Ionicons } from "@expo/vector-icons";
-import DateTimePicker from "@react-native-community/datetimepicker";
+import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
-  Image,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  ScrollView,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-  useColorScheme,
-  useWindowDimensions,
-  SafeAreaView,
+    ActivityIndicator,
+    Image,
+    Modal,
+    Platform,
+    SafeAreaView,
+    ScrollView,
+    Text,
+    TouchableOpacity,
+    View,
+    useColorScheme,
+    useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context"; // ✅ Added this import
 
 import { useAppAlert } from "@/components/common/AppAlert";
+import PrintPreferencesModal, {
+    PrintPreferencesResult,
+} from "@/components/PrintPreferencesModal";
 import { formatNaira } from "@/lib/currency";
 import { normalizeDesign, normalizeDesignListResponse } from "@/lib/designs";
 import { upsertLocalConversation } from "@/lib/localConversations";
-import { clearCartItems, getCartItems, getRecentDesignIds, saveCartItems } from "@/lib/localStorage";
 import {
-  getPrintPreferences,
-  savePrintPreferences,
+    getCartItems,
+    getRecentDesignIds,
+    saveCartItems,
+} from "@/lib/localStorage";
+import {
+    getPrintPreferences,
+    savePrintPreferences,
 } from "@/lib/printPreferences";
 import ApiService from "@/services/apiClient";
 import { isCustomerRole, useAuthStore } from "@/store/authStore";
 import type { Design } from "@/types";
-import PrintPreferencesModal, { PrintPreferencesResult } from "@/components/PrintPreferencesModal";
 
 type CartItemType = {
   id: string;
@@ -48,6 +51,7 @@ type CartItemType = {
   checked: boolean;
   designerId?: number;
   designerName?: string;
+  printerId?: number;
   printingType?: string;
   budget?: string;
   deliveryDate?: string;
@@ -80,6 +84,7 @@ export default function CartScreen() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [cartItems, setCartItems] = useState<CartItemType[]>([]);
+  const [cartTab, setCartTab] = useState<"designated" | "select">("designated");
   const [recentDesigns, setRecentDesigns] = useState<Design[]>([]);
   const [isPrefModalVisible, setPrefModalVisible] = useState(false);
   const [isConfirmVisible, setConfirmVisible] = useState(false);
@@ -173,13 +178,17 @@ export default function CartScreen() {
               checked: true,
               designerId: item.design?.profile?.id || item.design?.designer?.id,
               designerName: designerName,
+              printerId: item.printerId || item.printer?.id,
               printingType: item.printingType || item.printType || "",
               budget: item.budget || "",
               deliveryDate: item.deliveryDate || "",
               deliveryAddress: item.deliveryAddress || "",
               pickupAddress: item.pickupAddress || "",
               itemAvailability: item.itemAvailability || "",
-              hasOwnItem: typeof item.hasOwnItem === "boolean" ? item.hasOwnItem : undefined,
+              hasOwnItem:
+                typeof item.hasOwnItem === "boolean"
+                  ? item.hasOwnItem
+                  : undefined,
             } satisfies CartItemType;
           }),
         );
@@ -229,11 +238,9 @@ export default function CartScreen() {
     fetchCartData();
   }, [role, router]);
 
-  // ✅ NEW: Persist cart items whenever they change
+  // Keep the local cache in sync, including when the last item is removed.
   useEffect(() => {
-    if (cartItems.length > 0) {
-      saveCartItems(cartItems);
-    }
+    saveCartItems(cartItems);
   }, [cartItems]);
 
   useEffect(() => {
@@ -252,8 +259,21 @@ export default function CartScreen() {
   );
 
   const selectedItems = useMemo(
-    () => cartItems.filter((item) => item.checked),
-    [cartItems],
+    () =>
+      cartItems.filter(
+        (item) =>
+          item.checked &&
+          (cartTab === "designated" ? item.printerId : !item.printerId),
+      ),
+    [cartItems, cartTab],
+  );
+
+  const visibleCartItems = useMemo(
+    () =>
+      cartItems.filter((item) =>
+        cartTab === "designated" ? Boolean(item.printerId) : !item.printerId,
+      ),
+    [cartItems, cartTab],
   );
 
   const handleQuantityChange = (id: string, delta: number) => {
@@ -371,7 +391,9 @@ export default function CartScreen() {
         dateOfDelivery: result.dateOfDelivery,
         deliveryAddress: JSON.stringify(result.deliveryAddress),
         hasOwnItem: String(result.hasOwnItem),
-        ...(result.pickupAddress ? { pickupAddress: JSON.stringify(result.pickupAddress) } : {}),
+        ...(result.pickupAddress
+          ? { pickupAddress: JSON.stringify(result.pickupAddress) }
+          : {}),
       },
     });
   };
@@ -465,9 +487,17 @@ export default function CartScreen() {
         });
       }
 
-      // ✅ NEW: Clear cart after successful order submission
-      await clearCartItems();
-      setCartItems([]);
+      // Remove only the ordered (selected) items from backend and local cart
+      await Promise.allSettled(
+        selectedItems.map((item) =>
+          ApiService.deleteCartItem(String(item.id)).catch(() => {}),
+        ),
+      );
+
+      const orderedIds = new Set(selectedItems.map((i) => i.id));
+      const remainingItems = cartItems.filter((i) => !orderedIds.has(i.id));
+      await saveCartItems(remainingItems);
+      setCartItems(remainingItems);
 
       showAlert({
         type: "success",
@@ -510,9 +540,33 @@ export default function CartScreen() {
           Shopping Cart
         </Text>
         <Text className="text-[13px] text-[#828282]">
-          {cartItems.length} item{cartItems.length !== 1 ? "s" : ""}
+          {visibleCartItems.length} item
+          {visibleCartItems.length !== 1 ? "s" : ""}
         </Text>
       </View>
+
+      {cartItems.length > 0 && (
+        <View className="flex-row border-b border-[#E8E8EC] bg-white px-4 pt-2 dark:border-[#2C2C2E] dark:bg-[#1C1C1E]">
+          {(
+            [
+              ["designated", "Locked Printing"],
+              ["select", "Open Printing"],
+            ] as const
+          ).map(([key, label]) => (
+            <TouchableOpacity
+              key={key}
+              onPress={() => setCartTab(key)}
+              className={`mr-5 border-b-2 pb-3 ${cartTab === key ? "border-[#3B2D85]" : "border-transparent"}`}
+            >
+              <Text
+                className={`text-[13px] font-semibold ${cartTab === key ? "text-[#3B2D85]" : "text-[#828282]"}`}
+              >
+                {label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
 
       {cartItems.length === 0 ? (
         <ScrollView
@@ -548,7 +602,7 @@ export default function CartScreen() {
             contentContainerStyle={{ paddingBottom: 20 }}
           >
             <View className="bg-white p-4 dark:bg-[#1C1C1E]">
-              {cartItems.map((item) => (
+              {visibleCartItems.map((item) => (
                 <View
                   key={item.id}
                   className="mb-4 overflow-hidden rounded-lg border border-[#E8E8EC] bg-white dark:border-[#2C2C2E] dark:bg-[#121212]"
@@ -559,11 +613,7 @@ export default function CartScreen() {
                       className={`h-5 w-5 items-center justify-center rounded border-2 ${item.checked ? "border-[#3B2D85] bg-[#3B2D85]" : "border-[#D0D0D0]"}`}
                     >
                       {item.checked && (
-                        <Ionicons
-                          name="checkmark"
-                          size={16}
-                          color="white"
-                        />
+                        <Ionicons name="checkmark" size={16} color="white" />
                       )}
                     </TouchableOpacity>
 
@@ -595,9 +645,7 @@ export default function CartScreen() {
                         </Text>
                         <View className="flex-row items-center gap-2">
                           <TouchableOpacity
-                            onPress={() =>
-                              handleQuantityChange(item.id, -1)
-                            }
+                            onPress={() => handleQuantityChange(item.id, -1)}
                             className="h-6 w-6 items-center justify-center rounded bg-[#F0F0F0] dark:bg-[#2C2C2E]"
                           >
                             <Text className="font-bold text-[#333] dark:text-white">
@@ -608,9 +656,7 @@ export default function CartScreen() {
                             {item.quantity}
                           </Text>
                           <TouchableOpacity
-                            onPress={() =>
-                              handleQuantityChange(item.id, 1)
-                            }
+                            onPress={() => handleQuantityChange(item.id, 1)}
                             className="h-6 w-6 items-center justify-center rounded bg-[#F0F0F0] dark:bg-[#2C2C2E]"
                           >
                             <Text className="font-bold text-[#333] dark:text-white">
@@ -651,21 +697,11 @@ export default function CartScreen() {
 
             <View className="flex-row gap-3">
               <TouchableOpacity
-                onPress={() => setConfirmVisible(true)}
-                disabled={selectedItems.length === 0}
-                className={`flex-1 items-center rounded-full py-4 ${selectedItems.length === 0 ? "bg-gray-300" : "bg-[#3B2D85]"
-                  }`}
-              >
-                <Text className="text-sm font-bold text-white">
-                  Send to Designer ({selectedItems.length})
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
                 onPress={handlePrintNow}
                 disabled={selectedItems.length === 0}
-                className={`flex-1 items-center rounded-full py-4 ${selectedItems.length === 0 ? "bg-gray-300" : "bg-[#4A3298]"
-                  }`}
+                className={`flex-1 items-center rounded-full py-4 ${
+                  selectedItems.length === 0 ? "bg-gray-300" : "bg-[#4A3298]"
+                }`}
               >
                 <Text className="text-sm font-bold text-white">
                   Print Now ({selectedItems.length})
@@ -676,224 +712,11 @@ export default function CartScreen() {
         </>
       )}
 
-      <Modal
-        animationType="slide"
-        transparent
+      <PrintPreferencesModal
         visible={isPrefModalVisible}
-        onRequestClose={() => { }}
-      >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={{ flex: 1 }}
-        >
-          <View
-            style={{
-              flex: 1,
-              justifyContent: "flex-end",
-              backgroundColor: "rgba(0,0,0,0.4)",
-            }}
-          >
-            <View
-              style={{ paddingBottom: Platform.OS === "ios" ? 40 : 24 }}
-              className="w-full items-center rounded-t-[32px] bg-white px-6 pt-6 dark:bg-[#1E1E1E]"
-            >
-              <View className="relative mb-8 w-full flex-row items-center justify-center">
-                <Text className="mx-auto text-lg font-semibold text-[#333333] dark:text-white">
-                  Printing Preferences
-                </Text>
-                <TouchableOpacity
-                  onPress={() => setPrefModalVisible(false)}
-                  className="absolute right-0"
-                >
-                  <Ionicons
-                    name="close"
-                    size={24}
-                    color={isDark ? "#FFF" : "#333"}
-                  />
-                </TouchableOpacity>
-              </View>
-
-              <ScrollView
-                showsVerticalScrollIndicator={false}
-                style={{ maxHeight: screenHeight * 0.7 }}
-                className="w-full"
-              >
-                <Field label="Budget (Estimated Amount)">
-                  <View
-                    className={`flex-row items-center rounded-xl border px-4 py-3.5 ${prefErrors.estimatedAmount
-                      ? "border-[#EB5757]"
-                      : "border-[#3B2D85] dark:border-[#5E4CBA]"
-                      }`}
-                  >
-                    <Ionicons
-                      name="pricetags-outline"
-                      size={20}
-                      color={isDark ? "#A0A0A0" : "#828282"}
-                    />
-                    <TextInput
-                      value={estimatedAmount}
-                      onChangeText={(value) => {
-                        setEstimatedAmount(value);
-                        setPrefErrors((current) => ({
-                          ...current,
-                          estimatedAmount: undefined,
-                        }));
-                      }}
-                      placeholder="e.g., ₦50,000 - ₦100,000"
-                      placeholderTextColor="#BDBDBD"
-                      className="ml-3  text-[#333] dark:text-white"
-                    />
-                  </View>
-                  {prefErrors.estimatedAmount ? (
-                    <ErrorText message={prefErrors.estimatedAmount} />
-                  ) : null}
-                </Field>
-
-                <Field label="Delivery Date">
-                  <View
-                    className={`flex-row items-center justify-between rounded-xl border px-4 py-3.5 ${prefErrors.deliveryDate
-                      ? "border-[#EB5757]"
-                      : "border-[#3B2D85] dark:border-[#5E4CBA]"
-                      }`}
-                  >
-                    <TouchableOpacity
-                      onPress={() => setShowDatePicker(true)}
-                      className="flex-1 flex-row items-center"
-                    >
-                      <Ionicons
-                        name="calendar-outline"
-                        size={20}
-                        color={isDark ? "#A0A0A0" : "#828282"}
-                      />
-                      <Text className="ml-3 text-[#333] dark:text-white">
-                        {deliveryDate || "Select date"}
-                      </Text>
-                    </TouchableOpacity>
-                    <Feather
-                      name="chevron-right"
-                      size={20}
-                      color={isDark ? "#A0A0A0" : "#828282"}
-                    />
-                  </View>
-                  {prefErrors.deliveryDate ? (
-                    <ErrorText message={prefErrors.deliveryDate} />
-                  ) : null}
-                </Field>
-
-                {showDatePicker ? (
-                  <DateTimePicker
-                    value={date}
-                    mode="date"
-                    display={Platform.OS === "ios" ? "inline" : "default"}
-                    onChange={onChangeDate}
-                    minimumDate={new Date()}
-                  />
-                ) : null}
-
-                <Field label="Delivery Address">
-                  <View
-                    className={`flex-row items-center rounded-xl border px-4 py-3.5 ${prefErrors.deliveryAddress
-                      ? "border-[#EB5757]"
-                      : "border-[#3B2D85] dark:border-[#5E4CBA]"
-                      }`}
-                  >
-                    <Ionicons
-                      name="location-outline"
-                      size={20}
-                      color={isDark ? "#A0A0A0" : "#828282"}
-                    />
-                    <TextInput
-                      value={deliveryAddress}
-                      onChangeText={(value) => {
-                        setDeliveryAddress(value);
-                        setPrefErrors((current) => ({
-                          ...current,
-                          deliveryAddress: undefined,
-                        }));
-                      }}
-                      placeholder="Enter address"
-                      placeholderTextColor="#BDBDBD"
-                      className="ml-3 flex-1 text-[#333] dark:text-white"
-                    />
-                  </View>
-                  {prefErrors.deliveryAddress ? (
-                    <ErrorText message={prefErrors.deliveryAddress} />
-                  ) : null}
-                </Field>
-
-                <Text className="mb-4 text-base font-bold text-[#333333] dark:text-white">
-                  Do you have your own item?
-                </Text>
-                <ChoiceRow
-                  label="Yes, I have my items and I would like a pickup and delivery service"
-                  selected={hasOwnItem === true}
-                  onPress={() => {
-                    setHasOwnItem(true);
-                    setPrefErrors((current) => ({
-                      ...current,
-                      hasOwnItem: undefined,
-                    }));
-                  }}
-                />
-                <ChoiceRow
-                  label="No, get item from the printer's inventory with delivery service"
-                  selected={hasOwnItem === false}
-                  onPress={() => {
-                    setHasOwnItem(false);
-                    setPrefErrors((current) => ({
-                      ...current,
-                      hasOwnItem: undefined,
-                      pickupAddress: undefined,
-                    }));
-                  }}
-                />
-                {prefErrors.hasOwnItem ? (
-                  <ErrorText message={prefErrors.hasOwnItem} />
-                ) : null}
-
-                {hasOwnItem ? (
-                  <Field label="Pickup Address">
-                    <View
-                      className={`flex-row items-center rounded-xl border px-4 py-3.5 ${prefErrors.pickupAddress
-                        ? "border-[#EB5757]"
-                        : "border-[#3B2D85] dark:border-[#5E4CBA]"
-                        }`}
-                    >
-                      <Ionicons
-                        name="location-outline"
-                        size={20}
-                        color={isDark ? "#A0A0A0" : "#828282"}
-                      />
-                      <TextInput
-                        value={pickupAddress}
-                        onChangeText={(value) => {
-                          setPickupAddress(value);
-                          setPrefErrors((current) => ({
-                            ...current,
-                            pickupAddress: undefined,
-                          }));
-                        }}
-                        placeholder="Enter address"
-                        placeholderTextColor="#BDBDBD"
-                        className="ml-3 flex-1 text-[#333] dark:text-white"
-                      />
-                    </View>
-                    {prefErrors.pickupAddress ? (
-                      <ErrorText message={prefErrors.pickupAddress} />
-                    ) : null}
-                  </Field>
-                ) : null}
-                <TouchableOpacity
-                  onPress={handleContinue}
-                  className="mb-8 mt-2 items-center justify-center rounded-full bg-[#3B2D85] py-4"
-                >
-                  <Text className="text-base font-bold text-white">Continue</Text>
-                </TouchableOpacity>
-              </ScrollView>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
+        onClose={() => setPrefModalVisible(false)}
+        onContinue={() => setPrefModalVisible(false)}
+      />
 
       <Modal
         animationType="slide"
@@ -1000,8 +823,9 @@ function ChoiceRow({
       className="mb-4 flex-row items-start gap-x-3"
     >
       <View
-        className={`mt-0.5 h-5 w-5 items-center justify-center rounded-full border-2 ${selected ? "border-[#3B2D85]" : "border-gray-300"
-          }`}
+        className={`mt-0.5 h-5 w-5 items-center justify-center rounded-full border-2 ${
+          selected ? "border-[#3B2D85]" : "border-gray-300"
+        }`}
       >
         {selected ? (
           <View className="h-2.5 w-2.5 rounded-full bg-[#3B2D85]" />

@@ -2,26 +2,27 @@ import { useAppAlert } from "@/components/common/AppAlert";
 import { useAuth } from "@/context/AuthContext";
 import { useFileUpload } from "@/hooks/useFileUpload";
 import { DEFAULT_DESIGN_THEMES } from "@/lib/customDesign";
+import { GeocodedAddress, geocodeQuery } from "@/lib/geocoding";
 import { mergeUserAndProfile, normalizeProfileResponse } from "@/lib/profile";
 import ApiService from "@/services/apiClient";
 import { toProfileType, useAuthStore } from "@/store/authStore";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
-import { useFocusEffect, useRouter } from "expo-router";
-import React, { useCallback, useMemo, useState } from "react";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  Image,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  useColorScheme,
-  View,
+    ActivityIndicator,
+    Image,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    useColorScheme,
+    View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -244,6 +245,7 @@ export default function EditProfileScreen() {
   const insets = useSafeAreaInsets();
   const { uploading, uploadFile } = useFileUpload();
   const { show: showAlert, element: alertElement } = useAppAlert();
+  const { section } = useLocalSearchParams<{ section?: string }>();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [fullName, setFullName] = useState("");
@@ -257,6 +259,14 @@ export default function EditProfileScreen() {
   const [showDeactivateDelete, setShowDeactivateDelete] = useState(false);
   const [storedAvatarPath, setStoredAvatarPath] = useState("");
   const [storedCoverPath, setStoredCoverPath] = useState("");
+
+  // ─── Shop location state ────────────────────────────────────────────────
+  const [showLocationModal, setShowLocationModal] = useState(section === "location");
+  const [locationSearch, setLocationSearch] = useState("");
+  const [locationSuggestions, setLocationSuggestions] = useState<GeocodedAddress[]>([]);
+  const [locationSearching, setLocationSearching] = useState(false);
+  const [savingLocation, setSavingLocation] = useState(false);
+  const locationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isCustomer = role === "CUSTOMER";
 
@@ -366,6 +376,40 @@ export default function EditProfileScreen() {
     }
   };
 
+  const handleLocationSearch = (query: string) => {
+    setLocationSearch(query);
+    if (locationTimerRef.current) clearTimeout(locationTimerRef.current);
+    if (query.trim().length < 3) { setLocationSuggestions([]); return; }
+    locationTimerRef.current = setTimeout(async () => {
+      setLocationSearching(true);
+      try {
+        const results = await geocodeQuery(query);
+        setLocationSuggestions(results);
+      } finally {
+        setLocationSearching(false);
+      }
+    }, 400);
+  };
+
+  const handleSelectLocation = async (address: GeocodedAddress) => {
+    setLocationSearch(address.name);
+    setLocationSuggestions([]);
+    setSavingLocation(true);
+    try {
+      await ApiService.updateShopLocation({
+        latitude: address.latitude,
+        longitude: address.longitude,
+        address: address.name,
+      });
+      showAlert({ type: 'success', title: 'Location updated', message: 'Your shop location has been updated successfully.' });
+      setShowLocationModal(false);
+    } catch (err: any) {
+      showAlert({ type: 'error', title: 'Update failed', message: err?.response?.data?.responseMessage || err?.message || 'Please try again.' });
+    } finally {
+      setSavingLocation(false);
+    }
+  };
+
   if (loading) {
     return <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: bg }}><ActivityIndicator size="large" color={primary} /></View>;
   }
@@ -453,6 +497,26 @@ export default function EditProfileScreen() {
                     {specifications.filter(Boolean).slice(0, 4).join(", ")}...
                   </Text>
                 )}
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={textMuted} />
+            </TouchableOpacity>
+          )}
+
+          {/* Update Shop Location */}
+          {(role === "DESIGNER" || role === "PRINTER") && (
+            <TouchableOpacity
+              onPress={() => { setLocationSearch(""); setLocationSuggestions([]); setShowLocationModal(true); }}
+              style={[styles.specRow, { borderColor: inputBorder }]}
+              activeOpacity={0.75}
+            >
+              <View style={[styles.specIcon, { borderColor: primary }]}>
+                <Ionicons name="location-outline" size={18} color={primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.specRowTitle, { color: text }]}>Update Shop Location</Text>
+                <Text numberOfLines={1} style={[styles.specRowSub, { color: textMuted }]}>
+                  Set where customers can find you
+                </Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color={textMuted} />
             </TouchableOpacity>
@@ -564,6 +628,62 @@ export default function EditProfileScreen() {
           insets={insets}
         />
       </Modal>
+
+      {/* ── Update Shop Location Modal ───────────────────────────────────── */}
+      {(role === "DESIGNER" || role === "PRINTER") && (
+        <Modal transparent={false} visible={showLocationModal} animationType="slide" onRequestClose={() => setShowLocationModal(false)}>
+          <KeyboardAvoidingView style={{ flex: 1, backgroundColor: bg }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+            <View style={[{ paddingTop: insets.top + 12, paddingHorizontal: 20, paddingBottom: 16, flexDirection: "row", alignItems: "center", backgroundColor: surface, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: border }]}>
+              <TouchableOpacity onPress={() => setShowLocationModal(false)} style={{ marginRight: 14 }}>
+                <Ionicons name="arrow-back" size={22} color={text} />
+              </TouchableOpacity>
+              <Text style={{ fontSize: 17, fontWeight: "600", color: text }}>Update Shop Location</Text>
+            </View>
+
+            <View style={{ padding: 20 }}>
+              <Text style={{ fontSize: 14, color: textMuted, marginBottom: 12, lineHeight: 20 }}>
+                Search for your shop's address so customers nearby can find you.
+              </Text>
+              <View style={{ flexDirection: "row", alignItems: "center", borderWidth: 1, borderRadius: 10, borderColor: inputBorder, backgroundColor: surface, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 8 }}>
+                <Ionicons name="search-outline" size={18} color={textMuted} style={{ marginRight: 8 }} />
+                <TextInput
+                  value={locationSearch}
+                  onChangeText={handleLocationSearch}
+                  placeholder="Search address (e.g. Yaba, Lagos)"
+                  placeholderTextColor={textMuted}
+                  style={{ flex: 1, fontSize: 14, color: text }}
+                  autoFocus={section === "location"}
+                />
+                {locationSearching && <ActivityIndicator size="small" color={primary} style={{ marginLeft: 8 }} />}
+              </View>
+
+              {locationSuggestions.length > 0 && (
+                <View style={{ backgroundColor: surface, borderRadius: 10, borderWidth: 1, borderColor: border, overflow: "hidden" }}>
+                  {locationSuggestions.map((addr, i) => (
+                    <TouchableOpacity
+                      key={`${addr.latitude}-${addr.longitude}`}
+                      onPress={() => handleSelectLocation(addr)}
+                      disabled={savingLocation}
+                      style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 14, paddingVertical: 14, borderBottomWidth: i < locationSuggestions.length - 1 ? StyleSheet.hairlineWidth : 0, borderBottomColor: border }}
+                    >
+                      <Ionicons name="location-outline" size={16} color={primary} style={{ marginRight: 10 }} />
+                      <Text style={{ flex: 1, fontSize: 13, color: text, lineHeight: 18 }}>{addr.name}</Text>
+                      {savingLocation && <ActivityIndicator size="small" color={primary} />}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+
+              {locationSearch.length >= 3 && !locationSearching && locationSuggestions.length === 0 && (
+                <Text style={{ textAlign: "center", color: textMuted, fontSize: 13, marginTop: 20 }}>
+                  No results found. Try a different search.
+                </Text>
+              )}
+            </View>
+          </KeyboardAvoidingView>
+        </Modal>
+      )}
+
       {alertElement}
     </KeyboardAvoidingView>
   );

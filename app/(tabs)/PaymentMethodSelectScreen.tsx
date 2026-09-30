@@ -1,6 +1,6 @@
 import { Button, ScreenHeader } from "@/components/UIComponents";
 import { PaymentMethod, RootStackParamList } from "@/types";
-import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import type { NativeStackScreenProps } from "expo-router";
 import React, { useState } from "react";
 import {
     SafeAreaView,

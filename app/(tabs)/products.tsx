@@ -9,7 +9,7 @@ import { Design, Mock } from "@/types";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Dimensions, FlatList, Image, Modal, Pressable, ScrollView, Share, Text, TextInput, TouchableOpacity, View, useColorScheme } from "react-native";
+import { ActivityIndicator, Dimensions, FlatList, Image, Linking, Modal, Pressable, ScrollView, Share, Text, TextInput, TouchableOpacity, View, useColorScheme } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -100,7 +100,57 @@ function ShareSheet({
 }) {
   if (!design) return null;
 
+  const handleSocialShare = async (platform: string) => {
+    const message = `Discover "${design.title}" on Berrystamp. ${design.description || ''}`;
+    const encodedMessage = encodeURIComponent(message);
+    
+    // Facebook and LinkedIn require a URL to share properly via web intents.
+    // Replace this with your actual dynamic product URL if you have one.
+    const productUrl = encodeURIComponent('https://berrystamp.com'); 
+    
+    let appUrl = '';
+    let webUrl = '';
+
+    // Route to specific platform schemes and their web fallbacks
+    switch (platform) {
+      case 'Whatsapp':
+        appUrl = `whatsapp://send?text=${encodedMessage}`;
+        webUrl = `https://wa.me/?text=${encodedMessage}`;
+        break;
+      case 'X':
+        appUrl = `twitter://post?message=${encodedMessage}`;
+        webUrl = `https://twitter.com/intent/tweet?text=${encodedMessage}`;
+        break;
+      case 'Facebook':
+        appUrl = `fb://`; // Opens the app
+        webUrl = `https://www.facebook.com/sharer/sharer.php?u=${productUrl}&quote=${encodedMessage}`;
+        break;
+      case 'LinkedIn':
+        appUrl = `linkedin://`; // Opens the app
+        webUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${productUrl}`;
+        break;
+    }
+
+    try {
+      // Try to open the native app first
+      const canOpenApp = await Linking.canOpenURL(appUrl);
+      if (canOpenApp) {
+        await Linking.openURL(appUrl);
+      } else if (webUrl) {
+        // Fallback to the web browser intent if the app isn't installed
+        await Linking.openURL(webUrl);
+      }
+    } catch (e) {
+      console.warn(`Could not open ${platform}`, e);
+    }
+    
+    onClose();
+  };
+
   const handleCopy = async () => {
+    // If you want this to strictly "Copy Link" without the share sheet, 
+    // you should use expo-clipboard (e.g., Clipboard.setStringAsync(url)).
+    // Leaving this as Share.share for now unless you want it changed too.
     try {
       await Share.share({
         message: `Discover "${design.title}" on Berrystamp. ${design.description || ''}`,
@@ -123,7 +173,7 @@ function ShareSheet({
 
           <View className="mb-8 flex-row justify-between">
             {['Whatsapp', 'X', 'LinkedIn', 'Facebook'].map((label) => (
-              <TouchableOpacity key={label} onPress={handleCopy} className="w-[50px] items-center">
+              <TouchableOpacity key={label} onPress={() => handleSocialShare(label)} className="w-[50px] items-center">
                 <View className="mb-2 h-[50px] w-[50px] items-center justify-center rounded-full bg-[#4A3298]">
                   <Ionicons name="share-social-outline" size={24} color="#FFF" />
                 </View>
