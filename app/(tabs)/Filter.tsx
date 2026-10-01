@@ -1,32 +1,41 @@
-import { defaultSearchFilters, getSearchFilters, setSearchFilters } from '@/lib/localStorage';
-import { normalizeDesignListResponse } from '@/lib/designs';
-import ApiService from '@/services/apiClient';
-import { Ionicons } from '@expo/vector-icons';
-import Slider from '@react-native-community/slider';
-import { useRouter } from 'expo-router';
-import React, { useEffect, useMemo, useState } from 'react';
+import { normalizeDesignListResponse } from "@/lib/designs";
 import {
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-  useColorScheme,
-} from 'react-native';
+    defaultSearchFilters,
+    getSearchFilters,
+    setSearchFilters,
+} from "@/lib/localStorage";
+import ApiService from "@/services/apiClient";
+import { Ionicons } from "@expo/vector-icons";
+import Slider from "@react-native-community/slider";
+import { useRouter } from "expo-router";
+import React, { useEffect, useMemo, useState } from "react";
+import {
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+    useColorScheme,
+} from "react-native";
 
-const sortOptions = ['Recently added', 'Low Price', 'High Price'];
+const sortOptions = ["Recently added", "Low Price", "High Price"];
 
 const FilterScreen = () => {
   const router = useRouter();
-  const isDark = useColorScheme() === 'dark';
-  
+  const isDark = useColorScheme() === "dark";
+
   // --- State ---
-  const [selectedProductCategories, setSelectedProductCategories] = useState<string[]>([]);
-  const [selectedDesignCategories, setSelectedDesignCategories] = useState<string[]>([]);
+  const [selectedProductCategories, setSelectedProductCategories] = useState<
+    string[]
+  >([]);
+  const [selectedDesignCategories, setSelectedDesignCategories] = useState<
+    string[]
+  >([]);
   const [productCategories, setProductCategories] = useState<string[]>([]);
   const [designCategories, setDesignCategories] = useState<string[]>([]);
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 9000]);
-  const [sortBy, setSortBy] = useState('Recently added');
+  const [sortBy, setSortBy] = useState("Recently added");
 
   // --- Theme ---
   const theme = useMemo(
@@ -47,32 +56,42 @@ const FilterScreen = () => {
     const loadState = async () => {
       try {
         const [filters, designResponse] = await Promise.all([
-          getSearchFilters(), 
-          ApiService.getDesigns({ size: 40 })
+          getSearchFilters(),
+          ApiService.getDesigns({ size: 40 }),
         ]);
-        
+
         const designs = normalizeDesignListResponse(designResponse);
-        
+
         // Extract unique categories from the designs array
         const nextProductCategories = Array.from(
-          new Set(designs.flatMap((design) => design.mocks.map((mock) => mock.category || mock.name)).filter(Boolean))
+          new Set(
+            designs
+              .flatMap((design) =>
+                design.mocks.map((mock) => mock.category || mock.name),
+              )
+              .filter(Boolean),
+          ),
         ).slice(0, 12);
-        
+
         const nextDesignCategories = Array.from(
-          new Set(designs.flatMap((design) => design.categories || []).filter(Boolean))
+          new Set(
+            designs
+              .flatMap((design) => design.categories || [])
+              .filter(Boolean),
+          ),
         ).slice(0, 12);
 
         // Set state from local storage filters
         setSelectedProductCategories(filters.productCategories || []);
         setSelectedDesignCategories(filters.designCategories || []);
         setPriceRange(filters.priceRange || [0, 9000]);
-        setSortBy(filters.sortBy || 'Recently added');
-        
+        setSortBy(filters.sortBy || "Recently added");
+
         // Set dynamic categories from API
         setProductCategories(nextProductCategories);
         setDesignCategories(nextDesignCategories);
       } catch (error) {
-        console.error('Failed to load filter options', error);
+        console.error("Failed to load filter options", error);
       }
     };
 
@@ -94,15 +113,15 @@ const FilterScreen = () => {
     setSelectedProductCategories([]);
     setSelectedDesignCategories([]);
     setPriceRange(defaultSearchFilters.priceRange || [0, 9000]);
-    setSortBy(defaultSearchFilters.sortBy || 'Recently added');
+    setSortBy(defaultSearchFilters.sortBy || "Recently added");
     await setSearchFilters(defaultSearchFilters);
   };
 
   // Toggle selection for categories
   const toggleSelection = (
-    category: string, 
-    selectedList: string[], 
-    setList: React.Dispatch<React.SetStateAction<string[]>>
+    category: string,
+    selectedList: string[],
+    setList: React.Dispatch<React.SetStateAction<string[]>>,
   ) => {
     if (selectedList.includes(category)) {
       setList(selectedList.filter((item) => item !== category));
@@ -112,11 +131,7 @@ const FilterScreen = () => {
   };
 
   // --- Render Helpers ---
-  const renderChip = (
-    label: string, 
-    active: boolean, 
-    onPress: () => void
-  ) => (
+  const renderChip = (label: string, active: boolean, onPress: () => void) => (
     <TouchableOpacity
       key={label}
       onPress={onPress}
@@ -124,21 +139,35 @@ const FilterScreen = () => {
       style={[
         styles.chip,
         {
-          backgroundColor: active ? theme.chipBg : isDark ? '#1C1C1C' : '#F8F8FC',
-          borderColor: active ? 'transparent' : theme.border,
+          backgroundColor: active
+            ? theme.chipBg
+            : isDark
+              ? "#1C1C1C"
+              : "#F8F8FC",
+          borderColor: active ? "transparent" : theme.border,
         },
-      ]}>
-      <Text style={[styles.chipText, { color: active ? theme.chipText : theme.subtext }]} numberOfLines={1}>
+      ]}
+    >
+      <Text
+        style={[
+          styles.chipText,
+          { color: active ? theme.chipText : theme.subtext },
+        ]}
+        numberOfLines={1}
+      >
         {label}
       </Text>
     </TouchableOpacity>
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}> 
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
       {/* Header */}
       <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.topIconButton}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.topIconButton}
+        >
           <Ionicons name="arrow-back" size={20} color={theme.text} />
         </TouchableOpacity>
         <Text style={[styles.topTitle, { color: theme.text }]}>Filters</Text>
@@ -147,73 +176,153 @@ const FilterScreen = () => {
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Product Categories */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: theme.text }]}>Product Categories</Text>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>
+              Product Categories
+            </Text>
             <TouchableOpacity
               style={styles.viewAllButton}
-              onPress={() => router.push('/filter-product-category')}>
-              <Text style={[styles.viewAllText, { color: theme.text }]}>View All</Text>
+              onPress={() => router.push("/filter-product-category")}
+            >
+              <Text style={[styles.viewAllText, { color: theme.text }]}>
+                View All
+              </Text>
               <Ionicons name="chevron-forward" size={16} color={theme.text} />
             </TouchableOpacity>
           </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-            {productCategories.slice(0, 6).map((item) => 
-              renderChip(
-                item, 
-                selectedProductCategories.includes(item),
-                () => toggleSelection(item, selectedProductCategories, setSelectedProductCategories)
-              )
-            )}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.chipRow}
+          >
+            {productCategories
+              .slice(0, 6)
+              .map((item) =>
+                renderChip(item, selectedProductCategories.includes(item), () =>
+                  toggleSelection(
+                    item,
+                    selectedProductCategories,
+                    setSelectedProductCategories,
+                  ),
+                ),
+              )}
           </ScrollView>
         </View>
 
         {/* Design Categories */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: theme.text }]}>Design Categories</Text>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>
+              Design Categories
+            </Text>
             <TouchableOpacity
               style={styles.viewAllButton}
-              onPress={() => router.push('/filter-design-category')}>
-              <Text style={[styles.viewAllText, { color: theme.text }]}>View All</Text>
+              onPress={() => router.push("/filter-design-category")}
+            >
+              <Text style={[styles.viewAllText, { color: theme.text }]}>
+                View All
+              </Text>
               <Ionicons name="chevron-forward" size={16} color={theme.text} />
             </TouchableOpacity>
           </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-            {designCategories.slice(0, 6).map((item) => 
-              renderChip(
-                item, 
-                selectedDesignCategories.includes(item),
-                () => toggleSelection(item, selectedDesignCategories, setSelectedDesignCategories)
-              )
-            )}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.chipRow}
+          >
+            {designCategories
+              .slice(0, 6)
+              .map((item) =>
+                renderChip(item, selectedDesignCategories.includes(item), () =>
+                  toggleSelection(
+                    item,
+                    selectedDesignCategories,
+                    setSelectedDesignCategories,
+                  ),
+                ),
+              )}
           </ScrollView>
         </View>
 
         {/* Price Range */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: theme.text }]}>Price Range</Text>
-            <Text style={[styles.rangeText, { color: theme.text }]}>₦0 - ₦{priceRange[1].toLocaleString()}</Text>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>
+              Price Range
+            </Text>
+            <Text style={[styles.rangeText, { color: theme.text }]}>
+              ₦{priceRange[0].toLocaleString()} - ₦
+              {priceRange[1].toLocaleString()}
+            </Text>
+          </View>
+          <View style={styles.priceInputs}>
+            {(["min", "max"] as const).map((bound) => (
+              <View
+                key={bound}
+                style={[
+                  styles.priceInputWrap,
+                  {
+                    borderColor: theme.border,
+                    backgroundColor: isDark ? "#1C1C1C" : "#F8F8FC",
+                  },
+                ]}
+              >
+                <Text
+                  style={[styles.priceInputLabel, { color: theme.subtext }]}
+                >
+                  {bound === "min" ? "Min" : "Max"}
+                </Text>
+                <TextInput
+                  value={String(priceRange[bound === "min" ? 0 : 1])}
+                  onChangeText={(value) => {
+                    const parsed = Number(value.replace(/[^0-9]/g, "")) || 0;
+                    setPriceRange((current) =>
+                      bound === "min"
+                        ? [Math.min(parsed, current[1]), current[1]]
+                        : [current[0], Math.max(parsed, current[0])],
+                    );
+                  }}
+                  keyboardType="number-pad"
+                  selectTextOnFocus
+                  style={[styles.priceInput, { color: theme.text }]}
+                />
+              </View>
+            ))}
           </View>
           <Slider
             minimumValue={0}
             maximumValue={10000}
             step={500}
             value={priceRange[1]}
-            onValueChange={(value) => setPriceRange([0, Math.round(value)])}
+            onValueChange={(value) =>
+              setPriceRange((current) => [
+                current[0],
+                Math.max(current[0], Math.round(value)),
+              ])
+            }
             minimumTrackTintColor="#4B3A99"
-            maximumTrackTintColor={isDark ? '#343434' : '#E1E1E8'}
+            maximumTrackTintColor={isDark ? "#343434" : "#E1E1E8"}
             thumbTintColor="#4B3A99"
           />
         </View>
 
         {/* Sort By */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.text, marginBottom: 14 }]}>Sort By</Text>
+          <Text
+            style={[
+              styles.sectionTitle,
+              { color: theme.text, marginBottom: 14 },
+            ]}
+          >
+            Sort By
+          </Text>
           <View style={styles.sortRow}>
             {sortOptions.map((option) => {
               const isSelected = sortBy === option;
@@ -223,12 +332,24 @@ const FilterScreen = () => {
                   style={[
                     styles.sortChip,
                     {
-                      backgroundColor: isSelected ? theme.chipBg : isDark ? '#1B1B1B' : '#F7F7FC',
-                      borderColor: isSelected ? 'transparent' : theme.border,
+                      backgroundColor: isSelected
+                        ? theme.chipBg
+                        : isDark
+                          ? "#1B1B1B"
+                          : "#F7F7FC",
+                      borderColor: isSelected ? "transparent" : theme.border,
                     },
                   ]}
-                  onPress={() => setSortBy(option)}>
-                  <Text style={[styles.sortChipText, { color: isSelected ? theme.chipText : theme.subtext }]}>{option}</Text>
+                  onPress={() => setSortBy(option)}
+                >
+                  <Text
+                    style={[
+                      styles.sortChipText,
+                      { color: isSelected ? theme.chipText : theme.subtext },
+                    ]}
+                  >
+                    {option}
+                  </Text>
                 </TouchableOpacity>
               );
             })}
@@ -237,7 +358,7 @@ const FilterScreen = () => {
       </ScrollView>
 
       {/* Footer */}
-      <View style={[styles.footer, { backgroundColor: theme.background }]}> 
+      <View style={[styles.footer, { backgroundColor: theme.background }]}>
         <TouchableOpacity style={styles.applyButton} onPress={handleApply}>
           <Text style={styles.applyText}>Apply</Text>
         </TouchableOpacity>
@@ -251,9 +372,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingTop: 54,
     paddingHorizontal: 16,
     paddingBottom: 16,
@@ -261,20 +382,20 @@ const styles = StyleSheet.create({
   topIconButton: {
     width: 28,
     height: 28,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   topTitle: {
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   topTextButton: {
     minWidth: 40,
-    alignItems: 'flex-end',
+    alignItems: "flex-end",
   },
   clearText: {
     fontSize: 14,
-    color: '#4B3A99',
-    fontWeight: '500',
+    color: "#4B3A99",
+    fontWeight: "500",
   },
   scrollView: {
     flex: 1,
@@ -287,23 +408,23 @@ const styles = StyleSheet.create({
     marginBottom: 26,
   },
   sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 14,
   },
   sectionTitle: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   viewAllButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
   },
   viewAllText: {
     fontSize: 13,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   chipRow: {
     gap: 8,
@@ -318,15 +439,26 @@ const styles = StyleSheet.create({
   },
   chipText: {
     fontSize: 11,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   rangeText: {
     fontSize: 12,
-    fontWeight: '500',
+    fontWeight: "500",
   },
+  priceInputs: { flexDirection: "row", gap: 10, marginBottom: 12 },
+  priceInputWrap: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+  },
+  priceInputLabel: { fontSize: 12, marginRight: 6 },
+  priceInput: { flex: 1, minHeight: 40, fontSize: 14 },
   sortRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 10,
   },
   sortChip: {
@@ -337,7 +469,7 @@ const styles = StyleSheet.create({
   },
   sortChipText: {
     fontSize: 12,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   footer: {
     paddingHorizontal: 16,
@@ -345,16 +477,16 @@ const styles = StyleSheet.create({
     paddingTop: 8,
   },
   applyButton: {
-    backgroundColor: '#4B3A99',
+    backgroundColor: "#4B3A99",
     height: 48,
     borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   applyText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 });
 

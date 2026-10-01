@@ -1,4 +1,5 @@
 import { TProfileType, User } from '@/types';
+import { getAccountProfile } from './accountProfile';
 
 export type ProfilePayload = {
   id?: number;
@@ -46,14 +47,7 @@ export const normalizeProfileResponse = (input: any): ProfilePayload => {
   const body = input?.responseBody || input?.data || input || {};
   
   // Keeps support for older nested profile structures
-  const nestedProfile =
-    (body.profileType === 'CUSTOMER' ? body.customerProfile : undefined) ||
-    (body.profileType === 'PRINTER' ? body.printerProfile : undefined) ||
-    (body.profileType === 'DESIGNER' ? body.designerProfile : undefined) ||
-    body.customerProfile ||
-    body.printerProfile ||
-    body.designerProfile ||
-    {};
+  const nestedProfile = getAccountProfile(body, body.profileType || body.role || 'CUSTOMER') || {};
 
   const name = body.name || nestedProfile?.name || '';
   const [firstName = '', ...rest] = String(name).trim().split(/\s+/).filter(Boolean);

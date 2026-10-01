@@ -1,8 +1,9 @@
+import { useAuth } from '@/context/AuthContext';
 import ApiService from "@/services/apiClient";
 import {
-  getPushPermissionStatus,
-  pushNotificationsSupported,
-  registerForPushNotifications,
+    getPushPermissionStatus,
+    pushNotificationsSupported,
+    registerForPushNotifications,
 } from "@/services/notificationService";
 import { useNotificationStore } from "@/store/notificationStore";
 import { Ionicons } from "@expo/vector-icons";
@@ -10,18 +11,18 @@ import { useRouter } from "expo-router";
 import { useColorScheme } from "nativewind";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Linking,
-  Modal,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Linking,
+    Modal,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Switch,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -481,11 +482,11 @@ function ChangeEmailScreen({
   const { bg, surface, text, subtext, inputBorder, primary, border } = useTheme(isDark);
   const [step, setStep] = useState<"input" | "otp">("input");
   const [email, setEmail] = useState("");
-  const [otp, setOtp] = useState(["", "", "", "", ""]);
+  const [otp, setOtp] = useState("");
+  const { refreshUser } = useAuth();
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [countdown, setCountdown] = useState(34);
-  const otpRefs = useRef<(TextInput | null)[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const startCountdown = useCallback(() => {
@@ -502,38 +503,28 @@ function ChangeEmailScreen({
   useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
 
   const handleProceed = async () => {
-    if (!email.trim()) { Alert.alert("Error", "Please enter your email address."); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { Alert.alert("Error", "Please enter a valid new email address."); return; }
     try {
       setLoading(true);
       await ApiService.requestEmailChange(email.trim());
+      setOtp("");
       setStep("otp");
       startCountdown();
     } catch (e: any) {
+      console.log("Error", e?.response?.data?.responseMessage || e?.message || "Failed to send OTP.")
       Alert.alert("Error", e?.response?.data?.responseMessage || e?.message || "Failed to send OTP.");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleOtpChange = (val: string, idx: number) => {
-    const next = [...otp];
-    next[idx] = val.replace(/[^0-9]/g, "").slice(-1);
-    setOtp(next);
-    if (val && idx < 4) otpRefs.current[idx + 1]?.focus();
-  };
-
-  const handleOtpKeyPress = (e: any, idx: number) => {
-    if (e.nativeEvent.key === "Backspace" && !otp[idx] && idx > 0) {
-      otpRefs.current[idx - 1]?.focus();
-    }
-  };
-
   const handleVerify = async () => {
-    const code = otp.join("");
-    if (code.length < 5) { Alert.alert("Error", "Please enter the full 5-digit code."); return; }
+    const code = otp.trim();
+    if (!code) { Alert.alert("Error", "Please enter the verification code."); return; }
     try {
       setLoading(true);
       await ApiService.verifyEmailChange(email.trim(), code);
+      await refreshUser();
       setSuccess(true);
     } catch (e: any) {
       Alert.alert("Error", e?.response?.data?.responseMessage || e?.message || "Invalid OTP.");
@@ -562,12 +553,12 @@ function ChangeEmailScreen({
         <View style={{ width: 36 }} />
       </View>
 
-      <ScrollView contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 24, paddingTop: 40 }}>
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 24, paddingTop: 40 }}>
         <Text style={[styles.bigTitle, { color: text }]}>Your Email Address</Text>
         <Text style={[styles.bigSubtitle, { color: subtext }]}>
           {step === "input"
             ? "This will be used to verify your account whenever you want to take any action on the app."
-            : "Enter the email address you registered with"}
+            : `Enter the verification code sent to ${email.trim()}`}
         </Text>
 
         {step === "input" ? (
@@ -583,18 +574,17 @@ function ChangeEmailScreen({
         ) : (
           <>
             <View style={styles.otpRow}>
-              {otp.map((digit, i) => (
-                <TextInput
-                  key={i}
-                  ref={(r) => { otpRefs.current[i] = r; }}
-                  value={digit}
-                  onChangeText={(v) => handleOtpChange(v, i)}
-                  onKeyPress={(e) => handleOtpKeyPress(e, i)}
-                  keyboardType="number-pad"
-                  maxLength={1}
-                  style={[styles.otpBox, { color: text, borderColor: digit ? primary : inputBorder }]}
-                />
-              ))}
+              <TextInput
+                value={otp}
+                onChangeText={(value) => setOtp(value.replace(/[^0-9]/g, ""))}
+                keyboardType="number-pad"
+                textContentType="oneTimeCode"
+                autoComplete="one-time-code"
+                accessibilityLabel="Email verification code"
+                placeholder="Verification code"
+                placeholderTextColor={subtext}
+                style={[styles.emailInput, { flex: 1, color: text, borderColor: primary }]}
+              />
             </View>
             <View style={styles.resendRow}>
               <Text style={[styles.resendText, { color: subtext }]}>Didn&apos;t get the code? </Text>
@@ -635,6 +625,50 @@ function ChangeEmailScreen({
 }
 
 // ─── Screen: Change Password ──────────────────────────────────────────────────
+const PasswordField = ({
+    isDark,
+    label,
+    value,
+    onChange,
+    show,
+    onToggle,
+  }: {
+    isDark: boolean;
+    label: string;
+    value: string;
+    onChange: (v: string) => void;
+    show: boolean;
+    onToggle: () => void;
+  }) => {
+  const { text, subtext, primary, inputBorder } = useTheme(isDark);
+  return (
+    <View style={styles.pwFieldWrap}>
+      <Text style={[styles.pwLabel, { color: primary }]}>{label}</Text>
+      <View style={[styles.pwInputRow, { borderColor: value ? primary : inputBorder }]}>
+        <TextInput
+          value={value}
+          onChangeText={onChange}
+          placeholder={
+            label.includes("New") ? "Enter Password"
+            : label.includes("Confirm") ? "Re-enter Password"
+            : "Enter old password"
+          }
+          placeholderTextColor={subtext}
+          secureTextEntry={!show}
+          blurOnSubmit={false}
+          autoCorrect={false}
+          autoCapitalize="none"
+          textContentType="none"
+          style={[styles.pwInput, { color: text }]}
+        />
+        <TouchableOpacity onPress={onToggle} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ padding: 4 }}>
+          <Ionicons name={show ? "eye-off-outline" : "eye-outline"} size={20} color={subtext} />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+};
+
 function ChangePasswordScreen({
   onBack,
   isDark,
@@ -678,40 +712,6 @@ function ChangePasswordScreen({
     }
   };
 
-  const PasswordField = ({
-    label,
-    value,
-    onChange,
-    show,
-    onToggle,
-  }: {
-    label: string;
-    value: string;
-    onChange: (v: string) => void;
-    show: boolean;
-    onToggle: () => void;
-  }) => (
-    <View style={styles.pwFieldWrap}>
-      <Text style={[styles.pwLabel, { color: primary }]}>{label}</Text>
-      <View style={[styles.pwInputRow, { borderColor: value ? primary : inputBorder }]}>
-        <TextInput
-          value={value}
-          onChangeText={onChange}
-          placeholder={
-            label.includes("New") ? "Enter Password"
-            : label.includes("Confirm") ? "Re-enter Password"
-            : "Enter old password"
-          }
-          placeholderTextColor={subtext}
-          secureTextEntry={!show}
-          style={[styles.pwInput, { color: text }]}
-        />
-        <TouchableOpacity onPress={onToggle} style={{ padding: 4 }}>
-          <Ionicons name={show ? "eye-off-outline" : "eye-outline"} size={20} color={subtext} />
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
 
   return (
     <View style={{ flex: 1, backgroundColor: bg }}>
@@ -723,11 +723,12 @@ function ChangePasswordScreen({
         <View style={{ width: 36 }} />
       </View>
 
-      <ScrollView contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 24, paddingTop: 40 }}>
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 24, paddingTop: 40 }}>
         <Text style={[styles.bigTitle, { color: text }]}>Setup new password 🔒</Text>
         <Text style={[styles.bigSubtitle, { color: subtext }]}>Kindly create a new password for your account.</Text>
 
         <PasswordField
+          isDark={isDark}
           label="Old Password"
           value={oldPassword}
           onChange={setOldPassword}
@@ -735,6 +736,7 @@ function ChangePasswordScreen({
           onToggle={() => setShowOld((v) => !v)}
         />
         <PasswordField
+          isDark={isDark}
           label="New Password"
           value={newPassword}
           onChange={setNewPassword}
@@ -742,6 +744,7 @@ function ChangePasswordScreen({
           onToggle={() => setShowNew((v) => !v)}
         />
         <PasswordField
+          isDark={isDark}
           label="Confirm Password"
           value={confirmPassword}
           onChange={setConfirmPassword}

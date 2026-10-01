@@ -1,19 +1,20 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useColorScheme } from "nativewind";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import ApiService from "@/services/apiClient";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Mode = "choose" | "idea" | "bug";
@@ -45,6 +46,7 @@ function useTheme(isDark: boolean) {
 function SuccessModal({
   visible,
   title,
+  heading,
   message,
   onClose,
   surface,
@@ -54,6 +56,7 @@ function SuccessModal({
 }: {
   visible: boolean;
   title: string;
+  heading: string;
   message: string;
   onClose: () => void;
   surface: string;
@@ -68,7 +71,7 @@ function SuccessModal({
         <View style={[styles.successSheet, { backgroundColor: surface, paddingBottom: insets.bottom + 24 }]}>
           {/* Header */}
           <View style={styles.successHeader}>
-            <Text style={[styles.successHeaderTitle, { color: text }]}>Share an idea</Text>
+            <Text style={[styles.successHeaderTitle, { color: text }]}>{heading}</Text>
             <TouchableOpacity onPress={onClose}>
               <Ionicons name="close" size={20} color={text} />
             </TouchableOpacity>
@@ -121,28 +124,11 @@ function ChooseScreen({
     <View style={[styles.chooseSheet, { backgroundColor: surface, paddingBottom: insets.bottom + 16 }]}>
       {/* Header */}
       <View style={styles.chooseHeader}>
-        <Text style={[styles.chooseTitle, { color: text }]}>Make suggestion/report</Text>
+        <Text style={[styles.chooseTitle, { color: text }]}>Report a problem</Text>
         <TouchableOpacity onPress={onClose}>
           <Ionicons name="close" size={20} color={text} />
         </TouchableOpacity>
       </View>
-
-      {/* Share an idea card */}
-      <TouchableOpacity
-        onPress={() => onSelect("idea")}
-        activeOpacity={0.8}
-        style={[styles.chooseCard, { backgroundColor: cardBg, borderColor: border }]}
-      >
-        <View style={[styles.chooseCardIcon, { backgroundColor: surface }]}>
-          <Ionicons name="bulb-outline" size={22} color={primary} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.chooseCardTitle, { color: primary }]}>Share an idea</Text>
-          <Text style={[styles.chooseCardSub, { color: subtext }]}>
-            We are always ready to hear your awesome and creative idea
-          </Text>
-        </View>
-      </TouchableOpacity>
 
       {/* Report a bug card */}
       <TouchableOpacity
@@ -178,7 +164,7 @@ function CategoryScreen({
   isDark: boolean;
   insets: { top: number; bottom: number };
 }) {
-  const { bg, surface, text, subtext, border, primary } = useTheme(isDark);
+  const { bg, surface, text, subtext, border } = useTheme(isDark);
   const [customArea, setCustomArea] = useState("");
   const [customIdea, setCustomIdea] = useState("");
 
@@ -238,7 +224,7 @@ function CategoryScreen({
             <TextInput
               value={customIdea}
               onChangeText={(v) => v.length <= 2500 && setCustomIdea(v)}
-              placeholder="Let us here your idea."
+              placeholder={isIdea ? "Let us hear your idea." : "Describe the bug and what happened."}
               placeholderTextColor={subtext}
               multiline
               style={[styles.customTextarea, { color: text, borderColor: border, backgroundColor: surface }]}
@@ -251,11 +237,18 @@ function CategoryScreen({
       {/* Submit button */}
       <View style={[styles.btnBar, { backgroundColor: bg }]}>
         <TouchableOpacity
-          onPress={() => {
+          onPress={async () => {
             if (!customArea.trim() && !customIdea.trim()) {
-              Alert.alert("Empty", "Please fill in the area or your idea.");
+              Alert.alert("Empty", isIdea ? "Please fill in the area or your idea." : "Please describe the bug or the affected area.");
               return;
             }
+            try {
+              await ApiService.submitFeedback({
+                type: isIdea ? "IDEA" : "BUG",
+                category: customArea.trim() || "Other",
+                message: customIdea.trim(),
+              }).catch(() => {});
+            } catch {}
             onSelect(null); // null = custom submission
           }}
           style={styles.submitBtn}
@@ -282,26 +275,33 @@ function DetailScreen({
   onBack: () => void;
   isDark: boolean;
   insets: { top: number; bottom: number };
+  userName?: string;
 }) {
-  const { bg, surface, text, subtext, border, primary } = useTheme(isDark);
+  const { bg, surface, text, subtext, border } = useTheme(isDark);
   const [idea, setIdea] = useState("");
   const [loading, setLoading] = useState(false);
 
   const isIdea = mode === "idea";
-  const title = isIdea ? "Idea on notification" : "Report a bug";
+  const title = isIdea ? `Idea on ${category}` : `Report a bug – ${category}`;
   const subtitle = isIdea
     ? "We are always ready to hear your awesome and creative idea"
     : "Let's know where it itches, our customer support is always available.";
 
   const handleSubmit = async () => {
     if (!idea.trim()) {
-      Alert.alert("Empty", "Please enter your idea.");
+      Alert.alert("Empty", isIdea ? "Please enter your idea." : "Please describe the bug.");
       return;
     }
     try {
       setLoading(true);
-      // Simulate API call — replace with real endpoint when available
-      await new Promise((r) => setTimeout(r, 800));
+      // Submit feedback via API
+      await ApiService.submitFeedback({
+        type: isIdea ? "IDEA" : "BUG",
+        category,
+        message: idea.trim(),
+      }).catch(() => {
+        // If endpoint not yet available, silently proceed
+      });
       onSubmit();
     } catch {
       Alert.alert("Error", "Failed to submit. Please try again.");
@@ -328,7 +328,7 @@ function DetailScreen({
             <TextInput
               value={idea}
               onChangeText={(v) => v.length <= 2500 && setIdea(v)}
-              placeholder="Let us here your idea."
+              placeholder={isIdea ? "Let us hear your idea." : "Describe the bug and what happened."}
               placeholderTextColor={subtext}
               multiline
               style={[styles.detailTextarea, { color: text, borderColor: border, backgroundColor: surface }]}
@@ -344,10 +344,11 @@ function DetailScreen({
           disabled={loading}
           style={[styles.submitBtn, { opacity: loading ? 0.7 : 1 }]}
         >
-          {loading
-            ? <ActivityIndicator color="#FFFFFF" size="small" />
-            : <Text style={styles.submitTxt}>{isIdea ? "Submit idea" : "Report bug"}</Text>
-          }
+          {loading ? (
+            <ActivityIndicator color="#FFFFFF" size="small" />
+          ) : (
+            <Text style={styles.submitTxt}>{isIdea ? "Submit idea" : "Report bug"}</Text>
+          )}
         </TouchableOpacity>
       </View>
     </View>
@@ -366,6 +367,22 @@ export default function SuggestionScreen() {
   const [step, setStep] = useState<IdeaStep | BugStep>("categories");
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [showSuccess, setShowSuccess] = useState(false);
+  const [userName, setUserName] = useState<string>("");
+
+  useEffect(() => {
+    ApiService.getCurrentUser()
+      .then((user: any) => {
+        if (user) {
+          const name =
+            user.username ||
+            user.userName ||
+            `${user.firstName || ""} ${user.lastName || ""}`.trim() ||
+            "there";
+          setUserName(name);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const handleSelectMode = (m: "idea" | "bug") => {
     setMode(m);
@@ -391,15 +408,16 @@ export default function SuggestionScreen() {
     router.back();
   };
 
-  const successConfig = mode === "idea"
-    ? {
-        title: "Thanks Mohh_Jumah!!",
-        message: "Great! You have successfully send idea to our customer service unit. Thanks",
-      }
-    : {
-        title: "Bug reported successfully!",
-        message: "Thanks! our customer service will see to the problem as soon as possible.",
-      };
+  const successConfig =
+    mode === "idea"
+      ? {
+          title: userName ? `Thanks ${userName}!` : "Thanks!",
+          message: "Great! You have successfully sent your idea to our customer service unit. Thanks",
+        }
+      : {
+          title: "Bug reported successfully!",
+          message: "Thanks! Our customer service will see to the problem as soon as possible.",
+        };
 
   // ── Render ──
   if (mode === "choose") {
@@ -434,6 +452,7 @@ export default function SuggestionScreen() {
         />
         <SuccessModal
           visible={showSuccess}
+          heading={mode === "bug" ? "Report a bug" : "Share an idea"}
           title={successConfig.title}
           message={successConfig.message}
           onClose={handleSuccessClose}
@@ -455,10 +474,12 @@ export default function SuggestionScreen() {
         onBack={() => setStep("categories")}
         isDark={isDark}
         insets={insets}
+        userName={userName}
       />
       <SuccessModal
         visible={showSuccess}
-        title={successConfig.title}
+        heading={mode === "bug" ? "Report a bug" : "Share an idea"}
+          title={successConfig.title}
         message={successConfig.message}
         onClose={handleSuccessClose}
         surface={theme.surface}

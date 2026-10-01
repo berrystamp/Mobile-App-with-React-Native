@@ -1,13 +1,13 @@
+import { formatNaira } from '@/lib/currency';
+import ApiService from '@/services/apiClient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator, Alert, Modal, RefreshControl, ScrollView,
-  Share, Text, TextInput, TouchableOpacity, View, useColorScheme,
+    ActivityIndicator, Alert, Modal, RefreshControl, ScrollView,
+    Share, Text, TextInput, TouchableOpacity, View, useColorScheme,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { formatNaira } from '@/lib/currency';
-import ApiService from '@/services/apiClient';
 
 type HistoryItem = {
   id: string;
@@ -56,31 +56,31 @@ export default function ReferralScreen() {
   const loadData = useCallback(async (isRefresh = false) => {
     try {
       if (!isRefresh) setLoading(true);
-      // Use proper ApiService methods (not ApiService.get which doesn't exist)
-      const [summaryResponse, historyResponse] = await Promise.all([
+      
+      const [summaryResponse, historyResponse, codeResponse] = await Promise.all([
         ApiService.getReferralSummary().catch(() => ({})),
         ApiService.getReferralHistory(0, 20).catch(() => ({ responseBody: { content: [] } })),
+        ApiService.getReferralCode().catch(() => ({}))
       ]);
 
-      const statsPayload =
-        summaryResponse?.responseBody || summaryResponse || {};
+      const statsPayload = summaryResponse?.responseBody || summaryResponse || {};
       setStats(statsPayload);
 
-      const code =
-        statsPayload?.referralCode || statsPayload?.code || '';
+      const codePayload = codeResponse?.responseBody || codeResponse || {};
+      const code = codePayload?.referralCode || '';
       setReferralCode(code);
 
-      const historyBody =
-        historyResponse?.responseBody || historyResponse || {};
+      const historyBody = historyResponse?.responseBody || historyResponse || {};
       const historyList = toList(historyBody);
 
       const mappedHistory: HistoryItem[] = historyList.map((item: any, index: number) => {
-        const referred = item?.referred || item?.user || {};
+        const referredUser = item?.referred || item?.user || {};
         return {
           id: String(item?.id || index + 1),
-          name: String(referred?.name || referred?.userName || referred?.firstName || 'Referral').trim(),
+          name: String(referredUser?.name || referredUser?.userName || referredUser?.firstName || 'Referral').trim(),
           amount: formatNaira(item?.referrerReward || item?.totalAmount || 0),
           date: String(item?.lastCreatedDate || item?.createdDate || '').slice(0, 10),
+          // Check for REWARD or COMPLETED statuses
           status: String(item?.status || 'PENDING').toUpperCase().includes('PENDING') ? 'PENDING' : 'COMPLETED',
         };
       });
@@ -118,12 +118,15 @@ export default function ReferralScreen() {
       const payload =
         redeemMode === 'WALLET'
           ? { mode: 'WALLET' as const }
-          : { mode: 'CASH' as const, bankName, accountNumber, accountName };
+          : { mode: 'CASH' as const, bankName, bankCode: '', accountNumber, accountName }; // bankCode is empty string for now unless you have a lookup list
 
       const result = await ApiService.redeemReferralReward(payload);
-      if (result?.requestSuccessful === false) {
+      
+      // Axios generally throws on 4xx/5xx, but if your interceptor catches and resolves, check requestSuccessful
+      if (result && result.requestSuccessful === false) {
         throw new Error(result?.responseMessage || 'Unable to redeem reward.');
       }
+      
       setShowCashSheet(false);
       setShowRedeemOption(false);
       setShowSuccess(true);
@@ -143,10 +146,11 @@ export default function ReferralScreen() {
     );
   }
 
-  const totalReward = Number(stats?.totalReward || stats?.rewardBalance || stats?.balance || 0);
+  // Map to the new /api/v1/referral/stats response structure
+  const totalReward = Number(stats?.totalReward || 0);
   const pendingReward = Number(stats?.pendingReward || 0);
-  const totalCount = Number(stats?.totalCount || stats?.totalReferrals || 0);
-  const completedReward = Number(stats?.completedReward || stats?.totalEarnings || 0);
+  const totalCount = Number(stats?.totalCount || 0);
+  const completedReward = Number(stats?.completedReward || stats?.redeemedReward || 0);
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.bg }}>
@@ -276,6 +280,7 @@ export default function ReferralScreen() {
             {[
               { label: 'Bank name', value: bankName, setter: setBankName, keyboard: 'default' as const },
               { label: 'Account number', value: accountNumber, setter: setAccountNumber, keyboard: 'number-pad' as const, maxLength: 10 },
+              { label: 'Account name', value: accountName, setter: setAccountName, keyboard: 'default' as const },
             ].map((field) => (
               <View key={field.label} style={{ marginBottom: 12 }}>
                 <Text style={{ fontSize: 12, color: theme.subtext, marginBottom: 5 }}>{field.label}</Text>
@@ -290,11 +295,10 @@ export default function ReferralScreen() {
                 />
               </View>
             ))}
-            {accountName ? <Text style={{ fontSize: 13, color: '#22B573', marginBottom: 12, fontWeight: '600' }}>{accountName}</Text> : null}
             <TouchableOpacity
-              disabled={submitting || !bankName || accountNumber.length !== 10}
+              disabled={submitting || !bankName || !accountName || accountNumber.length < 10}
               onPress={handleRedeem}
-              style={{ backgroundColor: !bankName || accountNumber.length !== 10 ? '#C5C1DA' : theme.primary, borderRadius: 30, paddingVertical: 14, alignItems: 'center', marginTop: 4 }}
+              style={{ backgroundColor: !bankName || !accountName || accountNumber.length < 10 ? '#C5C1DA' : theme.primary, borderRadius: 30, paddingVertical: 14, alignItems: 'center', marginTop: 4 }}
             >
               <Text style={{ fontSize: 15, fontWeight: '700', color: '#FFFFFF' }}>
                 {submitting ? 'Processing...' : 'Withdraw ' + formatNaira(totalReward)}

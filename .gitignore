@@ -8,7 +8,7 @@ node_modules/
 dist/
 web-build/
 expo-env.d.ts
-
+.kiro
 # Native
 .kotlin/
 *.orig.*
@@ -44,3 +44,5 @@ app-example
 
 # screens-img
 /screens-img
+/print-order-workflow-fix.md
+/prompt.txt

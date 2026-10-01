@@ -1,6 +1,6 @@
 import ProductDetailsModal from "@/components/ProductDetailsModal";
 import { Message, RootStackParamList } from "@/types";
-import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import type { NativeStackScreenProps } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
   Image,

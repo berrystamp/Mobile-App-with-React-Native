@@ -237,6 +237,9 @@ export interface ManageOrderItem {
   status: ManageOrderStatus;
   description: string;
   designer: string;
+  providerName?: string;
+  providerRole?: string;
+  customerName?: string;
   updatedAt: string;
   createdAt: string;
   dueOn: string;

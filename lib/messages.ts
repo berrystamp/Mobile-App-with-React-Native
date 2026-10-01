@@ -98,7 +98,7 @@ export interface ConversationSummaryDto {
   id: string;
   source: 'backend' | 'local';
   name: string;
-  role: 'Designer' | 'Printers';
+  role: 'Designer' | 'Printers' | 'Customer';
   avatarColor: string;
   avatarEmoji: string;
   avatarImageUrl?: string;
@@ -191,8 +191,8 @@ const unwrapList = (response: any) => {
   return [];
 };
 
-const normalizeRole = (profileType?: string): 'Designer' | 'Printers' => {
-  return profileType === 'PRINTER' ? 'Printers' : 'Designer';
+const normalizeRole = (profileType?: string): ConversationSummaryDto['role'] => {
+  return profileType === 'PRINTER' ? 'Printers' : profileType === 'CUSTOMER' ? 'Customer' : 'Designer';
 };
 
 const relativeTime = (dateString?: string) => {
@@ -274,20 +274,23 @@ const resolveMessagePreview = (message?: BackendConversationMessage) => {
   return 'Tap to start conversation';
 };
 
-const pickConversationParticipant = (participants: BackendParticipantProfile[] = []) => {
+const pickConversationParticipant = (participants: BackendParticipantProfile[] = [], myProfileId?: number) => {
   const activeProfileType = getCurrentProfileType();
   return (
+    (myProfileId ? participants.find((participant) => Number(participant.id) !== myProfileId) : undefined) ||
     participants.find((participant) => participant?.profileType && participant.profileType !== activeProfileType) ||
     participants[0]
   );
 };
 
-export function normalizeConversationsResponse(response: any): ConversationSummaryDto[] {
-  const list = unwrapList(response);
+export function normalizeConversationsResponse(response: any, myProfileId?: number): ConversationSummaryDto[] {
+  const list = unwrapList(response).filter((item: BackendConversation) =>
+    !myProfileId || !item.participants?.length ||
+    item.participants.some((participant) => Number(participant.id) === myProfileId));
 
   return list.map((item: BackendConversation | any, index: number) => {
     const participants = Array.isArray(item?.participants) ? item.participants : [];
-    const participant = pickConversationParticipant(participants);
+    const participant = pickConversationParticipant(participants, myProfileId);
     const lastMessageTimestamp =
       item?.lastMessageTimestamp ||
       item?.lastMessage?.readDateTime ||
@@ -332,8 +335,8 @@ export function normalizeConversationsResponse(response: any): ConversationSumma
   });
 }
 
-export async function getMergedConversations(response: any): Promise<ConversationSummaryDto[]> {
-  const backend = normalizeConversationsResponse(response);
+export async function getMergedConversations(response: any, myProfileId?: number): Promise<ConversationSummaryDto[]> {
+  const backend = normalizeConversationsResponse(response, myProfileId);
 
   return backend.sort((left, right) => {
     const leftTime = left.timestamp ? new Date(left.timestamp).getTime() : 0;

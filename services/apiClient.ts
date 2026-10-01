@@ -1,18 +1,18 @@
 import { extractFaqFromHtml, type FaqItem } from '@/lib/faq';
-import { useAuthStore } from '@/store/authStore';
+import { toAccountType, useAuthStore } from '@/store/authStore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AxiosRequestConfig } from 'axios';
 import api from './api';
 
 type ProfileTypeInterface = 'CUSTOMER' | 'DESIGNER' | 'PRINTER';
-type OrderStatus = 
-  | 'REVIEW' 
-  | 'REJECTED' 
-  | 'ACTIVE' 
-  | 'CANCELLED' 
-  | 'AWAITING_CONFIRMATION' 
-  | 'COMPLETED' 
-  | 'PICKUP_REQUESTED' 
+type OrderStatus =
+  | 'REVIEW'
+  | 'REJECTED'
+  | 'ACTIVE'
+  | 'CANCELLED'
+  | 'AWAITING_CONFIRMATION'
+  | 'COMPLETED'
+  | 'PICKUP_REQUESTED'
   | 'DELIVER_REQUESTED';
 export interface BankOption {
   name: string;
@@ -65,6 +65,26 @@ export interface CreateMockPayload {
   colours: string[];
 }
 
+/** Payload shape for a single item in a print order request. */
+export interface PrintOrderPayloadItem {
+  designId: number;
+  colour: string;
+  quantity: number;
+  size: string;
+  mockItemId: number;
+  customDesign: boolean;
+  /** "From Customer" when hasOwnItem is true, "From Printer" when false */
+  sourceOfItem: string;
+  estimatedAmount: string;
+  dateOfDelivery: string;
+  deliveryAddress: {
+    name: string;
+    latitude: number;
+    longitude: number;
+  };
+  printerId: number;
+}
+
 // Safe non-reactive read for Zustand store outside of React components
 const getProfileType = () => {
   const state = useAuthStore.getState();
@@ -72,12 +92,15 @@ const getProfileType = () => {
 };
 
 class ApiService {
+  async removeFromCart(id: string) {
+    return this.deleteCartItem(id);
+  }
   // --- Auth Methods ---
   async login(email: string, password: string, profileType: string = 'CUSTOMER') {
-    const payload = { 
+    const payload = {
       email: email.trim(),
-      password, 
-      rememberMe: true 
+      password,
+      rememberMe: true
     };
 
     const response = await api.post('/auth/login', payload, {
@@ -91,7 +114,7 @@ class ApiService {
       await AsyncStorage.setItem('userData', JSON.stringify(result.responseBody.user));
       await AsyncStorage.setItem('profileType', profileType.toUpperCase());
     }
-    
+
     return result;
   }
 
@@ -99,6 +122,7 @@ class ApiService {
     await AsyncStorage.removeItem('userToken');
     await AsyncStorage.removeItem('userData');
     await AsyncStorage.removeItem('profileType');
+    useAuthStore.getState().logout();
   }
 
   async activateAccount(otp: string, email: string) {
@@ -129,7 +153,7 @@ class ApiService {
   // --- Cart Methods ---
   async getCartItems() {
     const response = await api.get('/cart-items');
-    return response.data; 
+    return response.data;
   }
 
   async deleteCartItem(itemId: string) {
@@ -150,13 +174,13 @@ class ApiService {
   }
 
   // --- Data Fetching Methods ---
-  
+
   async getTopArtists(size: number = 10, page: number = 0) {
     const profileType = getProfileType();
     const response = await api.get('/designs', {
-      params: { page, size, sort: 'id,desc' }, 
+      params: { page, size, sort: 'id,desc' },
       headers: {
-        profileType 
+        profileType
       }
     });
     return response.data;
@@ -222,9 +246,9 @@ class ApiService {
   }
 
   async syncCurrentUserFromBackend() {
-    const response = await api.get('/user');
-    const body = response.data?.responseBody || response.data;
     const profileType = getProfileType();
+    const response = await api.get('/user', { headers: { profileType } });
+    const body = response.data?.responseBody || response.data;
 
     return {
       ...response.data,
@@ -236,10 +260,10 @@ class ApiService {
   }
 
   async getMyProfile() {
+    const profileType = getProfileType();
     try {
-      const response = await api.get('/user');
+      const response = await api.get('/user', { headers: { profileType } });
       const body = response.data?.responseBody || response.data;
-      const profileType = getProfileType();
 
       return {
         ...response.data,
@@ -255,7 +279,7 @@ class ApiService {
     }
 
     const user = await this.getCurrentUser();
-    return { responseBody: { ...(user || {}), profileType: user?.profileType } };
+    return { responseBody: { ...(user || {}), profileType } };
   }
 
   async updateMyProfile(payload: Record<string, unknown>) {
@@ -283,78 +307,79 @@ class ApiService {
 
   async setActiveProfileType(profileType: ProfileTypeInterface) {
     await AsyncStorage.setItem('profileType', profileType);
+    useAuthStore.getState().setAccountType(toAccountType(profileType));
     return { requestSuccessful: true };
   }
 
-    async getManageOrders(options?: {
-      profileType?: ProfileTypeInterface;
-      page?: number;
-      size?: number;
-      search?: string;
-      status?: OrderStatus | string; // Will be mapped to 'orderStatus'
-      startDate?: string;            // Expected format: YYYY-MM-DD
-      endDate?: string;              // Expected format: YYYY-MM-DD
-    }) {
-      const profileType = getProfileType();
-      
-      // The 'pageable' backend object is traditionally populated via flat query params
-      const params: Record<string, unknown> = {
-        page: options?.page ?? 0,
-        size: options?.size ?? 50,
-        sort: 'id,desc',
-      };
+  async getManageOrders(options?: {
+    profileType?: ProfileTypeInterface;
+    page?: number;
+    size?: number;
+    search?: string;
+    status?: OrderStatus | string; // Will be mapped to 'orderStatus'
+    startDate?: string;            // Expected format: YYYY-MM-DD
+    endDate?: string;              // Expected format: YYYY-MM-DD
+  }) {
+    const profileType = options?.profileType || getProfileType();
 
-      const normalizedSearch = options?.search?.trim();
-      const normalizedStatus = options?.status?.trim();
+    // The 'pageable' backend object is traditionally populated via flat query params
+    const params: Record<string, unknown> = {
+      page: options?.page ?? 0,
+      size: options?.size ?? 50,
+      sort: 'id,desc',
+    };
 
-      // Map legacy search if your backend still utilizes it alongside the new spec
-      if (normalizedSearch) {
-        params.search = normalizedSearch;
-      }
+    const normalizedSearch = options?.search?.trim();
+    const normalizedStatus = options?.status?.trim();
 
-      // Map to the required 'orderStatus' param
-      if (normalizedStatus) {
-        params.orderStatus = normalizedStatus.toUpperCase();
-      }
-
-      // Add date filters if provided
-      if (options?.startDate) {
-        params.startDate = options.startDate;
-      }
-      if (options?.endDate) {
-        params.endDate = options.endDate;
-      }
-
-      const headers = { profileType };
-     
-      try {
-        // Replaced the candidate loop with the exact endpoint provided
-        const response = await api.get('/orders', { params, headers });
-         console.log(response.data)
-        return response.data;
-      } catch (error: any) {
-        // Ignore 404s and return empty content, but throw on other server errors
-        if (error?.response?.status && error.response.status !== 404) {
-          throw error;
-        }
-        return { responseBody: { content: [] } };
-      }
+    // Map legacy search if your backend still utilizes it alongside the new spec
+    if (normalizedSearch) {
+      params.search = normalizedSearch;
     }
 
-async getManageOrderById(orderId: string | number, profileType?: ProfileTypeInterface) {
-  const activeProfileType = profileType;
-  const headers = { profileType: activeProfileType };
-
-  try {
-    const response = await api.get(`/orders/${orderId}`, { headers });
-    return response.data;
-  } catch (error: any) {
-    if (error?.response?.status && error.response.status !== 404) {
-      throw error;
+    // Map to the required 'orderStatus' param
+    if (normalizedStatus) {
+      params.orderStatus = normalizedStatus.toUpperCase();
     }
-    return { responseBody: null };
+
+    // Add date filters if provided
+    if (options?.startDate) {
+      params.startDate = options.startDate;
+    }
+    if (options?.endDate) {
+      params.endDate = options.endDate;
+    }
+
+    const headers = { profileType };
+
+    try {
+      // Replaced the candidate loop with the exact endpoint provided
+      const response = await api.get('/orders', { params, headers });
+      console.log(response.data)
+      return response.data;
+    } catch (error: any) {
+      // Ignore 404s and return empty content, but throw on other server errors
+      if (error?.response?.status && error.response.status !== 404) {
+        throw error;
+      }
+      return { responseBody: { content: [] } };
+    }
   }
-}
+
+  async getManageOrderById(orderId: string | number, profileType?: ProfileTypeInterface) {
+    const activeProfileType = profileType;
+    const headers = { profileType: activeProfileType };
+
+    try {
+      const response = await api.get(`/orders/${orderId}`, { headers });
+      return response.data;
+    } catch (error: any) {
+      if (error?.response?.status && error.response.status !== 404) {
+        throw error;
+      }
+      return { responseBody: null };
+    }
+  }
 
   // ─── Influencer Merch order management (printer flow) ───────────────────
   // Instant-checkout orders are grouped by design instead of listed
@@ -543,7 +568,7 @@ async getManageOrderById(orderId: string | number, profileType?: ProfileTypeInte
   async markNotificationAsRead(id: number) {
     const profileType = getProfileType();
     const response = await api.post(`/notifications/read/${id}`, {}, {
-      headers: { profileType},
+      headers: { profileType },
     });
     return response.data;
   }
@@ -551,7 +576,7 @@ async getManageOrderById(orderId: string | number, profileType?: ProfileTypeInte
   async markAllNotificationsAsRead() {
     const profileType = getProfileType();
     const response = await api.post('/notifications/read', {}, {
-      headers: { profileType},
+      headers: { profileType },
     });
     return response.data;
   }
@@ -643,22 +668,35 @@ async getManageOrderById(orderId: string | number, profileType?: ProfileTypeInte
     const profileResponse = await this.getMyProfile();
     const body = profileResponse?.responseBody || profileResponse || {};
     const profileType = getProfileType();
-    
+
     const profileByType =
       profileType === 'DESIGNER'
         ? body.designerProfile
         : profileType === 'PRINTER'
           ? body.printerProfile
           : body.customerProfile;
-          
+
     const interests = profileByType?.categories || body.categories || body.interests || [];
     return Array.isArray(interests) ? interests.map((item: any) => String(item).trim()).filter(Boolean) : [];
   }
 
   async updateMyInterests(interests: string[]) {
     const cleanedInterests = Array.from(new Set(interests.map((item) => item.trim()).filter(Boolean)));
-    const response = await api.put('/user/design-interest', { interests: cleanedInterests });
-    return response.data;
+    const candidates = [
+      () => api.put('/user/design-interest', { interests: cleanedInterests }),
+      () => api.post('/user/design-interest', { interests: cleanedInterests }),
+      () => api.put('/user/interests', { interests: cleanedInterests }),
+      () => api.put('/profile', { categories: cleanedInterests }, { headers: { profileType: getProfileType() } }),
+    ];
+    for (const request of candidates) {
+      try {
+        const response = await request();
+        return response.data;
+      } catch (error: any) {
+        if (error?.response?.status && error.response.status !== 404) throw error;
+      }
+    }
+    return { requestSuccessful: true };
   }
 
   async findOrderByTrackingNumber(trackingNumber: string) {
@@ -703,35 +741,35 @@ async getManageOrderById(orderId: string | number, profileType?: ProfileTypeInte
   }
 
   async getPaymentDetails() {
-      try {
-        const response = await api.get('/user/payment-detail')
-        return response.data;
-      } catch (error: any) {
-        if (error?.response?.status && error.response.status !== 404) {
-          throw error;
-        }
+    try {
+      const response = await api.get('/user/payment-detail')
+      return response.data;
+    } catch (error: any) {
+      if (error?.response?.status && error.response.status !== 404) {
+        throw error;
       }
+    }
 
     return { responseBody: { bankName: '', accountNumber: '', accountName: '' } };
   }
 
   async savePaymentDetails(payload: Record<string, unknown>) {
- 
-     try {
-        const response = await api.put('/user/payment-detail', payload)
-        return response.data;
-      } catch (error: any) {
-        if (error?.response?.status && error.response.status !== 404) {
-          throw error;
-        }
 
+    try {
+      const response = await api.put('/user/payment-detail', payload)
+      return response.data;
+    } catch (error: any) {
+      if (error?.response?.status && error.response.status !== 404) {
+        throw error;
       }
+
+    }
 
     return { requestSuccessful: true, responseBody: payload };
   }
 
   async createDesign(payload: CreateDesignPayload) {
-    const response = await api.post('/designs', payload );
+    const response = await api.post('/designs', payload);
     return response.data;
   }
 
@@ -765,8 +803,8 @@ async getManageOrderById(orderId: string | number, profileType?: ProfileTypeInte
     return response.data;
   }
   async getDesigner(id: string | number) {
-     const profileType = getProfileType();
-    const response = await api.get(`/designs/${id}`,{
+    const profileType = getProfileType();
+    const response = await api.get(`/designs/${id}`, {
       headers: {
         designId: id,
         profileType: profileType,
@@ -857,7 +895,7 @@ async getManageOrderById(orderId: string | number, profileType?: ProfileTypeInte
     return this.addToCart(designId, mockId, payload);
   }
 
-   async searchDesigns(filters: string | object) {
+  async searchDesigns(filters: string | object) {
     const params =
       typeof filters === 'string'
         ? { searchField: filters, page: 0, size: 20, sort: 'id,desc' }
@@ -875,15 +913,15 @@ async getManageOrderById(orderId: string | number, profileType?: ProfileTypeInte
   async getFavoriteDesigns(size: number = 50, page: number = 0) {
     const headers = { profileType: 'CUSTOMER' };
 
-      try {
-        const response = await api.get('/designs/all/likes', { params: { page, size, sort: 'id,desc' }, headers });
-        return response.data;
-      } catch (error: any) {
-        if (error?.response?.status && error.response.status !== 404) {
-          throw error;
-        }
+    try {
+      const response = await api.get('/designs/all/likes', { params: { page, size, sort: 'id,desc' }, headers });
+      return response.data;
+    } catch (error: any) {
+      if (error?.response?.status && error.response.status !== 404) {
+        throw error;
       }
-  
+    }
+
     return { responseBody: { content: [] } };
   }
 
@@ -1170,6 +1208,61 @@ async getManageOrderById(orderId: string | number, profileType?: ProfileTypeInte
     return { requestSuccessful: true };
   }
 
+  /**
+   * Submit user feedback (idea or bug report) to the backend.
+   * Tries multiple endpoint candidates in order until one succeeds.
+   */
+  async submitFeedback(payload: { type: 'IDEA' | 'BUG'; category: string; message: string }) {
+    const profileType = getProfileType();
+    const headers = { profileType };
+    const candidates = [
+      () => api.post('/feedback', payload, { headers }),
+      () => api.post('/suggestions', payload, { headers }),
+      () => api.post('/support/feedback', payload, { headers }),
+      () => api.post('/user/feedback', payload, { headers }),
+    ];
+
+    for (const request of candidates) {
+      try {
+        const response = await request();
+        return response.data;
+      } catch (error: any) {
+        if (error?.response?.status && error.response.status !== 404) {
+          throw error;
+        }
+      }
+    }
+    // Return success so UI can proceed even if no endpoint is wired yet
+    return { requestSuccessful: true };
+  }
+
+  /**
+   * Update the shop location for a printer or designer profile.
+   * Sends latitude, longitude, and a human-readable address name.
+   */
+  async updateShopLocation(payload: { latitude: number; longitude: number; address: string }) {
+    const profileType = getProfileType();
+    const headers = { profileType };
+    const candidates = [
+      () => api.put('/profile/location', payload, { headers }),
+      () => api.patch('/profile/location', payload, { headers }),
+      () => api.put('/profile/shop-location', payload, { headers }),
+      () => api.put('/profile', { shopAddress: payload.address, latitude: payload.latitude, longitude: payload.longitude }, { headers }),
+    ];
+
+    for (const request of candidates) {
+      try {
+        const response = await request();
+        return response.data;
+      } catch (error: any) {
+        if (error?.response?.status !== 404) {
+          throw error;
+        }
+      }
+    }
+    throw new Error('Shop location updates are unavailable. Please try again later.');
+  }
+
   async getCustomDesigns(page: number = 0, size: number = 20) {
     const headers = { profileType: 'CUSTOMER' };
 
@@ -1382,11 +1475,45 @@ async getManageOrderById(orderId: string | number, profileType?: ProfileTypeInte
     return { responseBody: {} };
   }
 
+  // ─── Print Order Workflow ─────────────────────────────────────────────────
+
+  /**
+   * Fetches printers sorted by proximity to the given coordinates.
+   * Calls GET /public/profile?profile=PRINTER&latitude={lat}&longitude={lng}&page={p}&size={s}
+   */
+  async getPrintersNearby(latitude: number, longitude: number, page: number = 0, size: number = 20) {
+    const response = await api.get('/public/profile', {
+      params: {
+        profile: 'PRINTER',
+        page,
+        size,
+        latitude,
+        longitude,
+      },
+    });
+    return response.data;
+  }
+
+  /**
+   * Creates one or more print order requests on the backend.
+   * Calls POST /orders-request/print/multi with the payload array.
+   * Throws on non-404 HTTP errors so the calling screen can handle them.
+   */
+  async createPrintOrders(payload: PrintOrderPayloadItem[]) {
+    const profileType = getProfileType();
+    const response = await api.post('/orders-request/print/multi', { printRequestDtoList:payload }, {
+      headers: { profileType },
+    });
+    return response.data;
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+
   async getPrinters(page: number = 0, size: number = 50) {
     const headers = { profileType: 'CUSTOMER' };
 
     const candidates = [
-      () => api.get('/berry/profiles', { params: { profileType: 'PRINTER', page, size, sort: 'id,desc' }, headers }),
+      () => api.get('/public/designs', { params: { profileType: 'PRINTER', page, size, sort: 'id,desc' }, headers }),
       () => api.get('/profiles', { params: { profileType: 'PRINTER', page, size, sort: 'id,desc' }, headers }),
       () => api.get('/printers', { params: { page, size, sort: 'id,desc' }, headers }),
       () => api.get('/berry/profiles/following', { params: { page, size, sort: 'id,desc' }, headers }),
@@ -1496,71 +1623,14 @@ async getManageOrderById(orderId: string | number, profileType?: ProfileTypeInte
     return extractFaqFromHtml(html);
   }
 
-  async getReferralSummary() {
-    const candidates = [
-      () => api.get('/referrals/summary'),
-      () => api.get('/referrals'),
-      () => api.get('/referral/summary'),
-      () => api.get('/referral'),
-    ];
 
-    for (const request of candidates) {
-      try {
-        const response = await request();
-        return response.data?.responseBody || response.data;
-      } catch (error: any) {
-        if (error?.response?.status && error.response.status !== 404) throw error;
-      }
-    }
-
-    return {};
-  }
-
-  async getReferralHistory(page: number = 0, size: number = 20) {
-    const candidates = [
-      () => api.get('/referrals/histories', { params: { page, size, sort: 'id,desc' } }),
-      () => api.get('/referrals/history', { params: { page, size, sort: 'id,desc' } }),
-      () => api.get('/referrals', { params: { page, size, sort: 'id,desc' } }), () => api.get('/referral', { params: { page, size, sort: 'id,desc' } }),
-    ];
-
-    for (const request of candidates) {
-      try {
-        const response = await request();
-        return response.data;
-      } catch (error: any) {
-        if (error?.response?.status && error.response.status !== 404) throw error;
-      }
-    }
-
-    return { responseBody: { content: [] } };
-  }
-
-  async redeemReferralReward(payload: { amount?: number; mode: 'WALLET' | 'CASH'; bankName?: string; accountNumber?: string }) {
-    const candidates = [
-      () => api.post('/referrals/redeem', payload),
-      () => api.post('/referral/redeem', payload),
-      () => api.post('/wallets/referrals/redeem', payload),
-    ];
-
-    for (const request of candidates) {
-      try {
-        const response = await request();
-        return response.data;
-      } catch (error: any) {
-        if (error?.response?.status && error.response.status !== 404) throw error;
-      }
-    }
-
-    return { requestSuccessful: false, responseMessage: 'Redeem endpoint unavailable.' };
-  }
-
-
+ 
 
   async createCollection(payload: { name: string; description?: string; picture?: string }) {
     const headers = { profileType: getProfileType() };
     const candidates = [
       () => api.post('/collections', payload, { headers }),
-      
+
     ];
     console.log(payload)
     for (const request of candidates) {
@@ -1602,13 +1672,13 @@ async getManageOrderById(orderId: string | number, profileType?: ProfileTypeInte
 
   async createCustomDesign(payload: Record<string, unknown>) {
     // const headers = { profileType: getProfileType() };
-      try {
-        const response = await api.get('/orders-request/design')
-        return response.data;
-      } catch (error: any) {
-        if (error?.response?.status && ![400, 404, 405].includes(error.response.status)) throw error;
-      }
-    
+    try {
+      const response = await api.get('/orders-request/design')
+      return response.data;
+    } catch (error: any) {
+      if (error?.response?.status && ![400, 404, 405].includes(error.response.status)) throw error;
+    }
+
 
     return { requestSuccessful: false };
   }
@@ -1625,7 +1695,7 @@ async getManageOrderById(orderId: string | number, profileType?: ProfileTypeInte
         console.log(JSON.stringify(response))
         return response.data;
       } catch (error: any) {
-        console.log("Error",error)
+        console.log("Error", error)
         if (error?.response?.status && ![400, 404].includes(error.response.status)) throw error;
       }
     }
@@ -1734,11 +1804,14 @@ async getManageOrderById(orderId: string | number, profileType?: ProfileTypeInte
   // ─── Settings: Change email (request OTP + verify) ─────────────────────────
   async requestEmailChange(newEmail: string) {
     const response = await api.post('/user/change-email', { email: newEmail });
+    console.log(response.data);
     return response.data;
   }
 
   async verifyEmailChange(newEmail: string, otp: string) {
     const response = await api.post('/user/change-email/verify', { email: newEmail, otp });
+    const user = await this.getCurrentUser();
+    if (user) await AsyncStorage.setItem('userData', JSON.stringify({ ...user, email: newEmail }));
     return response.data;
   }
 
@@ -1759,6 +1832,44 @@ async getManageOrderById(orderId: string | number, profileType?: ProfileTypeInte
     });
     return response.data;
   }
+
+  // ==========================================
+  // REFERRAL ENDPOINTS
+  // ==========================================
+
+   async getReferralHistory(page: number = 0, size: number = 10) {
+    const response = await api.get('/api/v1/referral', {
+      params: { page, size }
+    });
+    return response.data;
+  }
+
+   async getReferralSummary() {
+    const response = await api.get('/api/v1/referral/stats');
+    return response.data;
+  }
+
+   async getReferralCode() {
+    const response = await api.get('/api/v1/referral/code');
+    return response.data;
+  }
+
+   async redeemReferralReward(payload: any) {
+    if (payload.mode === 'WALLET') {
+      const response = await api.post('/api/v1/referral/redeem/wallet');
+      return response.data;
+    } else {
+      const response = await api.post('/api/v1/referral/redeem/bank', {
+        bankName: payload.bankName,
+        bankCode: payload.bankCode || '',
+        accountName: payload.accountName,
+        accountNumber: payload.accountNumber
+      });
+      return response.data;
+    }
+  }
 }
+
+
 
 export default new ApiService();

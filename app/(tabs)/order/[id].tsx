@@ -2,23 +2,24 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
-  Image,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-  useColorScheme,
+    ActivityIndicator,
+    Alert,
+    Image,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+    useColorScheme,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useAppAlert } from '@/components/common/AppAlert';
 import { formatNaira } from '@/lib/currency';
 import { normalizeManageOrder } from '@/lib/orders';
 import ApiService from '@/services/apiClient';
 import { toProfileType, useAuthStore } from '@/store/authStore';
 import type { ManageOrderItem } from '@/types';
-import { useAppAlert } from '@/components/common/AppAlert';
 
 const countdownLabels = ['Days', 'Hours', 'Mins', 'Secs'];
 
@@ -160,7 +161,8 @@ export default function OrderDetailScreen() {
 
         <View style={[styles.metaCard, { borderColor: theme.border }]}>
           <Text style={[styles.metaLine, { color: theme.subtext }]}>
-            Design by <Text style={styles.metaLink}>{order.designer}</Text>
+            {toProfileType(role) === 'PRINTER' ? 'Customer: ' : order.providerRole === 'PRINTER' ? 'Printer: ' : 'Designer: '}
+            <Text style={styles.metaLink}>{toProfileType(role) === 'PRINTER' ? (order.customerName || 'Not provided') : (order.providerName || order.designer)}</Text>
           </Text>
           <Text style={[styles.metaLine, { color: theme.subtext }]}>Updated on {order.updatedAt}</Text>
           <Text style={[styles.metaLine, { color: theme.subtext }]}>Created on {order.createdAt}</Text>
@@ -201,11 +203,62 @@ export default function OrderDetailScreen() {
 
       {/* Fixed Footer */}
       <View style={[styles.footer, { backgroundColor: theme.background }]}>
-        <TouchableOpacity activeOpacity={0.85} style={styles.cancelButton}>
+        <TouchableOpacity
+          activeOpacity={0.85}
+          style={styles.cancelButton}
+          onPress={() => {
+            Alert.alert(
+              'Cancel Order',
+              'Are you sure you want to cancel this order?',
+              [
+                { text: 'No', style: 'cancel' },
+                {
+                  text: 'Yes, Cancel',
+                  style: 'destructive',
+                  onPress: async () => {
+                    try {
+                      await ApiService.cancelOrderByCustomer(order.id);
+                      router.back();
+                    } catch (e: any) {
+                      showAlert({ type: 'error', title: 'Failed', message: e?.response?.data?.responseMessage || e?.message || 'Could not cancel order.' });
+                    }
+                  },
+                },
+              ],
+            );
+          }}
+        >
           <Text style={[styles.cancelText, { color: theme.danger }]}>Cancel Order</Text>
         </TouchableOpacity>
-        <TouchableOpacity activeOpacity={0.9} style={styles.deliverButton}>
-          <Text style={styles.deliverText}>Deliver order</Text>
+        <TouchableOpacity
+          activeOpacity={0.9}
+          style={styles.deliverButton}
+          onPress={() => {
+            Alert.alert(
+              'Review / Approve Design',
+              'Approve this design to proceed with production?',
+              [
+                { text: 'Reject', style: 'destructive', onPress: async () => {
+                  try {
+                    await ApiService.declineOrder(order.id);
+                    router.back();
+                  } catch (e: any) {
+                    showAlert({ type: 'error', title: 'Failed', message: e?.response?.data?.responseMessage || e?.message || 'Could not reject.' });
+                  }
+                }},
+                { text: 'Approve', onPress: async () => {
+                  try {
+                    await ApiService.confirmOrder(order.id);
+                    router.back();
+                  } catch (e: any) {
+                    showAlert({ type: 'error', title: 'Failed', message: e?.response?.data?.responseMessage || e?.message || 'Could not approve.' });
+                  }
+                }},
+              ],
+            );
+          }}
+        >
+          <Text style={styles.deliverText}>Review / Approve</Text>
         </TouchableOpacity>
       </View>
 

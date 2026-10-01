@@ -1,6 +1,6 @@
 import { ScreenHeader } from "@/components/UIComponents";
 import { Designer, RootStackParamList } from "@/types";
-import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import type { NativeStackScreenProps } from "expo-router";
 import React from "react";
 import {
   Image,

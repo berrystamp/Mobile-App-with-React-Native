@@ -12,7 +12,7 @@ const isExpoGo = appOwnership === 'expo';
 // Lazily import expo-notifications so the module-level setNotificationHandler
 // call never runs inside Expo Go (it throws in SDK 53+).
 let Notifications: typeof import('expo-notifications') | null = null;
-if (!isExpoGo) {
+if (!isExpoGo && Platform.OS !== 'web') {
   try {
     Notifications = require('expo-notifications');
     // Configure foreground notification behaviour only in real builds
@@ -39,6 +39,16 @@ if (!isExpoGo) {
 export async function registerForPushNotifications(): Promise<string | null> {
   if (isExpoGo || !Notifications || !Device.isDevice) return null;
 
+  // Android must have a channel before requesting notification permission.
+  if (Platform.OS === 'android') {
+    await Notifications.setNotificationChannelAsync('default', {
+      name: 'Orders, deliveries and messages',
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: '#4B3A99',
+    });
+  }
+
   const { status: existingStatus } = await Notifications.getPermissionsAsync();
   let finalStatus = existingStatus;
 
@@ -49,17 +59,10 @@ export async function registerForPushNotifications(): Promise<string | null> {
 
   if (finalStatus !== 'granted') return null;
 
-  if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync('default', {
-      name: 'Default',
-      importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 250, 250, 250],
-      lightColor: '#4B3A99',
-    });
-  }
 
   try {
-    const tokenData = await Notifications.getExpoPushTokenAsync();
+    const projectId = Constants.expoConfig?.extra?.eas?.projectId || Constants.easConfig?.projectId;
+    const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
     return tokenData.data;
   } catch {
     return null;
@@ -99,4 +102,7 @@ export function addNotificationResponseListener(
 }
 
 /** Whether push notifications are supported in the current environment. */
-export const pushNotificationsSupported = !isExpoGo && Device.isDevice;
+export const pushNotificationsSupported = !isExpoGo && Platform.OS !== 'web' && Device.isDevice;
+
+export const getLastNotificationResponse = () => Notifications?.getLastNotificationResponse() ?? null;
+export const clearLastNotificationResponse = () => Notifications?.clearLastNotificationResponse();

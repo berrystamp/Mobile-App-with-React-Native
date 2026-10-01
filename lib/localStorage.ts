@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 
 const SEARCH_HISTORY_KEY = 'search_history';
 const SEARCH_FILTERS_KEY = 'search_filters';
@@ -86,3 +87,44 @@ export async function getRecentDesignIds() {
     return [] as number[];
   }
 }
+
+export async function saveCartItems(items: any[]) {
+  try {
+    const stored = JSON.stringify(items);
+    if (Platform.OS === 'web') {
+      localStorage.setItem('berrystamp_cart_items', stored);
+    } else {
+      await AsyncStorage.setItem('berrystamp_cart_items', stored);
+    }
+  } catch (error) {
+    console.error('Failed to save cart items:', error);
+  }
+}
+
+export async function getCartItems() {
+  try {
+    let data;
+    if (Platform.OS === 'web') {
+      data = localStorage.getItem('berrystamp_cart_items');
+    } else {
+      data = await AsyncStorage.getItem('berrystamp_cart_items');
+    }
+    return data ? JSON.parse(data) : [];
+  } catch (error) {
+    console.error('Failed to get cart items:', error);
+    return [];
+  }
+}
+
+export async function clearCartItems() {
+  try {
+    if (Platform.OS === 'web') {
+      localStorage.removeItem('berrystamp_cart_items');
+    } else {
+      await AsyncStorage.removeItem('berrystamp_cart_items');
+    }
+  } catch (error) {
+    console.error('Failed to clear cart items:', error);
+  }
+}
+ 

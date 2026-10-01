@@ -1,22 +1,22 @@
 import { useAppAlert } from "@/components/common/AppAlert";
+import PrintPreferencesModal, { type PrintPreferencesResult } from "@/components/PrintPreferencesModal";
+import { useCustomDesignStore } from "@/context/CustomDesignContext"; // Import your shared state hook
 import { formatNaira } from "@/lib/currency";
 import { normalizeDesign, normalizeDesignListResponse } from "@/lib/designs";
-import { upsertLocalConversation } from "@/lib/localConversations";
 import { SearchFilters, addSearchHistory, getSearchFilters } from "@/lib/localStorage";
 import ApiService from "@/services/apiClient";
 import { Design, Mock } from "@/types";
-import { useCustomDesignStore } from "@/context/CustomDesignContext"; // Import your shared state hook
-import { Feather, Ionicons , MaterialCommunityIcons} from "@expo/vector-icons";
+import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Dimensions, FlatList, Image, Modal, Pressable, SafeAreaView, ScrollView, Share, Text, TextInput, TouchableOpacity, View, useColorScheme } from "react-native";
+import { ActivityIndicator, Dimensions, FlatList, Image, Linking, Modal, Pressable, ScrollView, Share, Text, TextInput, TouchableOpacity, View, useColorScheme } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BlurView } from "expo-blur";
 
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CARD_WIDTH = (SCREEN_WIDTH - 48) / 2;
-const GALLERY_HEIGHT = SCREEN_WIDTH * 1.25; 
+const GALLERY_HEIGHT = SCREEN_WIDTH * 1.25;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -28,7 +28,7 @@ const getLowestPrice = (design: Design) => {
 const toAbsUrl = (path?: string) => {
   if (!path) return '';
   if (path.startsWith('http')) return path;
-  return `https://backend-prod-api.berrystamp.com/${path.replace(/^\/+/, '')}`;
+  return `https://berrystamp-backend-production.up.railway.app/${path.replace(/^\/+/, '')}`;
 };
 
 const getMockSizes = (mock?: Mock | null): string[] => {
@@ -36,32 +36,6 @@ const getMockSizes = (mock?: Mock | null): string[] => {
   const s = (mock as any).sizes || (mock as any).availableSizes || [];
   return Array.isArray(s) ? s.map(String).filter(Boolean) : [];
 };
-
-interface PrinterCard {
-  id: number;
-  name: string;
-  avatar: string;
-  cover: string;
-  role: string;
-  jobs: number;
-  rating: string;
-  location: string;
-  distance: string;
-  successRate: number;
-}
-
-const normalizePrinter = (item: any, index: number): PrinterCard => ({
-  id: Number(item.id || index),
-  name: item.name || `${item.firstName || ''} ${item.lastName || ''}`.trim() || item.userName || item.username || 'Printer',
-  avatar: toAbsUrl(item.profileImage?.thumbnailUrl || item.profileImage?.url || item.thumbnailProfilePic || item.profilePic || item.avatar),
-  cover: toAbsUrl(item.coverImage?.url || item.coverPic || item.profileImage?.url || item.profilePic),
-  role: item.bio || item.specialty || 'Commercial Printer',
-  jobs: Number(item.insight?.totalCompletedOrders || item.totalJobs || 0),
-  rating: item.insight?.rating?.avgStars ? item.insight.rating.avgStars.toFixed(1) : '4.5',
-  location: item.userPhone || 'Lagos state',
-  distance: item.insight?.distanceInKm ? `${item.insight.distanceInKm} km away` : '0 km away',
-  successRate: Number(item.insight?.jobSuccessPercentage || 0),
-});
 
 // ─── Design Card Component ───────────────────────────────────────────────────
 
@@ -77,7 +51,7 @@ function ProductCard({
   const isDark = useColorScheme() === 'dark';
   const price = getLowestPrice(design);
   const artistName = `${design.profile.firstName} ${design.profile.lastName}`.trim() || design.profile.username;
-  const imageUrl = design.imagePath?.startsWith('http') ? design.imagePath : design.imagePath ? `https://backend-prod-api.berrystamp.com/${design.imagePath}` : '';
+  const imageUrl = design.imagePath?.startsWith('http') ? design.imagePath : design.imagePath ? `https://berrystamp-backend-production.up.railway.app/${design.imagePath}` : '';
 
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.9} 
@@ -143,13 +117,63 @@ function ShareSheet({
 }) {
   if (!design) return null;
 
+  const handleSocialShare = async (platform: string) => {
+    const message = `Discover "${design.title}" on Berrystamp. ${design.description || ''}`;
+    const encodedMessage = encodeURIComponent(message);
+    
+    // Facebook and LinkedIn require a URL to share properly via web intents.
+    // Replace this with your actual dynamic product URL if you have one.
+    const productUrl = encodeURIComponent('https://berrystamp.com'); 
+    
+    let appUrl = '';
+    let webUrl = '';
+
+    // Route to specific platform schemes and their web fallbacks
+    switch (platform) {
+      case 'Whatsapp':
+        appUrl = `whatsapp://send?text=${encodedMessage}`;
+        webUrl = `https://wa.me/?text=${encodedMessage}`;
+        break;
+      case 'X':
+        appUrl = `twitter://post?message=${encodedMessage}`;
+        webUrl = `https://twitter.com/intent/tweet?text=${encodedMessage}`;
+        break;
+      case 'Facebook':
+        appUrl = `fb://`; // Opens the app
+        webUrl = `https://www.facebook.com/sharer/sharer.php?u=${productUrl}&quote=${encodedMessage}`;
+        break;
+      case 'LinkedIn':
+        appUrl = `linkedin://`; // Opens the app
+        webUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${productUrl}`;
+        break;
+    }
+
+    try {
+      // Try to open the native app first
+      const canOpenApp = await Linking.canOpenURL(appUrl);
+      if (canOpenApp) {
+        await Linking.openURL(appUrl);
+      } else if (webUrl) {
+        // Fallback to the web browser intent if the app isn't installed
+        await Linking.openURL(webUrl);
+      }
+    } catch (e) {
+      console.warn(`Could not open ${platform}`, e);
+    }
+    
+    onClose();
+  };
+
   const handleCopy = async () => {
+    // If you want this to strictly "Copy Link" without the share sheet, 
+    // you should use expo-clipboard (e.g., Clipboard.setStringAsync(url)).
+    // Leaving this as Share.share for now unless you want it changed too.
     try {
       await Share.share({
         message: `Discover "${design.title}" on Berrystamp. ${design.description || ''}`,
         title: design.title,
       });
-    } catch {}
+    } catch { }
     onClose();
   };
 
@@ -166,7 +190,7 @@ function ShareSheet({
 
           <View className="mb-8 flex-row justify-between">
             {['Whatsapp', 'X', 'LinkedIn', 'Facebook'].map((label) => (
-              <TouchableOpacity key={label} onPress={handleCopy} className="w-[50px] items-center">
+              <TouchableOpacity key={label} onPress={() => handleSocialShare(label)} className="w-[50px] items-center">
                 <View className="mb-2 h-[50px] w-[50px] items-center justify-center rounded-full bg-[#4A3298]">
                   <Ionicons name="share-social-outline" size={24} color="#FFF" />
                 </View>
@@ -193,162 +217,6 @@ function ShareSheet({
           </View>
         </Pressable>
       </Pressable>
-    </Modal>
-  );
-}
-
-// ─── Printer Selection Component ──────────────────────────────────────────────
-
-function PrinterSelectionScreen({
-  visible,
-  cartItems,
-  onClose,
-  onSuccess,
-}: {
-  visible: boolean;
-  cartItems: any[];
-  onClose: () => void;
-  onSuccess: () => void;
-}) {
-  const isDark = useColorScheme() === 'dark';
-  const router = useRouter();
-  const [printers, setPrinters] = useState<PrinterCard[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [sentId, setSentId] = useState<number | null>(null);
-
-  useEffect(() => {
-    if (!visible) return;
-    const load = async () => {
-      try {
-        setLoading(true);
-        const res = await ApiService.getUsers('PRINTER', 0, 60);
-        const content = res?.responseBody?.content || res?.content || res?.responseBody || res || [];
-        setPrinters(Array.isArray(content) ? content.map(normalizePrinter) : []);
-      } catch {
-        setPrinters([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
-  }, [visible]);
-
-  const handleMessage = async (printer: PrinterCard) => {
-    setSentId(printer.id);
-    try {
-      const conversationId = await upsertLocalConversation({
-        participantId: printer.id,
-        name: printer.name,
-        role: 'Printers',
-        initialMessages: cartItems.map((item, i) => ({
-          id: `order-req-${printer.id}-${i}-${Date.now()}`,
-          type: 'bundle' as const,
-          text: '[Product gallery]',
-          previewText: '[Product gallery]',
-          author: 'me' as const,
-          createdAt: new Date().toISOString(),
-          status: 'sent' as const,
-          bundle: {
-            title: 'Order Specification',
-            productCount: cartItems.length,
-            footerLabel: 'View product details',
-            items: [item],
-          },
-        })),
-      });
-
-      setTimeout(() => {
-        setSentId(null);
-        onSuccess();
-        onClose();
-        router.push({
-          pathname: '/chat',
-          params: {
-            conversationId: String(conversationId),
-            participantId: String(printer.id),
-            participantName: printer.name,
-            participantRole: 'Printers',
-          },
-        });
-      }, 1200);
-    } catch {
-      setSentId(null);
-    }
-  };
-
-  return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <SafeAreaView className="flex-1 bg-[#F5F5F7] dark:bg-black">
-        <View className="flex-row items-center bg-white px-4 py-4 dark:bg-[#1C1C1E]">
-          <TouchableOpacity onPress={onClose} className="mr-4">
-            <Ionicons name="arrow-back" size={24} className="text-[#1C1C1E] dark:text-white" />
-          </TouchableOpacity>
-          <View className="flex-1">
-            <Text className="text-[18px] font-bold text-[#1C1C1E] dark:text-white">Select Print Partner</Text>
-            <Text className="mt-0.5 text-[13px] text-[#8E8E93]">Choose a verified partner for production and fulfillment.</Text>
-          </View>
-        </View>
-
-        {loading ? (
-          <View className="flex-1 items-center justify-center">
-            <ActivityIndicator size="large" color="#4A3298" />
-          </View>
-        ) : printers.length === 0 ? (
-          <View className="flex-1 items-center justify-center px-8">
-            <Ionicons name="print-outline" size={64} className="text-[#D1D1D6] dark:text-[#3A3A3C]" />
-            <Text className="mt-4 text-center text-[16px] text-[#8E8E93]">No print partners available in this region.</Text>
-          </View>
-        ) : (
-          <FlatList
-            data={printers}
-            keyExtractor={(item) => String(item.id)}
-            numColumns={2}
-            contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
-            columnWrapperStyle={{ gap: 16 }}
-            showsVerticalScrollIndicator={false}
-            renderItem={({ item }) => {
-              const isSent = sentId === item.id;
-              return (
-                <View style={{ width: (SCREEN_WIDTH - 48) / 2 }} className="mb-4 overflow-hidden rounded-2xl border border-[#E5E5EA] bg-white dark:border-[#2C2C2E] dark:bg-[#1C1C1E]">
-                  <View className="h-20 bg-[#F5F5F7] dark:bg-[#2C2C2E]">
-                    {item.cover ? <Image source={{ uri: item.cover }} className="h-full w-full" /> : null}
-                    <View className="absolute bottom-[-20px] h-11 w-11 align-self-center overflow-hidden rounded-full border-2 border-white bg-[#4A3298] dark:border-[#1C1C1E]">
-                      {item.avatar ? (
-                        <Image source={{ uri: item.avatar }} className="h-full w-full" />
-                      ) : (
-                        <View className="flex-1 items-center justify-center">
-                          <Text className="text-[14px] font-bold text-white">{item.name.slice(0, 1).toUpperCase()}</Text>
-                        </View>
-                      )}
-                    </View>
-                  </View>
-
-                  <View className="items-center px-3 pb-4 pt-7">
-                    <View className="mb-0.5 flex-row items-center">
-                      <Text numberOfLines={1} className="text-[14px] font-bold text-[#1C1C1E] dark:text-white">{item.name}</Text>
-                      <Ionicons name="checkmark-circle" size={14} color="#4A3298" className="ml-1" />
-                    </View>
-                    <Text numberOfLines={1} className="mb-2 text-[12px] text-[#8E8E93]">{item.role}</Text>
-                    <Text className="mb-1 text-[11px] text-[#AEAEB2] dark:text-[#636366]">{item.distance} • {item.jobs} orders | {item.rating} ★</Text>
-                    <Text className="mb-4 text-[11px] text-[#AEAEB2] dark:text-[#636366]">{item.location}</Text>
-
-                    {isSent ? (
-                      <View className="flex-row items-center">
-                        <Ionicons name="checkmark-circle" size={16} color="#34C759" />
-                        <Text className="ml-1.5 text-[12px] font-semibold text-[#34C759]">Order Sent</Text>
-                      </View>
-                    ) : (
-                      <TouchableOpacity onPress={() => handleMessage(item)} className="w-full items-center rounded-full bg-[#4A3298] py-2.5">
-                        <Text className="text-[13px] font-semibold text-white">Engage Partner</Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                </View>
-              );
-            }}
-          />
-        )}
-      </SafeAreaView>
     </Modal>
   );
 }
@@ -383,6 +251,9 @@ function ProductDetailScreen({
   const [cartSuccess, setCartSuccess] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [relatedDesigns, setRelatedDesigns] = useState<Design[]>([]);
+  const [showPrintModal, setShowPrintModal] = useState(false);
+  // Cart item built for the print flow – set before opening the modal
+  const [pendingPrintCartItems, setPendingPrintCartItems] = useState<any[]>([]);
 
   const gallery = useMemo(() => {
     const items: { id: string; uri: string }[] = [];
@@ -408,7 +279,7 @@ function ProductDetailScreen({
         const list = normalizeDesignListResponse(res).filter((d) => d.id !== design.id).slice(0, 6);
         setRelatedDesigns(list);
       })
-      .catch(() => {});
+      .catch(() => { });
   }, [design.id, design.designerId]);
 
   const handleFavorite = async () => {
@@ -429,25 +300,23 @@ function ProductDetailScreen({
         size: selectedSize || undefined,
       });
       if (printNow) {
-        onClose();
-        router.push({
-          pathname: '/(tabs)/select-printer',
-          params: {
-            cartItems: JSON.stringify([
-              {
-                id: String(design.id),
-                name: design.title,
-                imageUrl: selectedMock?.imagePath || design.imagePath || '',
-                price: selectedMock?.price || design.amount || 0,
-                quantity,
-                colour: selectedColour || '',
-                size: selectedSize || '',
-                variantText: [selectedColour, selectedSize].filter(Boolean).join(' / '),
-                designerName: artistName,
-              },
-            ]),
+        // Build the cart item payload and open Print Preferences Modal
+        setPendingPrintCartItems([
+          {
+            id: String(design.id),
+            designId: Number(design.id),
+            mockId: Number(selectedMock.id),
+            name: design.title,
+            imageUrl: selectedMock?.imagePath || design.imagePath || '',
+            price: selectedMock?.price || design.amount || 0,
+            quantity,
+            colour: selectedColour || '',
+            size: selectedSize || '',
+            variantText: [selectedColour, selectedSize].filter(Boolean).join(' / '),
+            designerName: artistName,
           },
-        });
+        ]);
+        setShowPrintModal(true);
         return;
       }
       setCartSuccess(true);
@@ -458,6 +327,21 @@ function ProductDetailScreen({
     } finally {
       setAddingToCart(false);
     }
+  };
+
+  const handlePrintPreferencesContinue = (result: PrintPreferencesResult) => {
+    setShowPrintModal(false);
+    onClose();
+    router.push({
+      pathname: '/(tabs)/select-printer',
+      params: {
+        cartItems: JSON.stringify(pendingPrintCartItems),
+        dateOfDelivery: result.dateOfDelivery,
+        deliveryAddress: JSON.stringify(result.deliveryAddress),
+        hasOwnItem: String(result.hasOwnItem),
+        ...(result.pickupAddress ? { pickupAddress: JSON.stringify(result.pickupAddress) } : {}),
+      },
+    });
   };
 
   // 2. Updated to use CustomDesignContext state instead of URL params path construction
@@ -487,7 +371,7 @@ function ProductDetailScreen({
   return (
     <View className="flex-1 bg-white dark:bg-black">
       <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
-        
+
         {/* Full Bleed Image Gallery */}
         <View style={{ width: SCREEN_WIDTH, height: GALLERY_HEIGHT }} className="bg-[#F5F5F7] dark:bg-[#1C1C1E]">
           <ScrollView
@@ -653,45 +537,34 @@ function ProductDetailScreen({
 
           {/* Styles Selection */}
           <View className="border-t border-[#F5F5F7] pt-6 dark:border-[#2C2C2E]">
-            <Text className="mb-4 text-[15px] font-light text-[#1C1C1E] dark:text-white">
-              Select Mockup</Text>
-            <View className="mb-6 flex-row flex-wrap justify-between">
-  {design.mocks.map((mock) => {
-    const isActive = selectedMock?.id === mock.id;
-
-    return (
-      <TouchableOpacity
-        key={mock.id}
-        onPress={() => {
-          setSelectedMock(mock);
-          setSelectedColour(mock.colours?.[0] || '');
-          setSelectedSize(getMockSizes(mock)[0] || '');
-        }}
-        className={`mb-4 w-[48%] overflow-hidden rounded-2xl border-2 ${
-          isActive ? 'border-[#4A3298]' : 'border-transparent'
-        }`}
-      >
-        <View className="h-44 w-full overflow-hidden rounded-xl bg-[#F5F5F7] dark:bg-[#1C1C1E]">
-          {mock.imagePath ? (
-            <Image
-              source={{ uri: mock.imagePath }}
-              className="h-full w-full"
-              resizeMode="cover"
-            />
-          ) : (
-            <View className="flex-1 items-center justify-center">
-              <Ionicons
-                name="shirt-outline"
-                size={48}
-                color={isDark ? '#555' : '#CCC'}
-              />
-            </View>
-          )}
-        </View>
-      </TouchableOpacity>
-    );
-  })}
-</View>
+            <Text className="mb-4 text-[15px] font-bold text-[#1C1C1E] dark:text-white">Available Styles</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-6">
+              {design.mocks.map((mock) => {
+                const isActive = selectedMock?.id === mock.id;
+                return (
+                  <TouchableOpacity
+                    key={mock.id}
+                    onPress={() => {
+                      setSelectedMock(mock);
+                      setSelectedColour(mock.colours?.[0] || '');
+                      setSelectedSize(getMockSizes(mock)[0] || '');
+                    }}
+                    style={{ width: 80 }}
+                    className={`mr-4 overflow-hidden rounded-xl border-2 ${isActive ? 'border-[#4A3298]' : 'border-transparent'}`}
+                  >
+                    <View className="bg-[#F5F5F7] dark:bg-[#1C1C1E]" style={{ width: 80, height: 80 }}>
+                      {mock.imagePath ? (
+                        <Image source={{ uri: mock.imagePath }} className="h-full w-full" />
+                      ) : (
+                        <View className="flex-1 items-center justify-center">
+                          <Ionicons name="shirt-outline" size={32} className="text-[#CCC] dark:text-[#555]" />
+                        </View>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
 
             {/* Colors Selection */}
             {!!selectedMock?.colours?.length && (
@@ -814,6 +687,11 @@ function ProductDetailScreen({
     </View>
   )}
       <ShareSheet visible={showShare} design={design} onClose={() => setShowShare(false)} />
+      <PrintPreferencesModal
+        visible={showPrintModal}
+        onClose={() => setShowPrintModal(false)}
+        onContinue={handlePrintPreferencesContinue}
+      />
     </View>
   );
 }
@@ -835,8 +713,6 @@ export default function ProductsScreen() {
   const [error, setError] = useState<string | null>(null);
   const [selectedDesign, setSelectedDesign] = useState<Design | null>(null);
   const isSingleProduct = Boolean(designId);
-  const [showPrinters, setShowPrinters] = useState(false);
-  const [pendingCartItems, setPendingCartItems] = useState<any[]>([]);
 
   const loadProducts = useCallback(async (query: string, nextFilters: SearchFilters) => {
     try {
@@ -890,20 +766,9 @@ export default function ProductsScreen() {
     try { await ApiService.toggleFavorite(String(id)); } catch { setProducts((prev) => prev.map((d) => (d.id === id ? { ...d, liked: !d.liked } : d))); }
   };
 
-  const handleCartAdded = (design: Design, mock: Mock, colour: string, size: string, qty: number) => {
-    setPendingCartItems([
-      {
-        id: `${design.id}-${mock.id}-${Date.now()}`,
-        name: design.title,
-        imageUrl: mock.imagePath || design.imagePath,
-        price: mock.price || design.amount || 0,
-        quantity: qty,
-        colour,
-        size,
-        designerId: design.designerId || design.profile.id,
-        designerName: design.designerName || `${design.profile.firstName} ${design.profile.lastName}`.trim(),
-      },
-    ]);
+  const handleCartAdded = (_design: Design, _mock: Mock, _colour: string, _size: string, _qty: number) => {
+    // Cart was updated successfully — no further action needed here.
+    // The PrintPreferencesModal is now managed inside ProductDetailScreen.
   };
 
   if (isSingleProduct) {
@@ -928,7 +793,6 @@ export default function ProductsScreen() {
     return (
       <>
         <ProductDetailScreen design={selectedDesign} onClose={() => router.back()} onCartAdded={handleCartAdded} />
-        <PrinterSelectionScreen visible={showPrinters} cartItems={pendingCartItems} onClose={() => setShowPrinters(false)} onSuccess={() => setPendingCartItems([])} />
         {alertElement}
       </>
     );
@@ -938,7 +802,6 @@ export default function ProductsScreen() {
     return (
       <>
         <ProductDetailScreen design={selectedDesign} onClose={() => setSelectedDesign(null)} onCartAdded={handleCartAdded} />
-        <PrinterSelectionScreen visible={showPrinters} cartItems={pendingCartItems} onClose={() => setShowPrinters(false)} onSuccess={() => setPendingCartItems([])} />
         {alertElement}
       </>
     );

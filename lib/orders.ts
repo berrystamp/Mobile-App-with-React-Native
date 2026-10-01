@@ -63,6 +63,10 @@ export const normalizeManageOrder = (input: any, index = 0): ManageOrderItem => 
   const item = input?.responseBody || input?.data || input || {};
   const orderNumber = item.orderNumber || item.code || item.trackingNumber || item.reference || item.orderCode;
   const title = item.title || item.name || item.orderTitle || item.type || item.orderType || 'Order';
+  const request = item.orderRequest || item;
+  const provider = request.providerProfile || item.printer || item.designer || {};
+  const customer = request.customerProfile || item.customer || {};
+  const providerName = provider.name || provider.userName || provider.username || item.printerName || item.designerName;
   const designerName =
     item.designerName ||
     item.shopName ||
@@ -84,7 +88,10 @@ export const normalizeManageOrder = (input: any, index = 0): ManageOrderItem => 
     id: String(item.id || orderNumber || index + 1),
     code: String(orderNumber || item.id || `ORDER-${index + 1}`).toUpperCase(),
     title,
-    shopName: designerName,
+    shopName: providerName || designerName,
+    providerName,
+    providerRole: provider.profileType || (item.printer ? 'PRINTER' : undefined),
+    customerName: customer.name || customer.userName || item.customerName,
     amount: Number(item.amount || item.totalAmount || item.price || item.total || 0),
     status: normalizeManageOrderStatus(item.status),
     description: item.description || item.note || item.summary || 'No order description available.',
