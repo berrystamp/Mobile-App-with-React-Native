@@ -468,7 +468,7 @@ function EmailNotificationsScreen({
   );
 }
 
-// ─── Screen: Change Email ─────────────────────────────────────────────────────
+// ─── Screen: Change Email (FIXED) ─────────────────────────────────────────────
 function ChangeEmailScreen({
   onBack,
   isDark,
@@ -493,50 +493,102 @@ function ChangeEmailScreen({
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = setInterval(() => {
       setCountdown((c) => {
-        if (c <= 1) { clearInterval(timerRef.current!); return 0; }
+        if (c <= 1) {
+          if (timerRef.current) clearInterval(timerRef.current);
+          return 0;
+        }
         return c - 1;
       });
     }, 1000);
   }, []);
 
-  useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, []);
 
   const handleProceed = async () => {
-    if (!email.trim()) { Alert.alert("Error", "Please enter your email address."); return; }
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      Alert.alert("Error", "Please enter your email address.");
+      return;
+    }
+
+    // Basic email validation regex check
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      Alert.alert("Error", "Please enter a valid email address.");
+      return;
+    }
+
     try {
       setLoading(true);
-      await ApiService.requestEmailChange(email.trim());
+      await ApiService.requestEmailChange(trimmedEmail);
       setStep("otp");
       startCountdown();
     } catch (e: any) {
-      Alert.alert("Error", e?.response?.data?.responseMessage || e?.message || "Failed to send OTP.");
+      Alert.alert(
+        "Error",
+        e?.response?.data?.responseMessage || e?.message || "Failed to send OTP."
+      );
     } finally {
       setLoading(false);
     }
   };
 
   const handleOtpChange = (val: string, idx: number) => {
+    const cleaned = val.replace(/[^0-9]/g, "");
+
+    // Handle full paste (5-digit OTP pasted into a single input box)
+    if (cleaned.length > 1) {
+      const pastedDigits = cleaned.slice(0, 5).split("");
+      const newOtp = [...otp];
+      pastedDigits.forEach((char, i) => {
+        if (i < 5) newOtp[i] = char;
+      });
+      setOtp(newOtp);
+      const nextFocusIdx = Math.min(pastedDigits.length, 4);
+      otpRefs.current[nextFocusIdx]?.focus();
+      return;
+    }
+
     const next = [...otp];
-    next[idx] = val.replace(/[^0-9]/g, "").slice(-1);
+    next[idx] = cleaned;
     setOtp(next);
-    if (val && idx < 4) otpRefs.current[idx + 1]?.focus();
+
+    // Auto-advance focus to next digit
+    if (cleaned && idx < 4) {
+      otpRefs.current[idx + 1]?.focus();
+    }
   };
 
   const handleOtpKeyPress = (e: any, idx: number) => {
-    if (e.nativeEvent.key === "Backspace" && !otp[idx] && idx > 0) {
-      otpRefs.current[idx - 1]?.focus();
+    if (e.nativeEvent.key === "Backspace") {
+      if (!otp[idx] && idx > 0) {
+        const next = [...otp];
+        next[idx - 1] = "";
+        setOtp(next);
+        otpRefs.current[idx - 1]?.focus();
+      }
     }
   };
 
   const handleVerify = async () => {
     const code = otp.join("");
-    if (code.length < 5) { Alert.alert("Error", "Please enter the full 5-digit code."); return; }
+    if (code.length < 5) {
+      Alert.alert("Error", "Please enter the full 5-digit code.");
+      return;
+    }
     try {
       setLoading(true);
       await ApiService.verifyEmailChange(email.trim(), code);
       setSuccess(true);
     } catch (e: any) {
-      Alert.alert("Error", e?.response?.data?.responseMessage || e?.message || "Invalid OTP.");
+      Alert.alert(
+        "Error",
+        e?.response?.data?.responseMessage || e?.message || "Invalid OTP."
+      );
     } finally {
       setLoading(false);
     }
@@ -545,29 +597,46 @@ function ChangeEmailScreen({
   const handleResend = async () => {
     if (countdown > 0) return;
     try {
+      setLoading(true);
       await ApiService.requestEmailChange(email.trim());
+      setOtp(["", "", "", "", ""]);
+      otpRefs.current[0]?.focus();
       startCountdown();
     } catch (e: any) {
       Alert.alert("Error", e?.response?.data?.responseMessage || e?.message || "Failed to resend.");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <View style={{ flex: 1, backgroundColor: bg }}>
       <View style={[styles.header, { backgroundColor: surface, paddingTop: insets.top + 12, borderBottomColor: border }]}>
-        <TouchableOpacity onPress={onBack} style={styles.backBtn}>
+        <TouchableOpacity
+          onPress={() => {
+            if (step === "otp") {
+              setStep("input");
+              setOtp(["", "", "", "", ""]);
+            } else {
+              onBack();
+            }
+          }}
+          style={styles.backBtn}
+        >
           <Ionicons name="arrow-back" size={22} color={text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: text }]}>Change Email</Text>
         <View style={{ width: 36 }} />
       </View>
 
-      <ScrollView contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 24, paddingTop: 40 }}>
-        <Text style={[styles.bigTitle, { color: text }]}>Your Email Address</Text>
+      <ScrollView contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 24, paddingTop: 40 }} keyboardShouldPersistTaps="handled">
+        <Text style={[styles.bigTitle, { color: text }]}>
+          {step === "input" ? "Your Email Address" : "Enter Verification Code"}
+        </Text>
         <Text style={[styles.bigSubtitle, { color: subtext }]}>
           {step === "input"
             ? "This will be used to verify your account whenever you want to take any action on the app."
-            : "Enter the email address you registered with"}
+            : `We sent a 5-digit verification code to ${email.trim()}`}
         </Text>
 
         {step === "input" ? (
@@ -578,6 +647,7 @@ function ChangeEmailScreen({
             placeholderTextColor={subtext}
             keyboardType="email-address"
             autoCapitalize="none"
+            autoCorrect={false}
             style={[styles.emailInput, { color: text, borderColor: email ? primary : inputBorder }]}
           />
         ) : (
@@ -591,7 +661,8 @@ function ChangeEmailScreen({
                   onChangeText={(v) => handleOtpChange(v, i)}
                   onKeyPress={(e) => handleOtpKeyPress(e, i)}
                   keyboardType="number-pad"
-                  maxLength={1}
+                  maxLength={5} // Allow pasting up to 5 characters in any single field
+                  selectTextOnFocus
                   style={[styles.otpBox, { color: text, borderColor: digit ? primary : inputBorder }]}
                 />
               ))}
@@ -615,17 +686,21 @@ function ChangeEmailScreen({
           disabled={loading}
           style={[styles.proceedBtn, { opacity: loading ? 0.7 : 1 }]}
         >
-          {loading
-            ? <ActivityIndicator color="#FFFFFF" size="small" />
-            : <Text style={styles.proceedTxt}>Proceed</Text>
-          }
+          {loading ? (
+            <ActivityIndicator color="#FFFFFF" size="small" />
+          ) : (
+            <Text style={styles.proceedTxt}>{step === "input" ? "Proceed" : "Verify Email"}</Text>
+          )}
         </TouchableOpacity>
       </View>
 
       <SuccessModal
         visible={success}
-        message="Email change successfully!"
-        onClose={() => { setSuccess(false); onBack(); }}
+        message="Email changed successfully!"
+        onClose={() => {
+          setSuccess(false);
+          onBack();
+        }}
         surface={surface}
         text={text}
         insets={insets}
@@ -635,6 +710,55 @@ function ChangeEmailScreen({
 }
 
 // ─── Screen: Change Password ──────────────────────────────────────────────────
+function PasswordField({
+  label,
+  value,
+  onChange,
+  show,
+  onToggle,
+  primary,
+  inputBorder,
+  subtext,
+  text,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  show: boolean;
+  onToggle: () => void;
+  primary: string;
+  inputBorder: string;
+  subtext: string;
+  text: string;
+}) {
+  return (
+    <View style={styles.pwFieldWrap}>
+      <Text style={[styles.pwLabel, { color: primary }]}>{label}</Text>
+      <View style={[styles.pwInputRow, { borderColor: value ? primary : inputBorder }]}>
+        <TextInput
+          value={value}
+          onChangeText={onChange}
+          placeholder={
+            label.includes("New") ? "Enter Password"
+            : label.includes("Confirm") ? "Re-enter Password"
+            : "Enter old password"
+          }
+          placeholderTextColor={subtext}
+          secureTextEntry={!show}
+          blurOnSubmit={false}
+          autoCorrect={false}
+          autoCapitalize="none"
+          textContentType="none"
+          style={[styles.pwInput, { color: text }]}
+        />
+        <TouchableOpacity onPress={onToggle} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ padding: 4 }}>
+          <Ionicons name={show ? "eye-off-outline" : "eye-outline"} size={20} color={subtext} />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
 function ChangePasswordScreen({
   onBack,
   isDark,
@@ -678,45 +802,6 @@ function ChangePasswordScreen({
     }
   };
 
-  const PasswordField = ({
-    label,
-    value,
-    onChange,
-    show,
-    onToggle,
-  }: {
-    label: string;
-    value: string;
-    onChange: (v: string) => void;
-    show: boolean;
-    onToggle: () => void;
-  }) => (
-    <View style={styles.pwFieldWrap}>
-      <Text style={[styles.pwLabel, { color: primary }]}>{label}</Text>
-      <View style={[styles.pwInputRow, { borderColor: value ? primary : inputBorder }]}>
-        <TextInput
-          value={value}
-          onChangeText={onChange}
-          placeholder={
-            label.includes("New") ? "Enter Password"
-            : label.includes("Confirm") ? "Re-enter Password"
-            : "Enter old password"
-          }
-          placeholderTextColor={subtext}
-          secureTextEntry={!show}
-          blurOnSubmit={false}
-          autoCorrect={false}
-          autoCapitalize="none"
-          textContentType="none"
-          style={[styles.pwInput, { color: text }]}
-        />
-        <TouchableOpacity onPress={onToggle} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ padding: 4 }}>
-          <Ionicons name={show ? "eye-off-outline" : "eye-outline"} size={20} color={subtext} />
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-
   return (
     <View style={{ flex: 1, backgroundColor: bg }}>
       <View style={[styles.header, { backgroundColor: surface, paddingTop: insets.top + 12, borderBottomColor: border }]}>
@@ -737,6 +822,10 @@ function ChangePasswordScreen({
           onChange={setOldPassword}
           show={showOld}
           onToggle={() => setShowOld((v) => !v)}
+          primary={primary}
+          inputBorder={inputBorder}
+          subtext={subtext}
+          text={text}
         />
         <PasswordField
           label="New Password"
@@ -744,6 +833,10 @@ function ChangePasswordScreen({
           onChange={setNewPassword}
           show={showNew}
           onToggle={() => setShowNew((v) => !v)}
+          primary={primary}
+          inputBorder={inputBorder}
+          subtext={subtext}
+          text={text}
         />
         <PasswordField
           label="Confirm Password"
@@ -751,6 +844,10 @@ function ChangePasswordScreen({
           onChange={setConfirmPassword}
           show={showConfirm}
           onToggle={() => setShowConfirm((v) => !v)}
+          primary={primary}
+          inputBorder={inputBorder}
+          subtext={subtext}
+          text={text}
         />
       </ScrollView>
 
