@@ -4,7 +4,7 @@ import { useAppTheme } from "@/lib/theme/appTheme";
 import ApiService from "@/services/apiClient";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useFocusEffect, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useRef, useState } from "react";
 import {
     ActivityIndicator,
@@ -86,11 +86,12 @@ interface WithdrawResult {
 
 export default function WalletScreen() {
   const router = useRouter();
+  const { action } = useLocalSearchParams<{ action?: string }>();
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
   const amountInputRef = useRef<TextInput>(null);
 
-  const [screen, setScreen] = useState<Screen>("wallet");
+  const [screen, setScreen] = useState<Screen>(action === "withdraw" ? "withdraw" : "wallet");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [balance, setBalance] = useState(0);
@@ -126,7 +127,8 @@ export default function WalletScreen() {
         ApiService.getPaymentDetails().catch(() => null),
       ]);
       const walletBody = walletRes?.responseBody || walletRes || {};
-      setBalance(Number(walletBody?.amount));
+      const walletBalance = Number(walletBody?.balance ?? walletBody?.amount ?? walletBody?.availableBalance ?? 0);
+      setBalance(Number.isFinite(walletBalance) ? walletBalance : 0);
       setTransactions(normaliseHistory(historyRes));
       if (paymentRes) {
         const pd = normalizePaymentDetails(paymentRes);
@@ -148,7 +150,8 @@ export default function WalletScreen() {
   useFocusEffect(
     useCallback(() => {
       load();
-    }, [load]),
+      if (action === "withdraw") setScreen("withdraw");
+    }, [load, action]),
   );
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -174,7 +177,7 @@ export default function WalletScreen() {
           body.reference || body.transactionRef || body.ref || generateRef(),
         beneficiary: paymentDetail?.accountName || "",
         date: formatDateObj(new Date()),
-        status: body.status || "Completed",
+        status: String(body.status || body.transactionStatus || "PENDING").toUpperCase(),
       });
       setWithdrawModalVisible(false);
       setConfirmModalVisible(false);
@@ -802,7 +805,7 @@ export default function WalletScreen() {
           Withdrawal successful
         </Text>
         <Text style={[styles.successSubtitle, { color: theme.textMuted }]}>
-          The money will reflect in your bank after few minutes
+          Your withdrawal request has been submitted. Your bank will be updated when the transaction is completed.
         </Text>
 
         <View style={styles.successAmountRow}>

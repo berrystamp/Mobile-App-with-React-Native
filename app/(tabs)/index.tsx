@@ -215,10 +215,17 @@ export default function HomeScreen() {
       );
 
       // ── Fetch real insights once we have the profile id ──────────────────
+      const roleProfile =
+        activeRole === "DESIGNER"
+          ? rawBody.designerProfile
+          : activeRole === "PRINTER"
+            ? rawBody.printerProfile
+            : rawBody.customerProfile;
+
       const profileId =
-        rawBody.designerProfile?.id ||
-        rawBody.printerProfile?.id ||
-        rawBody.customerProfile?.id ||
+        roleProfile?.profileId ||
+        roleProfile?.id ||
+        rawBody.profileId ||
         rawBody.id ||
         (current as any)?.id;
 
@@ -229,8 +236,31 @@ export default function HomeScreen() {
           ApiService.getActivityBarGraph(barInterval).catch(() => null),
         ]);
         setProfileInsight(insightRes?.responseBody || insightRes || null);
-        setPieData(pieRes?.responseBody?.data || pieRes?.data || []);
-        setBarData(barRes?.responseBody || barRes || []);
+        const pieBody = pieRes?.responseBody?.data || pieRes?.responseBody?.content || pieRes?.data || pieRes?.responseBody || pieRes;
+        const barBody = barRes?.responseBody?.content || barRes?.responseBody?.data || barRes?.data || barRes?.responseBody || barRes;
+
+        setPieData(
+          (Array.isArray(pieBody) ? pieBody : [])
+            .map((item: any) => ({
+              type: String(item?.type ?? item?.status ?? item?.label ?? 'UNKNOWN'),
+              count: Number(item?.count ?? item?.value ?? 0),
+            }))
+            .filter((item: any) => Number.isFinite(item.count)),
+        );
+
+        setBarData(
+          (Array.isArray(barBody) ? barBody : [])
+            .map((bucket: any) => ({
+              key: String(bucket?.key ?? bucket?.date ?? bucket?.label ?? ''),
+              data: (Array.isArray(bucket?.data) ? bucket.data : Array.isArray(bucket?.content) ? bucket.content : [])
+                .map((item: any) => ({
+                  type: String(item?.type ?? item?.status ?? item?.label ?? 'UNKNOWN'),
+                  count: Number(item?.count ?? item?.value ?? 0),
+                }))
+                .filter((item: any) => Number.isFinite(item.count)),
+            }))
+            .filter((bucket: any) => bucket.key && bucket.data.length),
+        );
       }
     } finally {
       setProfileLoading(false);
@@ -281,13 +311,14 @@ export default function HomeScreen() {
 
   // ── Insight values — prefer real API data, fall back to profile nested data ─
   const insight = profileInsight || activeProfile?.insight || {};
-  const totalEarnings = wallet?.amount ?? 0;
+  const walletBalance = Number(wallet?.balance ?? wallet?.amount ?? 0);
+  const totalEarnings = Number(insight.totalEarnings ?? activeProfile?.insight?.totalEarnings ?? 0);
   const rating = insight.rating?.avgStars ?? insight.avgRating ?? 0;
   const followers = insight.totalFollowers ?? 0;
   const following = insight.totalFollowing ?? 0;
   const completedOrders = insight.totalCompletedOrders ?? 0;
   const cancelledOrders = insight.totalCancelledOrders ?? 0;
-  const totalOrders = completedOrders + cancelledOrders;
+  const totalOrders = Number(insight.totalOrders ?? (completedOrders + cancelledOrders));
   const jobSuccess = insight.jobSuccessPercentage ?? 0;
   const totalUploads = insight.totalUploads ?? 0;
   const totalReviews = insight.totalReviews ?? 0;
@@ -299,53 +330,52 @@ export default function HomeScreen() {
   const dashboardTopInset = Math.max(insets.top, StatusBar.currentHeight || 0);
 
   const paymentSegments = useMemo(() => {
-    // Use real pie chart data when available
-    if (pieData.length > 0) {
-      const PIE_COLORS: Record<string, string> = {
-        COMPLETED: "#322783",
-        PENDING: "#E6B800",
-        CANCELLED: "#F90A3F",
-        PAID: "#322783",
-        PROCESSING: "#2F80ED",
-      };
-      const segments = pieData
-        .filter((d) => d.count > 0)
-        .map((d) => ({
-          label: d.type,
-          value: d.count,
-          color: PIE_COLORS[d.type?.toUpperCase()] || "#9B51E0",
-        }));
-      return segments.length ? segments : [{ label: "No data", value: 1, color: "#322783" }];
+    if (!Array.isArray(pieData) || pieData.length === 0) {
+      return [{ label: "No data", value: 1, color: "#D8D4E8" }];
     }
-    // Fallback: derive from wallet history
-    const credits = walletHistory
-      .filter((item: any) => String(item.type).toUpperCase() === "CREDIT")
-      .reduce((sum: number, item: any) => sum + Number(item.amount || 0), 0);
-    const debits = walletHistory
-      .filter((item: any) => String(item.type).toUpperCase() === "DEBIT")
-      .reduce((sum: number, item: any) => sum + Math.abs(Number(item.amount || 0)), 0);
-    const balance = Number(wallet?.balance || 0);
-    const rawSegments = [
-      { label: "Paid", value: credits, color: "#322783" },
-      { label: "Pending", value: debits, color: "#E6B800" },
-      { label: "Canceled", value: balance, color: "#F90A3F" },
-    ].filter((item) => item.value > 0);
-    return rawSegments.length ? rawSegments : [{ label: "Paid", value: 1, color: "#322783" }];
-  }, [pieData, wallet?.balance, walletHistory]);
+
+    const PIE_COLORS: Record<string, string> = {
+      COMPLETED: "#322783",
+      COMPLETE: "#322783",
+      PENDING: "#E6B800",
+      CANCELLED: "#F90A3F",
+      CANCELED: "#F90A3F",
+      PAID: "#322783",
+      PROCESSING: "#2F80ED",
+      FAILED: "#F90A3F",
+    };
+
+    const segments = pieData
+      .map((d: any) => ({
+        label: String(d?.type ?? d?.status ?? d?.label ?? "Unknown"),
+        value: Number(d?.count ?? d?.value ?? 0),
+        color: PIE_COLORS[String(d?.type ?? d?.status ?? d?.label ?? "").toUpperCase()] || "#9B51E0",
+      }))
+      .filter((item) => Number.isFinite(item.value) && item.value > 0);
+
+    return segments.length
+      ? segments
+      : [{ label: "No data", value: 1, color: "#D8D4E8" }];
+  }, [pieData]);
 
   const totalSegmentValue =
     paymentSegments.reduce((sum, item) => sum + item.value, 0) || 1;
   const paymentArcs = useMemo(() => {
-    let rotation = -90;
-    return paymentSegments.map((segment) => {
+    return paymentSegments.map((segment, index) => {
       const circumference = 2 * Math.PI * 45;
       const length = (segment.value / totalSegmentValue) * circumference;
+      const rotation =
+        -90 +
+        (paymentSegments
+          .slice(0, index)
+          .reduce((sum, item) => sum + item.value, 0) /
+          totalSegmentValue) *
+          360;
       const arc = {
         ...segment,
         dash: `${length} ${circumference}`,
         rotation,
       };
-      rotation += (segment.value / totalSegmentValue) * 360;
       return arc;
     });
   }, [paymentSegments, totalSegmentValue]);
@@ -354,7 +384,17 @@ export default function HomeScreen() {
   const loadBarData = useCallback(async (interval: "DAILY" | "WEEKLY" | "MONTHLY") => {
     try {
       const res = await ApiService.getActivityBarGraph(interval).catch(() => null);
-      setBarData(res?.responseBody || res || []);
+      const body = res?.responseBody?.content || res?.responseBody?.data || res?.data || res?.responseBody || res;
+      setBarData(
+        (Array.isArray(body) ? body : [])
+          .map((bucket: any) => ({
+            key: String(bucket?.key ?? bucket?.date ?? bucket?.label ?? ''),
+            data: (Array.isArray(bucket?.data) ? bucket.data : Array.isArray(bucket?.content) ? bucket.content : [])
+              .map((item: any) => ({ type: String(item?.type ?? item?.status ?? item?.label ?? 'UNKNOWN'), count: Number(item?.count ?? item?.value ?? 0) }))
+              .filter((item: any) => Number.isFinite(item.count)),
+          }))
+          .filter((bucket: any) => bucket.key && bucket.data.length),
+      );
     } catch { /* keep existing */ }
   }, []);
 
@@ -389,7 +429,7 @@ export default function HomeScreen() {
       : walletHistory;
     const grouped = new Map<string, number>();
     filtered.forEach((item: any) => {
-      const key = new Date(item.createdAt || item.date || Date.now()).toLocaleString("en-US", { month: "short" });
+      const key = new Date(item.createdAt || item.date || now).toLocaleString("en-US", { month: "short" });
       grouped.set(key, (grouped.get(key) || 0) + Number(item.amount || 0));
     });
     return Array.from(grouped.entries()).slice(-6) as [string, number][];
@@ -590,7 +630,7 @@ export default function HomeScreen() {
           <View style={styles.profileStatsRow}>
             <View style={styles.profileStatItem}>
               <Text style={styles.profileStatValue}>
-                {showBalance ? formatNaira(Number(wallet?.amount || 0)) : "****"}
+                {showBalance ? formatNaira(walletBalance) : "****"}
               </Text>
               <Text style={styles.profileStatLabel}>Earnings</Text>
             </View>
@@ -744,12 +784,20 @@ export default function HomeScreen() {
             <Text style={[styles.insightTitle, { color: theme.text }]}>
               Overall Payment Status
             </Text>
-            <TouchableOpacity
-              style={styles.walletHistoryBtn}
-              onPress={() => router.push("/payments")}
-            >
-              <Text style={styles.walletHistoryBtnText}>Wallet history</Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <TouchableOpacity
+                style={styles.walletHistoryBtn}
+                onPress={() => router.push("/wallet?tab=history" as any)}
+              >
+                <Text style={styles.walletHistoryBtnText}>Wallet history</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.walletHistoryBtn, { backgroundColor: theme.accent }]}
+                onPress={() => router.push("/wallet?action=withdraw" as any)}
+              >
+                <Text style={[styles.walletHistoryBtnText, { color: "#FFFFFF" }]}>Withdraw</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           <View style={{ alignItems: "center", paddingVertical: 16 }}>
@@ -819,12 +867,17 @@ export default function HomeScreen() {
               {/* Y-axis labels */}
               <View style={{ flexDirection: "row" }}>
                 <View style={{ width: 36, justifyContent: "space-between", height: 160, paddingBottom: 20 }}>
-                  {["500k", "400k", "300k", "200k"].map((label) => (
-                    <Text key={label} style={{ color: theme.subtext, fontSize: 10, textAlign: "right" }}>
-                      {label}
-                    </Text>
-                  ))}
-                  <Text style={{ color: theme.subtext, fontSize: 10, textAlign: "right" }}>$0</Text>
+                  {[1, 0.75, 0.5, 0.25, 0].map((ratio) => {
+                    const value = (topChartValue || 0) * ratio;
+                    const label = value >= 1000
+                      ? `${Math.round(value / 1000)}k`
+                      : Math.round(value).toString();
+                    return (
+                      <Text key={ratio} style={{ color: theme.subtext, fontSize: 10, textAlign: "right" }}>
+                        ₦{label}
+                      </Text>
+                    );
+                  })}
                 </View>
                 <View style={{ flex: 1, position: "relative" }}>
                   {/* Tooltip */}
@@ -857,9 +910,15 @@ export default function HomeScreen() {
                 </View>
               </View>
               {/* X-axis labels */}
-              <View style={{ flexDirection: "row", justifyContent: "space-around", paddingLeft: 36, marginTop: 4 }}>
-                {["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].map((m) => (
-                  <Text key={m} style={{ color: theme.subtext, fontSize: 9 }}>{m}</Text>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", paddingLeft: 36, marginTop: 4 }}>
+                {chartData.map(([label], index) => (
+                  <Text
+                    key={`${label}-${index}`}
+                    style={{ color: theme.subtext, fontSize: 9, flex: 1, textAlign: index === 0 ? "left" : index === chartData.length - 1 ? "right" : "center" }}
+                    numberOfLines={1}
+                  >
+                    {label}
+                  </Text>
                 ))}
               </View>
             </View>

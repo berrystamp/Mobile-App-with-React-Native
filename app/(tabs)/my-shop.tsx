@@ -121,13 +121,11 @@ function DesignCard({ item, theme, readOnly, username, onMenu, onPress }: { item
 function CollectionCard({ item, theme, onMenu, onPress, readOnly }: { item: CollectionItem; theme: ReturnType<typeof useTheme>; onMenu: () => void; onPress: () => void; readOnly: boolean }) {
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.88} style={{ width: '48.5%', borderRadius: 12, marginBottom: 12, backgroundColor: theme.surface, overflow: 'hidden' }}>
-      <View style={{ position: 'relative' }}>
+      <View style={{ position: 'relative', width: '100%', height: 120, backgroundColor: theme.inputBg, alignItems: 'center', justifyContent: 'center' }}>
         {item.imagePath ? (
-          <Image source={{ uri: item.imagePath }} style={{ width: '100%', height: 120, backgroundColor: theme.inputBg }} resizeMode="cover" />
+          <Image source={{ uri: item.imagePath }} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
         ) : (
-          <View style={{ width: '100%', height: 120, backgroundColor: theme.inputBg, alignItems: 'center', justifyContent: 'center' }}>
-            <Ionicons name="albums-outline" size={28} color={theme.muted} />
-          </View>
+          <Ionicons name="albums-outline" size={28} color={theme.muted} />
         )}
         {!readOnly && (
           <TouchableOpacity onPress={onMenu} style={{ position: 'absolute', top: 6, right: 6, width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.85)', alignItems: 'center', justifyContent: 'center' }}>
@@ -187,15 +185,15 @@ function CollectionMenuSheet({ visible, theme, onClose, onUpdate, onShare, onDel
   visible: boolean; theme: ReturnType<typeof useTheme>; onClose: () => void;
   onUpdate: () => void; onShare: () => void; onDelete: () => void;
 }) {
+  const insets = useSafeAreaInsets();
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <TouchableOpacity style={S.backdrop} activeOpacity={1} onPress={onClose}>
-        <View style={[S.sheet, { backgroundColor: theme.surface }]}>
+        <View style={[S.sheet, { backgroundColor: theme.surface, paddingBottom: Math.max(insets.bottom, 12) }]}>
           <SheetHandle />
           <SheetRow color={theme.text} label="Update Collection" icon="create-outline" onPress={() => { onClose(); onUpdate(); }} />
           <SheetRow color={theme.text} label="Share collection" icon="share-social-outline" onPress={() => { onClose(); onShare(); }} />
           <SheetRow label="Delete Collection" icon="trash-outline" color={theme.red} onPress={() => { onClose(); onDelete(); }} />
-          <View style={{ height: 10 }} />
         </View>
       </TouchableOpacity>
     </Modal>
@@ -262,13 +260,18 @@ function PaymentPromptModal({ visible, theme, onClose, onAddNow }: { visible: bo
 
 // ─── PostInsightSheet ─────────────────────────────────────────────────────────
 function PostInsightSheet({ visible, theme, insight, loading, onClose }: { visible: boolean; theme: ReturnType<typeof useTheme>; insight: any; loading: boolean; onClose: () => void }) {
-  const body = insight?.responseBody || insight || {};
-  const accountReached = body?.accountReached ?? body?.reach ?? 0;
-  const postClicks = body?.postClicks ?? body?.clicks ?? 0;
-  const noOfSales = body?.sales ?? body?.noOfSales ?? 0;
-  const totalImpressions = body?.totalImpressions ?? body?.impressions ?? 0;
-  const followersPct = body?.followersReachedPercentage ?? body?.followersPercentage ?? 0;
-  const nonFollowersPct = body?.nonFollowersReachedPercentage ?? body?.nonFollowersPercentage ?? 0;
+  const body = insight?.responseBody?.insight || insight?.responseBody?.data || insight?.responseBody || insight?.data || insight?.insight || insight || {};
+  const numberValue = (...values: any[]) => {
+    const value = values.find((item) => item !== undefined && item !== null && item !== '');
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : 0;
+  };
+  const accountReached = numberValue(body?.accountReached, body?.accountsReached, body?.reach, body?.totalAccountsReached);
+  const postClicks = numberValue(body?.postClicks, body?.clicks, body?.profileClicks, body?.totalClicks);
+  const noOfSales = numberValue(body?.sales, body?.noOfSales, body?.numberOfSales, body?.totalSales);
+  const totalImpressions = numberValue(body?.totalImpressions, body?.impressions, body?.views, body?.totalViews);
+  const followersPct = numberValue(body?.followersReachedPercentage, body?.followersPercentage, body?.followersReachPercentage);
+  const nonFollowersPct = numberValue(body?.nonFollowersReachedPercentage, body?.nonFollowersPercentage, body?.nonFollowersReachPercentage);
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -453,8 +456,12 @@ function EditProfileSheet({ visible, theme, profile, onClose, onSaved }: { visib
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
   const [selectedSpecs, setSelectedSpecs] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
-  
-  React.useEffect(() => {
+  const [previousVisible, setPreviousVisible] = useState(visible);
+  const [previousProfile, setPreviousProfile] = useState(profile);
+
+  if (visible !== previousVisible || (visible && profile !== previousProfile)) {
+    setPreviousVisible(visible);
+    setPreviousProfile(profile);
     if (visible && profile) {
       // Use fullName for shop brand name mapping if available
       setShopName(profile.fullName || profile.username || '');
@@ -463,7 +470,7 @@ function EditProfileSheet({ visible, theme, profile, onClose, onSaved }: { visib
       setCoverUri(null);
       setAvatarUri(null);
     }
-  }, [visible, profile]);
+  }
 
   const pickImage = async (type: 'cover' | 'avatar') => {
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.8 });
@@ -584,8 +591,16 @@ function NewCollectionSheet({ visible, theme, onClose, onCreated }: { visible: b
   const [colDesc, setColDesc] = useState('');
   const [coverUri, setCoverUri] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [previousVisible, setPreviousVisible] = useState(visible);
 
-  React.useEffect(() => { if (!visible) { setColName(''); setColDesc(''); setCoverUri(null); } }, [visible]);
+  if (visible !== previousVisible) {
+    setPreviousVisible(visible);
+    if (!visible) {
+      setColName('');
+      setColDesc('');
+      setCoverUri(null);
+    }
+  }
 
   const pickCover = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.8 });
@@ -650,19 +665,10 @@ function NewCollectionSheet({ visible, theme, onClose, onCreated }: { visible: b
 
 // ─── UpdateCollectionSheet ────────────────────────────────────────────────────
 function UpdateCollectionSheet({ visible, theme, collection, onClose, onUpdated }: { visible: boolean; theme: ReturnType<typeof useTheme>; collection: CollectionItem | null; onClose: () => void; onUpdated: () => void }) {
-  const [colName, setColName] = useState('');
+  const [colName, setColName] = useState(collection?.name || '');
   const [colDesc, setColDesc] = useState('');
   const [coverUri, setCoverUri] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-
-  React.useEffect(() => {
-    if (visible && collection) {
-      setColName(collection.name || '');
-      setColDesc('');
-      setCoverUri(null);
-    }
-    if (!visible) { setColName(''); setColDesc(''); setCoverUri(null); }
-  }, [visible, collection]);
 
   const pickCover = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.8 });
@@ -734,10 +740,15 @@ function MoveToCollectionSheet({ visible, theme, designId, fromCollectionId, onC
   const [moving, setMoving] = useState(false);
 
   React.useEffect(() => {
-    if (!visible) { setSelected(null); return; }
-    setLoading(true);
-    ApiService.getMyCollections(0, 50)
+    if (!visible) return;
+    let active = true;
+    Promise.resolve()
+      .then(() => {
+        if (active) setLoading(true);
+        return ApiService.getMyCollections(0, 50);
+      })
       .then((res) => {
+        if (!active) return;
         const list = unwrapList(res);
         setCollections(list
           .filter((item: any) => String(item?.id) !== String(fromCollectionId))
@@ -750,8 +761,14 @@ function MoveToCollectionSheet({ visible, theme, designId, fromCollectionId, onC
           })));
       })
       .catch(() => {})
-      .finally(() => setLoading(false));
+          .finally(() => { if (active) setLoading(false); });
+        return () => { active = false; };
   }, [visible, fromCollectionId]);
+
+      const handleClose = () => {
+        setSelected(null);
+        onClose();
+      };
 
   const handleMove = async () => {
     if (!selected || !designId || !fromCollectionId) return;
@@ -759,7 +776,7 @@ function MoveToCollectionSheet({ visible, theme, designId, fromCollectionId, onC
     try {
       await ApiService.moveDesignToCollection({ designIds: [designId], fromCollectionId, newCollectionId: selected });
       onMoved();
-      onClose();
+      handleClose();
     } catch (e: any) {
       Alert.alert('Error', e?.response?.data?.responseMessage || e?.message || 'Failed to move design');
     } finally {
@@ -768,13 +785,13 @@ function MoveToCollectionSheet({ visible, theme, designId, fromCollectionId, onC
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <TouchableOpacity style={S.backdrop} activeOpacity={1} onPress={onClose}>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
+      <TouchableOpacity style={S.backdrop} activeOpacity={1} onPress={handleClose}>
         <View style={[S.sheet, { backgroundColor: theme.surface, maxHeight: '80%' }]}>
           <SheetHandle />
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 4 }}>
             <Text style={{ fontSize: 18, fontWeight: '700', color: theme.text }}>Move to collection</Text>
-            <TouchableOpacity onPress={onClose}><Ionicons name="close" size={22} color={theme.muted} /></TouchableOpacity>
+            <TouchableOpacity onPress={handleClose}><Ionicons name="close" size={22} color={theme.muted} /></TouchableOpacity>
           </View>
           <Text style={{ fontSize: 13, color: theme.muted, paddingHorizontal: 20, marginBottom: 16 }}>Select a different collection to move this design to</Text>
           {loading ? (
@@ -843,6 +860,11 @@ function CategoriesChips({ categories, theme }: { categories: string[]; theme: R
 // ─── FollowersScreen (modal overlay) ─────────────────────────────────────────
 function FollowersScreen({ visible, theme, profileId, currentProfileId, initialTab, onClose }: { visible: boolean; theme: ReturnType<typeof useTheme>; profileId: number; currentProfileId?: number; initialTab: 'followers' | 'following'; onClose: () => void }) {
   const [tab, setTab] = useState<'followers' | 'following'>(initialTab);
+  const [previousInitialTab, setPreviousInitialTab] = useState(initialTab);
+  if (previousInitialTab !== initialTab) {
+    setPreviousInitialTab(initialTab);
+    setTab(initialTab);
+  }
   const [followers, setFollowers] = useState<any[]>([]);
   const [following, setFollowing] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -851,16 +873,26 @@ function FollowersScreen({ visible, theme, profileId, currentProfileId, initialT
 
   React.useEffect(() => {
     if (!visible) return;
-    setTab(initialTab);
-    setLoading(true);
-    Promise.all([
-      ApiService.getFollowers(profileId, 0, 100).catch(() => ({ responseBody: { content: [] } })),
-      ApiService.getFollowing(profileId, 0, 100).catch(() => ({ responseBody: { content: [] } })),
-    ]).then(([frs, fing]) => {
+    let cancelled = false;
+    const load = async () => {
+      await Promise.resolve();
+      if (cancelled) return;
+      setLoading(true);
+      try {
+        const [frs, fing] = await Promise.all([
+          ApiService.getFollowers(profileId, 0, 100).catch(() => ({ responseBody: { content: [] } })),
+          ApiService.getFollowing(profileId, 0, 100).catch(() => ({ responseBody: { content: [] } })),
+        ]);
+        if (cancelled) return;
       const unwrap = (r: any) => { const b = r?.responseBody || r || {}; return Array.isArray(b) ? b : Array.isArray(b?.content) ? b.content : []; };
       setFollowers(unwrap(frs));
       setFollowing(unwrap(fing));
-    }).finally(() => setLoading(false));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    void load();
+    return () => { cancelled = true; };
   }, [visible, profileId, initialTab]);
 
   const list = (tab === 'followers' ? followers : following).filter((u: any) => {
@@ -930,7 +962,7 @@ function FollowersScreen({ visible, theme, profileId, currentProfileId, initialT
 }
 
 // ─── CollectionDetailScreen (modal overlay) ───────────────────────────────────
-function CollectionDetailScreen({ visible, theme, collection, username, readOnly, onClose, onRefresh }: { visible: boolean; theme: ReturnType<typeof useTheme>; collection: CollectionItem | null; username: string; readOnly: boolean; onClose: () => void; onRefresh: () => void }) {
+function CollectionDetailScreen({ visible, theme, collection, username, readOnly, onClose, onRefresh, onShareDesign }: { visible: boolean; theme: ReturnType<typeof useTheme>; collection: CollectionItem | null; username: string; readOnly: boolean; onClose: () => void; onRefresh: () => void; onShareDesign: (design: any) => void }) {
   const router = useRouter();
   const [designs, setDesigns] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -950,13 +982,23 @@ function CollectionDetailScreen({ visible, theme, collection, username, readOnly
       .then((res: any) => {
         const body = res?.responseBody || res?.data || res || {};
         const list = Array.isArray(body) ? body : Array.isArray(body?.content) ? body.content : Array.isArray(body?.items) ? body.items : [];
-        setDesigns(list.map((d: any) => ({
-          ...d,
-          _imageUri: toAbsoluteImage(
-            d?.frontImageUrl || d?.imagePath || d?.imageUrl ||
-            d?.coverImageUrl || d?.mocks?.[0]?.imageUrl || d?.mocks?.[0]?.imagePath || ''
-          ),
-        })));
+        setDesigns(list.map((d: any) => {
+          const stableMock = Array.isArray(d?.mocks)
+            ? [...d.mocks].sort((a: any, b: any) => Number(a?.id || 0) - Number(b?.id || 0))[0]
+            : null;
+          const stableImage =
+            d?.frontImageUrl ||
+            d?.imagePath ||
+            d?.imageUrl ||
+            d?.coverImageUrl ||
+            stableMock?.imageUrl ||
+            stableMock?.imagePath ||
+            '';
+          return {
+            ...d,
+            _imageUri: toAbsoluteImage(stableImage),
+          };
+        }));
       })
       .catch(() => setDesigns([]))
       .finally(() => setLoading(false));
@@ -964,7 +1006,8 @@ function CollectionDetailScreen({ visible, theme, collection, username, readOnly
 
   React.useEffect(() => {
     if (!visible || !collection) return;
-    loadDesigns();
+    const timeout = setTimeout(loadDesigns, 0);
+    return () => clearTimeout(timeout);
   }, [visible, collection]);
 
   const handleInsights = async (design: any) => {
@@ -977,9 +1020,7 @@ function CollectionDetailScreen({ visible, theme, collection, username, readOnly
     finally { setInsightLoading(false); }
   };
 
-  const handleShare = (design: any) => {
-    Share.share({ message: `Check out "${design.title || design.name || 'this design'}" on Berrystamp.` });
-  };
+  const handleShare = (design: any) => { onShareDesign(design); };
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
@@ -1008,7 +1049,9 @@ function CollectionDetailScreen({ visible, theme, collection, username, readOnly
         </View>
         <ScrollView showsVerticalScrollIndicator={false}>
           {collection.imagePath ? (
-            <Image source={{ uri: collection.imagePath }} style={{ width: '100%', height: 200 }} resizeMode="cover" />
+            <View style={{ width: '100%', height: 200, backgroundColor: theme.inputBg, alignItems: 'center', justifyContent: 'center' }}>
+              <Image source={{ uri: collection.imagePath }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+            </View>
           ) : (
             <View style={{ width: '100%', height: 200, backgroundColor: theme.inputBg, alignItems: 'center', justifyContent: 'center' }}>
               <Ionicons name="albums-outline" size={48} color={theme.muted} />
@@ -1025,13 +1068,13 @@ function CollectionDetailScreen({ visible, theme, collection, username, readOnly
                 {designs.map((design) => (
                   <View key={String(design.id)} style={{ width: '48.5%', borderRadius: 12, marginBottom: 12, backgroundColor: theme.surface, overflow: 'hidden' }}>
                     <View style={{ position: 'relative' }}>
-                      {design._imageUri ? (
-                        <Image source={{ uri: design._imageUri }} style={{ width: '100%', height: 110 }} resizeMode="cover" />
-                      ) : (
-                        <View style={{ width: '100%', height: 110, backgroundColor: theme.inputBg, alignItems: 'center', justifyContent: 'center' }}>
+                      <View style={{ width: '100%', height: 110, backgroundColor: theme.inputBg, alignItems: 'center', justifyContent: 'center' }}>
+                        {design._imageUri ? (
+                          <Image source={{ uri: design._imageUri }} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
+                        ) : (
                           <Ionicons name="image-outline" size={24} color={theme.muted} />
-                        </View>
-                      )}
+                        )}
+                      </View>
                       {/* Only show menu button for owner */}
                       {!readOnly && (
                         <TouchableOpacity onPress={() => setMenuDesign(design)} style={{ position: 'absolute', top: 6, right: 6, width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.85)', alignItems: 'center', justifyContent: 'center' }}>
@@ -1211,7 +1254,44 @@ export default function MyShopScreen() {
     finally { setInsightLoading(false); }
   };
 
-  const handleShare = (title: string) => { setShareTitle(title); Share.share({ message: title }); };
+  const shareResource = useCallback(async (title: string, type: 'design' | 'collection' | 'profile', id?: string | number) => {
+    const resourceUrl = id ? `berrystamp://${type}/${encodeURIComponent(String(id))}` : 'berrystamp://';
+    try {
+      await Share.share({
+        title,
+        message: `${title}\n${resourceUrl}`,
+        url: resourceUrl,
+      });
+    } catch (error: any) {
+      if (error?.message && !String(error.message).toLowerCase().includes('cancel')) {
+        Alert.alert('Share failed', error.message);
+      }
+    }
+  }, []);
+
+  const handleShareDesign = useCallback((design: any) => {
+    shareResource(
+      `Check out "${design?.title || design?.name || 'this design'}" on Berrystamp.`,
+      'design',
+      design?.id,
+    );
+  }, [shareResource]);
+
+  const handleShareCollection = useCallback((collection: any) => {
+    shareResource(
+      `Check out "${collection?.name || 'this collection'}" collection on Berrystamp.`,
+      'collection',
+      collection?.id,
+    );
+  }, [shareResource]);
+
+  const handleShareProfile = useCallback((shopProfile: any) => {
+    shareResource(
+      `Check out ${shopProfile?.fullName || shopProfile?.username || 'this'}'s shop on Berrystamp.`,
+      'profile',
+      shopProfile?.profileId,
+    );
+  }, [shareResource]);
 
   const handleDeleteConfirm = async () => {
     if (!deleteTarget) return;
@@ -1359,7 +1439,7 @@ export default function MyShopScreen() {
               <TouchableOpacity onPress={() => setShowEditProfile(true)} style={[S.outlineBtn, { flex: 1, borderColor: theme.border }]}>
                 <Text style={{ color: theme.text, fontWeight: '600', fontSize: 14 }}>Edit Shop Profile</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => handleShare(`Check out ${profile?.fullName || profile?.username || 'this'}'s shop on Berrystamp.`)} style={[S.filledBtn, { flex: 1, backgroundColor: theme.primary }]}>
+              <TouchableOpacity onPress={() => handleShareProfile(profile)} style={[S.filledBtn, { flex: 1, backgroundColor: theme.primary }]}>
                 <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Share Profile</Text>
               </TouchableOpacity>
             </View>
@@ -1452,7 +1532,7 @@ export default function MyShopScreen() {
         onUpdate={() => { if (designMenuTarget) router.push({ pathname: '/upload-design', params: { designId: String(designMenuTarget.id) } }); }}
         onAddToCollection={() => { if (designMenuTarget) { setAddToCollectionDesignId(designMenuTarget.id); setShowAddToCollection(true); } }}
         onInsights={() => { if (designMenuTarget) handleDesignInsights(designMenuTarget); }}
-        onShare={() => { if (designMenuTarget) handleShare(`Check out "${designMenuTarget.title}" on Berrystamp.`); }}
+        onShare={() => { if (designMenuTarget) handleShareDesign(designMenuTarget); }}
         onDelete={() => { if (designMenuTarget) { setDeleteTarget({ id: designMenuTarget.id, type: 'design' }); setShowDeleteConfirm(true); } }}
       />
 
@@ -1461,7 +1541,7 @@ export default function MyShopScreen() {
         theme={theme}
         onClose={() => setShowCollectionMenu(false)}
         onUpdate={() => { if (collectionMenuTarget) setShowUpdateCollection(true); }}
-        onShare={() => { if (collectionMenuTarget) handleShare(`Check out "${collectionMenuTarget.name}" collection on Berrystamp.`); }}
+        onShare={() => { if (collectionMenuTarget) handleShareCollection(collectionMenuTarget); }}
         onDelete={() => { if (collectionMenuTarget) { setDeleteTarget({ id: collectionMenuTarget.id, type: 'collection' }); setShowDeleteConfirm(true); } }}
       />
 
@@ -1521,6 +1601,7 @@ export default function MyShopScreen() {
       />
 
       <UpdateCollectionSheet
+        key={`${showUpdateCollection}-${collectionMenuTarget?.id ?? ''}`}
         visible={showUpdateCollection}
         theme={theme}
         collection={collectionMenuTarget}
@@ -1546,6 +1627,7 @@ export default function MyShopScreen() {
         readOnly={readOnly}
         onClose={() => setShowCollectionDetail(false)}
         onRefresh={() => loadShop()}
+        onShareDesign={handleShareDesign}
       />
     </View>
   );

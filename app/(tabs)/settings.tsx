@@ -3,6 +3,8 @@ import {
     getPushPermissionStatus,
     pushNotificationsSupported,
     registerForPushNotifications,
+    registerPushTokenWithBackend,
+    unregisterPushTokenWithBackend,
 } from "@/services/notificationService";
 import { useNotificationStore } from "@/store/notificationStore";
 import { Ionicons } from "@expo/vector-icons";
@@ -278,6 +280,15 @@ function NotificationsScreen({
       if (value) {
         const token = await registerForPushNotifications();
         if (token) {
+          try {
+            await registerPushTokenWithBackend(token);
+          } catch (error: any) {
+            Alert.alert(
+              "Push setup incomplete",
+              error?.message || "The device permission is enabled, but the notification service could not register this device.",
+            );
+            return;
+          }
           setPushEnabled(true);
           setExpoPushToken(token);
         } else {
@@ -300,25 +311,21 @@ function NotificationsScreen({
           );
         }
       } else {
-        Alert.alert(
-          "Disable notifications",
-          "To fully disable push notifications, please turn them off in your device settings.",
-          [
-            { text: "Cancel", style: "cancel" },
-            {
-              text: "Open Settings",
-              onPress: () => {
-                if (Platform.OS === "ios") {
-                  Linking.openURL("app-settings:");
-                } else {
-                  Linking.openSettings();
-                }
-              },
-            },
-          ],
-        );
+        const token = useNotificationStore.getState().expoPushToken;
+        if (token) {
+          try {
+            await unregisterPushTokenWithBackend(token);
+          } catch {
+            // Keep the local setting in sync even when an older backend has no
+            // unregister endpoint. The OS permission remains unchanged.
+          }
+        }
         setPushEnabled(false);
         setExpoPushToken(null);
+        Alert.alert(
+          "Push notifications disabled",
+          "Berrystamp will no longer send push notifications to this device. You can enable them again here at any time.",
+        );
       }
     } finally {
       setToggling(false);

@@ -379,16 +379,18 @@ export default function ChatScreen() {
   );
 
   const currentProfileType = useMemo(() => {
-    for (const message of messages) {
-      if (message.author === "me" && message.sender?.profileType) {
-        return String(message.sender.profileType).toUpperCase();
-      }
-      if (message.author === "other" && message.receiver?.profileType) {
-        return String(message.receiver.profileType).toUpperCase();
-      }
-    }
+    const fromConversation = String(conversation.participantProfileType || '').toUpperCase();
+    if (fromConversation === 'PRINTER') return 'PRINTER';
+    if (fromConversation === 'DESIGNER') return 'DESIGNER';
+    if (fromConversation === 'CUSTOMER') return 'CUSTOMER';
+
+    const routeRole = String(participantRole || '').toUpperCase();
+    if (routeRole.includes('PRINTER')) return 'PRINTER';
+    if (routeRole.includes('DESIGNER')) return 'DESIGNER';
+    if (routeRole.includes('CUSTOMER')) return 'CUSTOMER';
+
     return "";
-  }, [messages]);
+  }, [conversation.participantProfileType, participantRole]);
 
   const isDesigner = currentProfileType === "DESIGNER";
   const isPrinter = currentProfileType === "PRINTER";
@@ -585,14 +587,22 @@ export default function ChatScreen() {
   ];
 
   type ChatType = "ORDER" | "ORDER_REQUEST" | "DIRECT" | "FILE";
-  const resolvePayloadChatType = (isFile = false): ChatType => isFile ? "FILE" : "DIRECT";
+  const resolvePayloadChatType = (isFile = false): ChatType =>
+    isFile ? "FILE" : (orderId ? "ORDER" : "DIRECT");
 
-  const buildPayload = (content: string, caption: string, isFile = false) => ({
-    toProfileId: Number(conversation.participantId || participantId || 0),
-    content,
-    caption,
-    chatType: resolvePayloadChatType(isFile),
-  });
+  const buildPayload = (content: string, caption: string, isFile = false) => {
+    const recipientProfileId = Number(conversation.participantId || participantId || 0);
+    if (!recipientProfileId) {
+      throw new Error("This conversation has no valid recipient profile.");
+    }
+
+    return {
+      toProfileId: recipientProfileId,
+      content,
+      caption,
+      chatType: resolvePayloadChatType(isFile),
+    };
+  };
 
   const dispatchMessage = async (payload: ReturnType<typeof buildPayload>) => {
     if (orderId) {

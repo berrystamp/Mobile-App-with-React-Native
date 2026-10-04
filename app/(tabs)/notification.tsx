@@ -28,6 +28,7 @@ type NotificationItem = {
   createdAt: string;
   rawDate: Date;
   avatar?: string;
+  details?: Record<string, any>;
 };
 
 type FilterTab = "All" | "Read" | "Unread";
@@ -157,6 +158,7 @@ export default function NotificationScreen() {
             createdAt: label,
             rawDate: raw,
             avatar: item.avatar || item.senderAvatar || undefined,
+            details: item.data || item.metadata || item.details || {},
           };
         })
         .sort((a, b) => b.rawDate.getTime() - a.rawDate.getTime());
@@ -569,6 +571,31 @@ export default function NotificationScreen() {
                       >
                         {selectedNotif.message || selectedNotif.title}
                       </Text>
+
+                      {selectedNotif.details && Object.keys(selectedNotif.details).length > 0 ? (
+                        <View
+                          style={{
+                            marginTop: 18,
+                            borderRadius: 14,
+                            backgroundColor: isDark ? "#22222C" : "#F7F5FB",
+                            padding: 14,
+                          }}
+                        >
+                          {Object.entries(selectedNotif.details)
+                            .filter(([, value]) => value !== null && value !== undefined && value !== "")
+                            .slice(0, 8)
+                            .map(([key, value]) => (
+                              <View key={key} style={{ flexDirection: "row", justifyContent: "space-between", gap: 16, paddingVertical: 7 }}>
+                                <Text style={{ flex: 1, fontSize: 12, color: isDark ? "#9090A0" : "#777" }}>
+                                  {key.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase())}
+                                </Text>
+                                <Text style={{ flex: 1.5, fontSize: 12, fontWeight: "600", color: isDark ? "#FFFFFF" : "#222", textAlign: "right" }}>
+                                  {typeof value === "object" ? JSON.stringify(value) : String(value)}
+                                </Text>
+                              </View>
+                            ))}
+                        </View>
+                      ) : null}
                     </ScrollView>
                   </>
                 );

@@ -1,6 +1,7 @@
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
+import ApiService from '@/services/apiClient';
 
 // ─── Availability guard ───────────────────────────────────────────────────────
 // expo-notifications remote push was removed from Expo Go in SDK 53.
@@ -59,7 +60,8 @@ export async function registerForPushNotifications(): Promise<string | null> {
   }
 
   try {
-    const tokenData = await Notifications.getExpoPushTokenAsync();
+    const projectId = Constants.expoConfig?.extra?.eas?.projectId;
+    const tokenData = await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : undefined);
     return tokenData.data;
   } catch {
     return null;
@@ -100,3 +102,19 @@ export function addNotificationResponseListener(
 
 /** Whether push notifications are supported in the current environment. */
 export const pushNotificationsSupported = !isExpoGo && Device.isDevice;
+
+
+/**
+ * Registers the device token with the authenticated Berrystamp account.
+ * The API method owns endpoint compatibility and surfaces a real backend
+ * failure instead of pretending registration succeeded.
+ */
+export async function registerPushTokenWithBackend(token: string): Promise<void> {
+  if (!token) throw new Error('No push token was generated.');
+  await ApiService.registerPushToken(token);
+}
+
+export async function unregisterPushTokenWithBackend(token: string): Promise<void> {
+  if (!token) return;
+  await ApiService.unregisterPushToken(token);
+}
