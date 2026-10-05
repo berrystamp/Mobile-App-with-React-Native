@@ -1,7 +1,8 @@
+import { addNotificationReceivedListener } from '@/services/notificationService';
 import ApiService from "@/services/apiClient";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     ActivityIndicator,
     Image,
@@ -54,8 +55,8 @@ function normalizeDate(value?: string): { label: string; raw: Date } {
 function typeLabel(type: string): string {
   if (type.includes("PROFILE")) return "PROFILE";
   if (type.includes("MESSAGE") || type.includes("CHAT")) return "MESSAGE";
-  if (type.includes("ORDER")) return "ORDER";
   if (type.includes("DELIVER")) return "DELIVERY";
+  if (type.includes("ORDER")) return "ORDER";
   return type.split("_")[0] || "NOTICE";
 }
 
@@ -68,10 +69,10 @@ function iconByType(type: string): {
     return { name: "person-circle-outline", bg: "#EDE8FF", color: "#4732A1" };
   if (type.includes("MESSAGE") || type.includes("CHAT"))
     return { name: "mail-outline", bg: "#E8F4FF", color: "#2F80ED" };
-  if (type.includes("ORDER"))
-    return { name: "cube-outline", bg: "#FFF3E8", color: "#F2994A" };
   if (type.includes("DELIVER"))
     return { name: "bicycle-outline", bg: "#E8FFF3", color: "#27AE60" };
+  if (type.includes("ORDER"))
+    return { name: "cube-outline", bg: "#FFF3E8", color: "#F2994A" };
   return { name: "notifications-outline", bg: "#F4F2FB", color: "#4732A1" };
 }
 
@@ -111,6 +112,8 @@ function groupByRecency(
 
 export default function NotificationScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ notificationId?: string; notificationTitle?: string; notificationBody?: string; notificationType?: string }>();
+  const openedNotification = useRef('');
   const isDark = useColorScheme() === "dark";
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
@@ -163,14 +166,18 @@ export default function NotificationScreen() {
         })
         .sort((a, b) => b.rawDate.getTime() - a.rawDate.getTime());
       setItems(normalized);
+    } catch (error) {
+      console.warn("Unable to load notifications", error);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    loadNotifications();
-  }, [loadNotifications]);
+  useFocusEffect(useCallback(() => {
+    void loadNotifications();
+    const listener = addNotificationReceivedListener(() => { void loadNotifications(); });
+    return () => listener.remove();
+  }, [loadNotifications]));
 
   const unreadCount = useMemo(
     () => items.filter((i) => !i.read).length,
@@ -189,6 +196,21 @@ export default function NotificationScreen() {
       );
     }
   }, []);
+
+  useFocusEffect(useCallback(() => {
+    if (loading || (!params.notificationId && !params.notificationTitle)) return;
+    const key = [params.notificationId, params.notificationTitle, params.notificationBody].join(':');
+    if (openedNotification.current === key) return;
+    openedNotification.current = key;
+    const item = items.find((entry) => String(entry.id) === params.notificationId);
+    if (item) {
+      setSelectedNotif(item);
+      void markAsRead(item);
+    } else if (params.notificationTitle) {
+      setSelectedNotif({ id: -1, title: params.notificationTitle, message: params.notificationBody || '',
+        type: (params.notificationType || 'GENERAL').toUpperCase(), read: true, createdAt: 'Now', rawDate: new Date() });
+    }
+  }, [items, loading, params.notificationId, params.notificationTitle, params.notificationBody, params.notificationType, markAsRead]));
 
   const markAllAsRead = useCallback(async () => {
     if (markingAll || unreadCount === 0) return;

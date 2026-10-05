@@ -28,5 +28,5 @@ export function useColorScheme(): 'light' | 'dark' {
 
   if (preference === 'light') return 'light';
   if (preference === 'dark') return 'dark';
-  return systemScheme;
+  return systemScheme === "dark" ? "dark" : "light";
 }

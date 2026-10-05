@@ -1,3 +1,4 @@
+import { transactionAmount, transactionDirection } from '@/lib/wallet';
 import { formatNaira } from "@/lib/currency";
 import { normalizePaymentDetails } from "@/lib/profile";
 import { useAppTheme } from "@/lib/theme/appTheme";
@@ -86,12 +87,14 @@ interface WithdrawResult {
 
 export default function WalletScreen() {
   const router = useRouter();
-  const { action } = useLocalSearchParams<{ action?: string }>();
+  const { openWithdraw } = useLocalSearchParams<{ openWithdraw?: string }>();
   const insets = useSafeAreaInsets();
   const theme = useAppTheme();
   const amountInputRef = useRef<TextInput>(null);
 
-  const [screen, setScreen] = useState<Screen>(action === "withdraw" ? "withdraw" : "wallet");
+  const [screen, setScreen] = useState<Screen>(
+    openWithdraw === "1" ? "withdraw" : "wallet",
+  );
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [balance, setBalance] = useState(0);
@@ -127,9 +130,9 @@ export default function WalletScreen() {
         ApiService.getPaymentDetails().catch(() => null),
       ]);
       const walletBody = walletRes?.responseBody || walletRes || {};
-      const walletBalance = Number(walletBody?.balance ?? walletBody?.amount ?? walletBody?.availableBalance ?? 0);
-      setBalance(Number.isFinite(walletBalance) ? walletBalance : 0);
+      setBalance(Number(walletBody?.amount ?? walletBody?.balance ?? 0));
       setTransactions(normaliseHistory(historyRes));
+      setPaymentDetail(null);
       if (paymentRes) {
         const pd = normalizePaymentDetails(paymentRes);
         if (pd.accountNumber) setPaymentDetail(pd);
@@ -174,10 +177,10 @@ export default function WalletScreen() {
       setWithdrawResult({
         amount: numericAmount,
         reference:
-          body.reference || body.transactionRef || body.ref || generateRef(),
+          body.reference || body.transactionRef || body.ref || "Pending",
         beneficiary: paymentDetail?.accountName || "",
         date: formatDateObj(new Date()),
-        status: String(body.status || body.transactionStatus || "PENDING").toUpperCase(),
+        status: body.status || "Pending",
       });
       setWithdrawModalVisible(false);
       setConfirmModalVisible(false);
@@ -294,15 +297,9 @@ export default function WalletScreen() {
             </View>
           ) : (
             transactions.map((tx, index) => {
-              const transactionType = String(
-                tx.transactionType ?? tx.type ?? tx.direction ?? "",
-              ).toUpperCase();
-              const isCredit =
-                tx.isCredit === true ||
-                transactionType.includes("CREDIT") ||
-                transactionType.includes("DEPOSIT") ||
-                transactionType.includes("EARNING");
-              const amount = Math.abs(Number(tx.amount ?? tx.value ?? 0));
+              const direction = transactionDirection(tx);
+              const isCredit = direction === 'CREDIT';
+              const amount = transactionAmount(tx);
               return (
                 <TouchableOpacity
                   key={String(tx.id ?? index)}
@@ -338,7 +335,7 @@ export default function WalletScreen() {
                     >
                       {tx.description ||
                         tx.narration ||
-                        (isCredit ? "Credit" : "Debit")}
+                        (direction === "UNKNOWN" ? "Transaction" : isCredit ? "Credit" : "Debit")}
                     </Text>
                     <Text style={[styles.txDate, { color: theme.textMuted }]}>
                       {formatDateStr(tx.createdAt || tx.createdDate || tx.date)}
@@ -354,7 +351,7 @@ export default function WalletScreen() {
                         { color: isCredit ? SUCCESS_GREEN : ERROR_RED },
                       ]}
                     >
-                      {isCredit ? "+" : "-"}
+                      {direction === "UNKNOWN" ? "" : isCredit ? "+" : "-"}
                       {formatNaira(Math.abs(amount))}
                     </Text>
                     <View
@@ -374,7 +371,7 @@ export default function WalletScreen() {
                         ]}
                       >
                         {String(
-                          tx.status ?? (isCredit ? "CREDIT" : "DEBIT"),
+                          tx.status ?? direction,
                         ).toUpperCase()}
                       </Text>
                     </View>
@@ -440,12 +437,7 @@ export default function WalletScreen() {
                 ],
                 [
                   "Type",
-                  String(
-                    selectedTransaction?.transactionType ||
-                      selectedTransaction?.type ||
-                      selectedTransaction?.direction ||
-                      "Transaction",
-                  ).toUpperCase(),
+                  transactionDirection(selectedTransaction),
                 ],
                 [
                   "Status",
@@ -508,7 +500,9 @@ export default function WalletScreen() {
           ]}
         >
           <TouchableOpacity
-            onPress={() => setScreen("wallet")}
+            onPress={() =>
+              openWithdraw === "1" ? router.back() : setScreen("wallet")
+            }
             style={styles.headerBtn}
           >
             <Ionicons name="arrow-back" size={24} color={theme.text} />
@@ -802,10 +796,10 @@ export default function WalletScreen() {
           <Ionicons name="checkmark" size={32} color="#FFFFFF" />
         </View>
         <Text style={[styles.successTitle, { color: theme.text }]}>
-          Withdrawal successful
+          Withdrawal submitted
         </Text>
         <Text style={[styles.successSubtitle, { color: theme.textMuted }]}>
-          Your withdrawal request has been submitted. Your bank will be updated when the transaction is completed.
+          Your withdrawal status is shown below.
         </Text>
 
         <View style={styles.successAmountRow}>
@@ -813,7 +807,7 @@ export default function WalletScreen() {
             {formatNaira(withdrawResult?.amount ?? 0)}
           </Text>
           <View style={styles.completedBadge}>
-            <Text style={styles.completedBadgeText}>Completed</Text>
+            <Text style={styles.completedBadgeText}>{withdrawResult?.status || 'Pending'}</Text>
           </View>
         </View>
         <Text style={[styles.amountLabel, { color: theme.textMuted }]}>

@@ -223,9 +223,8 @@ export default function HomeScreen() {
             : rawBody.customerProfile;
 
       const profileId =
-        roleProfile?.profileId ||
-        roleProfile?.id ||
-        rawBody.profileId ||
+        (activeRole === 'PRINTER' ? rawBody.printerProfile?.id :
+          activeRole === 'DESIGNER' ? rawBody.designerProfile?.id : rawBody.customerProfile?.id) ||
         rawBody.id ||
         (current as any)?.id;
 
@@ -608,6 +607,11 @@ export default function HomeScreen() {
           />
         }
       >
+        <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 12 }}>
+          <TouchableOpacity accessibilityLabel="Notifications" onPress={() => router.push('/notification')} style={{ padding: 10 }}>
+            <Ionicons name="notifications-outline" size={24} color={theme.text} />
+          </TouchableOpacity>
+        </View>
         {/* Profile Card */}
         <LinearGradient
           colors={["#3D2DB5", "#6B55E8"]}
@@ -784,20 +788,12 @@ export default function HomeScreen() {
             <Text style={[styles.insightTitle, { color: theme.text }]}>
               Overall Payment Status
             </Text>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <TouchableOpacity
-                style={styles.walletHistoryBtn}
-                onPress={() => router.push("/wallet?tab=history" as any)}
-              >
-                <Text style={styles.walletHistoryBtnText}>Wallet history</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.walletHistoryBtn, { backgroundColor: theme.accent }]}
-                onPress={() => router.push("/wallet?action=withdraw" as any)}
-              >
-                <Text style={[styles.walletHistoryBtnText, { color: "#FFFFFF" }]}>Withdraw</Text>
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity
+              style={styles.walletHistoryBtn}
+              onPress={() => router.push("/wallet")}
+            >
+              <Text style={styles.walletHistoryBtnText}>Wallet history</Text>
+            </TouchableOpacity>
           </View>
 
           <View style={{ alignItems: "center", paddingVertical: 16 }}>

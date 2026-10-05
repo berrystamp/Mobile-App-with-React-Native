@@ -161,7 +161,8 @@ export default function OrderDetailScreen() {
 
         <View style={[styles.metaCard, { borderColor: theme.border }]}>
           <Text style={[styles.metaLine, { color: theme.subtext }]}>
-            Design by <Text style={styles.metaLink}>{order.designer}</Text>
+            {toProfileType(role) === 'PRINTER' ? 'Customer: ' : order.providerRole === 'PRINTER' ? 'Printer: ' : 'Designer: '}
+            <Text style={styles.metaLink}>{toProfileType(role) === 'PRINTER' ? (order.customerName || 'Not provided') : (order.providerName || order.designer)}</Text>
           </Text>
           <Text style={[styles.metaLine, { color: theme.subtext }]}>Updated on {order.updatedAt}</Text>
           <Text style={[styles.metaLine, { color: theme.subtext }]}>Created on {order.createdAt}</Text>

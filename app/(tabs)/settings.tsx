@@ -1,3 +1,4 @@
+import { useAuth } from '@/context/AuthContext';
 import ApiService from "@/services/apiClient";
 import {
     getPushPermissionStatus,
@@ -488,11 +489,11 @@ function ChangeEmailScreen({
   const { bg, surface, text, subtext, inputBorder, primary, border } = useTheme(isDark);
   const [step, setStep] = useState<"input" | "otp">("input");
   const [email, setEmail] = useState("");
-  const [otp, setOtp] = useState(["", "", "", "", ""]);
+  const [otp, setOtp] = useState("");
+  const { refreshUser } = useAuth();
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [countdown, setCountdown] = useState(34);
-  const otpRefs = useRef<(TextInput | null)[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const startCountdown = useCallback(() => {
@@ -516,80 +517,28 @@ function ChangeEmailScreen({
   }, []);
 
   const handleProceed = async () => {
-    const trimmedEmail = email.trim();
-    if (!trimmedEmail) {
-      Alert.alert("Error", "Please enter your email address.");
-      return;
-    }
-
-    // Basic email validation regex check
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(trimmedEmail)) {
-      Alert.alert("Error", "Please enter a valid email address.");
-      return;
-    }
-
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { Alert.alert("Error", "Please enter a valid new email address."); return; }
     try {
       setLoading(true);
-      await ApiService.requestEmailChange(trimmedEmail);
+      await ApiService.requestEmailChange(email.trim());
+      setOtp("");
       setStep("otp");
       startCountdown();
     } catch (e: any) {
-      Alert.alert(
-        "Error",
-        e?.response?.data?.responseMessage || e?.message || "Failed to send OTP."
-      );
+      console.log("Error", e?.response?.data?.responseMessage || e?.message || "Failed to send OTP.")
+      Alert.alert("Error", e?.response?.data?.responseMessage || e?.message || "Failed to send OTP.");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleOtpChange = (val: string, idx: number) => {
-    const cleaned = val.replace(/[^0-9]/g, "");
-
-    // Handle full paste (5-digit OTP pasted into a single input box)
-    if (cleaned.length > 1) {
-      const pastedDigits = cleaned.slice(0, 5).split("");
-      const newOtp = [...otp];
-      pastedDigits.forEach((char, i) => {
-        if (i < 5) newOtp[i] = char;
-      });
-      setOtp(newOtp);
-      const nextFocusIdx = Math.min(pastedDigits.length, 4);
-      otpRefs.current[nextFocusIdx]?.focus();
-      return;
-    }
-
-    const next = [...otp];
-    next[idx] = cleaned;
-    setOtp(next);
-
-    // Auto-advance focus to next digit
-    if (cleaned && idx < 4) {
-      otpRefs.current[idx + 1]?.focus();
-    }
-  };
-
-  const handleOtpKeyPress = (e: any, idx: number) => {
-    if (e.nativeEvent.key === "Backspace") {
-      if (!otp[idx] && idx > 0) {
-        const next = [...otp];
-        next[idx - 1] = "";
-        setOtp(next);
-        otpRefs.current[idx - 1]?.focus();
-      }
-    }
-  };
-
   const handleVerify = async () => {
-    const code = otp.join("");
-    if (code.length < 5) {
-      Alert.alert("Error", "Please enter the full 5-digit code.");
-      return;
-    }
+    const code = otp.trim();
+    if (!code) { Alert.alert("Error", "Please enter the verification code."); return; }
     try {
       setLoading(true);
       await ApiService.verifyEmailChange(email.trim(), code);
+      await refreshUser();
       setSuccess(true);
     } catch (e: any) {
       Alert.alert(
@@ -636,14 +585,12 @@ function ChangeEmailScreen({
         <View style={{ width: 36 }} />
       </View>
 
-      <ScrollView contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 24, paddingTop: 40 }} keyboardShouldPersistTaps="handled">
-        <Text style={[styles.bigTitle, { color: text }]}>
-          {step === "input" ? "Your Email Address" : "Enter Verification Code"}
-        </Text>
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 24, paddingTop: 40 }}>
+        <Text style={[styles.bigTitle, { color: text }]}>Your Email Address</Text>
         <Text style={[styles.bigSubtitle, { color: subtext }]}>
           {step === "input"
             ? "This will be used to verify your account whenever you want to take any action on the app."
-            : `We sent a 5-digit verification code to ${email.trim()}`}
+            : `Enter the verification code sent to ${email.trim()}`}
         </Text>
 
         {step === "input" ? (
@@ -660,19 +607,17 @@ function ChangeEmailScreen({
         ) : (
           <>
             <View style={styles.otpRow}>
-              {otp.map((digit, i) => (
-                <TextInput
-                  key={i}
-                  ref={(r) => { otpRefs.current[i] = r; }}
-                  value={digit}
-                  onChangeText={(v) => handleOtpChange(v, i)}
-                  onKeyPress={(e) => handleOtpKeyPress(e, i)}
-                  keyboardType="number-pad"
-                  maxLength={5} // Allow pasting up to 5 characters in any single field
-                  selectTextOnFocus
-                  style={[styles.otpBox, { color: text, borderColor: digit ? primary : inputBorder }]}
-                />
-              ))}
+              <TextInput
+                value={otp}
+                onChangeText={(value) => setOtp(value.replace(/[^0-9]/g, ""))}
+                keyboardType="number-pad"
+                textContentType="oneTimeCode"
+                autoComplete="one-time-code"
+                accessibilityLabel="Email verification code"
+                placeholder="Verification code"
+                placeholderTextColor={subtext}
+                style={[styles.emailInput, { flex: 1, color: text, borderColor: primary }]}
+              />
             </View>
             <View style={styles.resendRow}>
               <Text style={[styles.resendText, { color: subtext }]}>Didn&apos;t get the code? </Text>
@@ -717,27 +662,22 @@ function ChangeEmailScreen({
 }
 
 // ─── Screen: Change Password ──────────────────────────────────────────────────
-function PasswordField({
-  label,
-  value,
-  onChange,
-  show,
-  onToggle,
-  primary,
-  inputBorder,
-  subtext,
-  text,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  show: boolean;
-  onToggle: () => void;
-  primary: string;
-  inputBorder: string;
-  subtext: string;
-  text: string;
-}) {
+const PasswordField = ({
+    isDark,
+    label,
+    value,
+    onChange,
+    show,
+    onToggle,
+  }: {
+    isDark: boolean;
+    label: string;
+    value: string;
+    onChange: (v: string) => void;
+    show: boolean;
+    onToggle: () => void;
+  }) => {
+  const { text, subtext, primary, inputBorder } = useTheme(isDark);
   return (
     <View style={styles.pwFieldWrap}>
       <Text style={[styles.pwLabel, { color: primary }]}>{label}</Text>
@@ -764,7 +704,7 @@ function PasswordField({
       </View>
     </View>
   );
-}
+};
 
 function ChangePasswordScreen({
   onBack,
@@ -809,6 +749,7 @@ function ChangePasswordScreen({
     }
   };
 
+
   return (
     <View style={{ flex: 1, backgroundColor: bg }}>
       <View style={[styles.header, { backgroundColor: surface, paddingTop: insets.top + 12, borderBottomColor: border }]}>
@@ -819,11 +760,12 @@ function ChangePasswordScreen({
         <View style={{ width: 36 }} />
       </View>
 
-      <ScrollView contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 24, paddingTop: 40 }}>
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 24, paddingTop: 40 }}>
         <Text style={[styles.bigTitle, { color: text }]}>Setup new password 🔒</Text>
         <Text style={[styles.bigSubtitle, { color: subtext }]}>Kindly create a new password for your account.</Text>
 
         <PasswordField
+          isDark={isDark}
           label="Old Password"
           value={oldPassword}
           onChange={setOldPassword}
@@ -835,6 +777,7 @@ function ChangePasswordScreen({
           text={text}
         />
         <PasswordField
+          isDark={isDark}
           label="New Password"
           value={newPassword}
           onChange={setNewPassword}
@@ -846,6 +789,7 @@ function ChangePasswordScreen({
           text={text}
         />
         <PasswordField
+          isDark={isDark}
           label="Confirm Password"
           value={confirmPassword}
           onChange={setConfirmPassword}

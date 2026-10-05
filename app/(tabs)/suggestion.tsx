@@ -46,6 +46,7 @@ function useTheme(isDark: boolean) {
 function SuccessModal({
   visible,
   title,
+  heading,
   message,
   onClose,
   surface,
@@ -55,6 +56,7 @@ function SuccessModal({
 }: {
   visible: boolean;
   title: string;
+  heading: string;
   message: string;
   onClose: () => void;
   surface: string;
@@ -69,7 +71,7 @@ function SuccessModal({
         <View style={[styles.successSheet, { backgroundColor: surface, paddingBottom: insets.bottom + 24 }]}>
           {/* Header */}
           <View style={styles.successHeader}>
-            <Text style={[styles.successHeaderTitle, { color: text }]}>Share an idea</Text>
+            <Text style={[styles.successHeaderTitle, { color: text }]}>{heading}</Text>
             <TouchableOpacity onPress={onClose}>
               <Ionicons name="close" size={20} color={text} />
             </TouchableOpacity>
@@ -122,28 +124,11 @@ function ChooseScreen({
     <View style={[styles.chooseSheet, { backgroundColor: surface, paddingBottom: insets.bottom + 16 }]}>
       {/* Header */}
       <View style={styles.chooseHeader}>
-        <Text style={[styles.chooseTitle, { color: text }]}>Make suggestion/report</Text>
+        <Text style={[styles.chooseTitle, { color: text }]}>Report a problem</Text>
         <TouchableOpacity onPress={onClose}>
           <Ionicons name="close" size={20} color={text} />
         </TouchableOpacity>
       </View>
-
-      {/* Share an idea card */}
-      <TouchableOpacity
-        onPress={() => onSelect("idea")}
-        activeOpacity={0.8}
-        style={[styles.chooseCard, { backgroundColor: cardBg, borderColor: border }]}
-      >
-        <View style={[styles.chooseCardIcon, { backgroundColor: surface }]}>
-          <Ionicons name="bulb-outline" size={22} color={primary} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.chooseCardTitle, { color: primary }]}>Share an idea</Text>
-          <Text style={[styles.chooseCardSub, { color: subtext }]}>
-            We are always ready to hear your awesome and creative idea
-          </Text>
-        </View>
-      </TouchableOpacity>
 
       {/* Report a bug card */}
       <TouchableOpacity
@@ -239,7 +224,7 @@ function CategoryScreen({
             <TextInput
               value={customIdea}
               onChangeText={(v) => v.length <= 2500 && setCustomIdea(v)}
-              placeholder="Let us hear your idea."
+              placeholder={isIdea ? "Let us hear your idea." : "Describe the bug and what happened."}
               placeholderTextColor={subtext}
               multiline
               style={[styles.customTextarea, { color: text, borderColor: border, backgroundColor: surface }]}
@@ -254,7 +239,7 @@ function CategoryScreen({
         <TouchableOpacity
           onPress={async () => {
             if (!customArea.trim() && !customIdea.trim()) {
-              Alert.alert("Empty", "Please fill in the area or your idea.");
+              Alert.alert("Empty", isIdea ? "Please fill in the area or your idea." : "Please describe the bug or the affected area.");
               return;
             }
             try {
@@ -311,7 +296,7 @@ function DetailScreen({
 
   const handleSubmit = async () => {
     if (!idea.trim()) {
-      Alert.alert("Empty", "Please enter your idea.");
+      Alert.alert("Empty", isIdea ? "Please enter your idea." : "Please describe the bug.");
       return;
     }
     try {
@@ -347,7 +332,7 @@ function DetailScreen({
             <TextInput
               value={idea}
               onChangeText={(v) => v.length <= 2500 && setIdea(v)}
-              placeholder="Let us hear your idea."
+              placeholder={isIdea ? "Let us hear your idea." : "Describe the bug and what happened."}
               placeholderTextColor={subtext}
               multiline
               style={[styles.detailTextarea, { color: text, borderColor: border, backgroundColor: surface }]}
@@ -471,6 +456,7 @@ export default function SuggestionScreen() {
         />
         <SuccessModal
           visible={showSuccess}
+          heading={mode === "bug" ? "Report a bug" : "Share an idea"}
           title={successConfig.title}
           message={successConfig.message}
           onClose={handleSuccessClose}
@@ -496,7 +482,8 @@ export default function SuggestionScreen() {
       />
       <SuccessModal
         visible={showSuccess}
-        title={successConfig.title}
+        heading={mode === "bug" ? "Report a bug" : "Share an idea"}
+          title={successConfig.title}
         message={successConfig.message}
         onClose={handleSuccessClose}
         surface={theme.surface}
@@ -679,4 +666,4 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   okayTxt: { color: "#FFFFFF", fontSize: 16, fontWeight: "700" },
-});   
+});

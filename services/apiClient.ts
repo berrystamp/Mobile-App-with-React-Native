@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
 import { extractFaqFromHtml, type FaqItem } from '@/lib/faq';
-import { useAuthStore } from '@/store/authStore';
+import { toAccountType, useAuthStore } from '@/store/authStore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AxiosRequestConfig } from 'axios';
 import api from './api';
@@ -123,6 +123,7 @@ class ApiService {
     await AsyncStorage.removeItem('userToken');
     await AsyncStorage.removeItem('userData');
     await AsyncStorage.removeItem('profileType');
+    useAuthStore.getState().logout();
   }
 
   async activateAccount(otp: string, email: string) {
@@ -246,9 +247,9 @@ class ApiService {
   }
 
   async syncCurrentUserFromBackend() {
-    const response = await api.get('/user');
-    const body = response.data?.responseBody || response.data;
     const profileType = getProfileType();
+    const response = await api.get('/user', { headers: { profileType } });
+    const body = response.data?.responseBody || response.data;
 
     return {
       ...response.data,
@@ -260,10 +261,10 @@ class ApiService {
   }
 
   async getMyProfile() {
+    const profileType = getProfileType();
     try {
-      const response = await api.get('/user');
+      const response = await api.get('/user', { headers: { profileType } });
       const body = response.data?.responseBody || response.data;
-      const profileType = getProfileType();
 
       return {
         ...response.data,
@@ -279,7 +280,7 @@ class ApiService {
     }
 
     const user = await this.getCurrentUser();
-    return { responseBody: { ...(user || {}), profileType: user?.profileType } };
+    return { responseBody: { ...(user || {}), profileType } };
   }
 
   async updateMyProfile(payload: Record<string, unknown>) {
@@ -307,6 +308,7 @@ class ApiService {
 
   async setActiveProfileType(profileType: ProfileTypeInterface) {
     await AsyncStorage.setItem('profileType', profileType);
+    useAuthStore.getState().setAccountType(toAccountType(profileType));
     return { requestSuccessful: true };
   }
 
@@ -319,7 +321,7 @@ class ApiService {
     startDate?: string;            // Expected format: YYYY-MM-DD
     endDate?: string;              // Expected format: YYYY-MM-DD
   }) {
-    const profileType = getProfileType();
+    const profileType = options?.profileType || getProfileType();
 
     // The 'pageable' backend object is traditionally populated via flat query params
     const params: Record<string, unknown> = {
@@ -1334,12 +1336,12 @@ class ApiService {
         const response = await request();
         return response.data;
       } catch (error: any) {
-        if (error?.response?.status && error.response.status !== 404) {
+        if (error?.response?.status !== 404) {
           throw error;
         }
       }
     }
-    return { requestSuccessful: true };
+    throw new Error('Shop location updates are unavailable. Please try again later.');
   }
 
   async getCustomDesigns(page: number = 0, size: number = 20) {
@@ -1635,27 +1637,8 @@ class ApiService {
     const response = await api.get('/wallets', {
       headers: { profileType },
     });
-
-    const data = response.data;
-    const body = data?.responseBody || data?.data || data || {};
-    const balance = Number(
-      body?.balance ??
-      body?.amount ??
-      body?.availableBalance ??
-      body?.walletBalance ??
-      0,
-    );
-
-    // Return a stable shape to every wallet consumer. The backend has returned
-    // both `amount` and `balance` in different payloads over time.
-    return {
-      ...data,
-      responseBody: {
-        ...body,
-        balance: Number.isFinite(balance) ? balance : 0,
-        amount: Number.isFinite(balance) ? balance : 0,
-      },
-    };
+    console.log(`Responnse for wallet ${JSON.stringify(response.data)}`);
+    return response.data;
   }
 
   async getWalletHistory(
@@ -1920,11 +1903,14 @@ class ApiService {
   // ─── Settings: Change email (request OTP + verify) ─────────────────────────
   async requestEmailChange(newEmail: string) {
     const response = await api.post('/user/change-email', { email: newEmail });
+    console.log(response.data);
     return response.data;
   }
 
   async verifyEmailChange(newEmail: string, otp: string) {
     const response = await api.post('/user/change-email/verify', { email: newEmail, otp });
+    const user = await this.getCurrentUser();
+    if (user) await AsyncStorage.setItem('userData', JSON.stringify({ ...user, email: newEmail }));
     return response.data;
   }
 

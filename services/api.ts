@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
+import { toProfileType, useAuthStore } from '@/store/authStore';
 import { router } from "expo-router"; // Added for automatic redirection
 
 const API_BASE_URL = 'https://berrystamp-backend-production.up.railway.app/api/v1';
@@ -15,7 +16,9 @@ const api = axios.create({
 // Request interceptor: Always attach the latest token from storage
 api.interceptors.request.use(async (config) => {
   const token = await AsyncStorage.getItem("userToken");
-  const profileType = await AsyncStorage.getItem("profileType");
+  const profileType = useAuthStore.getState().isHydrated
+    ? toProfileType(useAuthStore.getState().role)
+    : await AsyncStorage.getItem("profileType");
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -27,7 +30,15 @@ api.interceptors.request.use(async (config) => {
 
 // Response interceptor: Listen for expired tokens (401 Unauthorized)
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    if (response.data?.requestSuccessful === false) {
+      throw Object.assign(new Error(response.data.responseMessage || response.data.message || 'Request failed'), {
+        response,
+        config: response.config,
+      });
+    }
+    return response;
+  },
   async (error) => {
     const hadAuthHeader = Boolean(error.config?.headers?.Authorization);
 
@@ -37,6 +48,7 @@ api.interceptors.response.use(
       await AsyncStorage.removeItem('userToken');
       await AsyncStorage.removeItem('userData');
       await AsyncStorage.removeItem('profileType');
+      useAuthStore.getState().logout();
       
       // Automatically redirect to login
       // Adjust path if your login screen is named differently

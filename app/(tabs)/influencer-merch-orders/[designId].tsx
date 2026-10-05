@@ -96,7 +96,7 @@ export default function InfluencerMerchDesignOrdersScreen() {
       <View style={styles.screen}>
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace("/influencer-merch-orders")} style={styles.backButton}>
             <Ionicons name="arrow-back" size={22} color={theme.text} />
           </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: theme.text }]}>Manage order</Text>
@@ -140,7 +140,7 @@ export default function InfluencerMerchDesignOrdersScreen() {
                 activeOpacity={0.88}
                 onPress={() =>
                   router.push({
-                    pathname: '/influencer-merch-orders/[orderId]' as any,
+                    pathname: '/influencer-merch-orders/order/[orderId]' as any,
                     params: { orderId: String(order.id) },
                   })
                 }

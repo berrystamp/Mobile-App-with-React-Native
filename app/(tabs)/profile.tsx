@@ -220,7 +220,7 @@ export default function ProfileScreen() {
       return [
         { icon: "storefront-outline" as const, label: "My Shop", onPress: () => router.push("/my-shop") },
         { icon: "document-text-outline" as const, label: "Orders", onPress: () => router.push("/manage-order") },
-        { icon: "wallet-outline" as const, label: "Wallet", onPress: () => router.push("/wallet") },
+        { icon: "wallet-outline" as const, label: "Wallet", onPress: () => router.push("/payments") },
         {
           icon: "location-outline" as const,
           label: "Update Shop Location",
@@ -232,7 +232,7 @@ export default function ProfileScreen() {
       return [
         { icon: "storefront-outline" as const, label: "My Shop", onPress: () => router.push("/my-shop") },
         { icon: "document-text-outline" as const, label: "Orders", onPress: () => router.push("/manage-order") },
-        { icon: "wallet-outline" as const, label: "Wallet", onPress: () => router.push("/wallet") },
+        { icon: "wallet-outline" as const, label: "Wallet", onPress: () => router.push("/payments") },
         {
           icon: "location-outline" as const,
           label: "Update Shop Location",
@@ -277,8 +277,6 @@ export default function ProfileScreen() {
   ], [activeRole, router]);
 
   const handleSwitchAccount = async (target: TProfileType) => {
-    const accountType = toAccountType(target);
-    setAccountType(accountType);
     await ApiService.setActiveProfileType(target);
     router.replace("/(tabs)");
   };
