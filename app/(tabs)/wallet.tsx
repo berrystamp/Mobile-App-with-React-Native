@@ -153,7 +153,8 @@ export default function WalletScreen() {
   useFocusEffect(
     useCallback(() => {
       load();
-    }, [load]),
+      if (action === "withdraw") setScreen("withdraw");
+    }, [load, action]),
   );
   const onRefresh = useCallback(() => {
     setRefreshing(true);

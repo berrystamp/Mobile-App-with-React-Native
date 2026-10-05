@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import { extractFaqFromHtml, type FaqItem } from '@/lib/faq';
 import { toAccountType, useAuthStore } from '@/store/authStore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -1213,27 +1214,107 @@ class ApiService {
    * Tries multiple endpoint candidates in order until one succeeds.
    */
   async submitFeedback(payload: { type: 'IDEA' | 'BUG'; category: string; message: string }) {
-    const profileType = getProfileType();
-    const headers = { profileType };
+    const headers = { profileType: getProfileType() };
+    const requestPayload = {
+      ...payload,
+      comment: payload.message,
+    };
     const candidates = [
-      () => api.post('/feedback', payload, { headers }),
-      () => api.post('/suggestions', payload, { headers }),
-      () => api.post('/support/feedback', payload, { headers }),
-      () => api.post('/user/feedback', payload, { headers }),
+      () => api.post('/feedback', requestPayload, { headers }),
+      () => api.post('/suggestions', requestPayload, { headers }),
+      () => api.post('/support/feedback', requestPayload, { headers }),
+      () => api.post('/user/feedback', requestPayload, { headers }),
     ];
 
+    let lastNotFound: any = null;
+    for (const request of candidates) {
+      try {
+        const response = await request();
+        const data = response.data;
+        if (data?.requestSuccessful === false) {
+          const error: any = new Error(
+            data?.responseMessage || data?.message || 'Feedback submission failed',
+          );
+          error.response = { data };
+          throw error;
+        }
+        return data;
+      } catch (error: any) {
+        if (error?.response?.status === 404) {
+          lastNotFound = error;
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    throw new Error(
+      lastNotFound
+        ? 'The feedback API is not available on the current backend.'
+        : 'Feedback submission failed.',
+    );
+  }
+
+  async registerPushToken(token: string) {
+    const headers = { profileType: getProfileType() };
+    const payload = {
+      token,
+      pushToken: token,
+      platform: Platform.OS,
+    };
+    const candidates = [
+      () => api.post('/notifications/push-token', payload, { headers }),
+      () => api.post('/notifications/device-token', payload, { headers }),
+      () => api.post('/user/push-token', payload, { headers }),
+    ];
+
+    let lastNotFound: any = null;
     for (const request of candidates) {
       try {
         const response = await request();
         return response.data;
       } catch (error: any) {
-        if (error?.response?.status && error.response.status !== 404) {
-          throw error;
+        if (error?.response?.status === 404) {
+          lastNotFound = error;
+          continue;
         }
+        throw error;
       }
     }
-    // Return success so UI can proceed even if no endpoint is wired yet
-    return { requestSuccessful: true };
+
+    const error: any = new Error(
+      'The push-token API is not available on the current backend.',
+    );
+    error.cause = lastNotFound;
+    throw error;
+  }
+
+  async unregisterPushToken(token: string) {
+    const headers = { profileType: getProfileType() };
+    const candidates = [
+      () => api.delete('/notifications/push-token', { data: { token }, headers }),
+      () => api.delete('/notifications/device-token', { data: { token }, headers }),
+      () => api.delete('/user/push-token', { data: { token }, headers }),
+    ];
+
+    let lastNotFound: any = null;
+    for (const request of candidates) {
+      try {
+        return (await request()).data;
+      } catch (error: any) {
+        if (error?.response?.status === 404) {
+          lastNotFound = error;
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    const error: any = new Error(
+      'The push-token API is not available on the current backend.',
+    );
+    error.cause = lastNotFound;
+    throw error;
   }
 
   /**
@@ -1671,16 +1752,21 @@ class ApiService {
   }
 
   async createCustomDesign(payload: Record<string, unknown>) {
-    // const headers = { profileType: getProfileType() };
-    try {
-      const response = await api.get('/orders-request/design')
-      return response.data;
-    } catch (error: any) {
-      if (error?.response?.status && ![400, 404, 405].includes(error.response.status)) throw error;
+    const profileType = getProfileType();
+    const response = await api.post('/designs', payload, {
+      headers: { profileType },
+    });
+
+    const data = response.data;
+    if (data?.requestSuccessful === false) {
+      const error: any = new Error(
+        data?.responseMessage || data?.message || 'Design creation failed',
+      );
+      error.response = { data };
+      throw error;
     }
 
-
-    return { requestSuccessful: false };
+    return data;
   }
 
   async updateCustomDesign(designId: string | number, payload: Record<string, unknown>) {
@@ -1755,6 +1841,9 @@ class ApiService {
   async getDesignInsights(designId: string | number) {
     const headers = { profileType: getProfileType() };
     const candidates = [
+      // Preferred analytics resource.
+      () => api.get(`/insights/design/${designId}`, { headers }),
+      // Backward-compatible resources used by older deployments.
       () => api.get(`/designs/${designId}/insights`, { headers }),
       () => api.get(`/designs/insights/${designId}`, { headers }),
       () => api.get(`/analytics/designs/${designId}`, { headers }),
@@ -1763,13 +1852,23 @@ class ApiService {
     for (const request of candidates) {
       try {
         const response = await request();
-        return response.data;
+        const data = response.data;
+        if (data?.requestSuccessful === false) {
+          const error: any = new Error(
+            data?.responseMessage || data?.message || 'Unable to load post insights',
+          );
+          error.response = { data };
+          throw error;
+        }
+        return data;
       } catch (error: any) {
-        if (error?.response?.status && ![400, 404].includes(error.response.status)) throw error;
+        if (error?.response?.status && ![400, 404].includes(error.response.status)) {
+          throw error;
+        }
       }
     }
 
-    return { responseBody: {} };
+    throw new Error('Post insights are not available from the API.');
   }
 
   // Generic request method
@@ -1817,18 +1916,46 @@ class ApiService {
 
   // ─── Insights ──────────────────────────────────────────────────────────────
   async getProfileInsights(profileId: string | number) {
-    const response = await api.get(`/insights/profile/${profileId}`);
-    return response.data;
+    const profileType = getProfileType();
+    const response = await api.get(`/insights/profile/${profileId}`, {
+      headers: { profileType },
+    });
+    const data = response.data;
+    const body = data?.responseBody || data?.data || data || {};
+    return {
+      ...data,
+      responseBody: {
+        ...body,
+        totalFollowers: Number(body?.totalFollowers ?? body?.followers ?? 0),
+        totalFollowing: Number(body?.totalFollowing ?? body?.following ?? 0),
+        totalUploads: Number(body?.totalUploads ?? body?.uploads ?? 0),
+        totalCompletedOrders: Number(body?.totalCompletedOrders ?? body?.completedOrders ?? 0),
+        totalCancelledOrders: Number(body?.totalCancelledOrders ?? body?.cancelledOrders ?? 0),
+        totalOrders: Number(body?.totalOrders ?? body?.orders ?? 0),
+        totalReviews: Number(body?.totalReviews ?? body?.reviews ?? 0),
+        totalEarnings: Number(body?.totalEarnings ?? body?.earnings ?? 0),
+        jobSuccessPercentage: Number(body?.jobSuccessPercentage ?? body?.jobSuccess ?? 0),
+        rating: {
+          ...(body?.rating || {}),
+          avgStars: Number(body?.rating?.avgStars ?? body?.avgRating ?? body?.rating ?? 0),
+        },
+      },
+    };
   }
 
   async getActivityPieChart() {
-    const response = await api.get('/insights/activity-pie-chart');
+    const profileType = getProfileType();
+    const response = await api.get('/insights/activity-pie-chart', {
+      headers: { profileType },
+    });
     return response.data;
   }
 
   async getActivityBarGraph(interval: 'DAILY' | 'WEEKLY' | 'MONTHLY' = 'MONTHLY') {
+    const profileType = getProfileType();
     const response = await api.get('/insights/activity-bar-graph', {
       params: { interval },
+      headers: { profileType },
     });
     return response.data;
   }

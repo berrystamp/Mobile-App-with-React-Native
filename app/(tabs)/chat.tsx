@@ -583,14 +583,22 @@ export default function ChatScreen() {
   ];
 
   type ChatType = "ORDER" | "ORDER_REQUEST" | "DIRECT" | "FILE";
-  const resolvePayloadChatType = (isFile = false): ChatType => isFile ? "FILE" : "DIRECT";
+  const resolvePayloadChatType = (isFile = false): ChatType =>
+    isFile ? "FILE" : (orderId ? "ORDER" : "DIRECT");
 
-  const buildPayload = (content: string, caption: string, isFile = false) => ({
-    toProfileId: Number(conversation.participantId || participantId || 0),
-    content,
-    caption,
-    chatType: resolvePayloadChatType(isFile),
-  });
+  const buildPayload = (content: string, caption: string, isFile = false) => {
+    const recipientProfileId = Number(conversation.participantId || participantId || 0);
+    if (!recipientProfileId) {
+      throw new Error("This conversation has no valid recipient profile.");
+    }
+
+    return {
+      toProfileId: recipientProfileId,
+      content,
+      caption,
+      chatType: resolvePayloadChatType(isFile),
+    };
+  };
 
   const dispatchMessage = async (payload: ReturnType<typeof buildPayload>) => {
     if (orderId) {

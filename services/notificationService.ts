@@ -1,6 +1,7 @@
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
+import ApiService from '@/services/apiClient';
 
 // ─── Availability guard ───────────────────────────────────────────────────────
 // expo-notifications remote push was removed from Expo Go in SDK 53.

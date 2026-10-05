@@ -4,6 +4,8 @@ import {
     getPushPermissionStatus,
     pushNotificationsSupported,
     registerForPushNotifications,
+    registerPushTokenWithBackend,
+    unregisterPushTokenWithBackend,
 } from "@/services/notificationService";
 import { useNotificationStore } from "@/store/notificationStore";
 import { Ionicons } from "@expo/vector-icons";
@@ -279,6 +281,15 @@ function NotificationsScreen({
       if (value) {
         const token = await registerForPushNotifications();
         if (token) {
+          try {
+            await registerPushTokenWithBackend(token);
+          } catch (error: any) {
+            Alert.alert(
+              "Push setup incomplete",
+              error?.message || "The device permission is enabled, but the notification service could not register this device.",
+            );
+            return;
+          }
           setPushEnabled(true);
           setExpoPushToken(token);
         } else {
@@ -301,25 +312,21 @@ function NotificationsScreen({
           );
         }
       } else {
-        Alert.alert(
-          "Disable notifications",
-          "To fully disable push notifications, please turn them off in your device settings.",
-          [
-            { text: "Cancel", style: "cancel" },
-            {
-              text: "Open Settings",
-              onPress: () => {
-                if (Platform.OS === "ios") {
-                  Linking.openURL("app-settings:");
-                } else {
-                  Linking.openSettings();
-                }
-              },
-            },
-          ],
-        );
+        const token = useNotificationStore.getState().expoPushToken;
+        if (token) {
+          try {
+            await unregisterPushTokenWithBackend(token);
+          } catch {
+            // Keep the local setting in sync even when an older backend has no
+            // unregister endpoint. The OS permission remains unchanged.
+          }
+        }
         setPushEnabled(false);
         setExpoPushToken(null);
+        Alert.alert(
+          "Push notifications disabled",
+          "Berrystamp will no longer send push notifications to this device. You can enable them again here at any time.",
+        );
       }
     } finally {
       setToggling(false);
@@ -469,7 +476,7 @@ function EmailNotificationsScreen({
   );
 }
 
-// ─── Screen: Change Email ─────────────────────────────────────────────────────
+// ─── Screen: Change Email (FIXED) ─────────────────────────────────────────────
 function ChangeEmailScreen({
   onBack,
   isDark,
@@ -494,13 +501,20 @@ function ChangeEmailScreen({
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = setInterval(() => {
       setCountdown((c) => {
-        if (c <= 1) { clearInterval(timerRef.current!); return 0; }
+        if (c <= 1) {
+          if (timerRef.current) clearInterval(timerRef.current);
+          return 0;
+        }
         return c - 1;
       });
     }, 1000);
   }, []);
 
-  useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, []);
 
   const handleProceed = async () => {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { Alert.alert("Error", "Please enter a valid new email address."); return; }
@@ -527,7 +541,10 @@ function ChangeEmailScreen({
       await refreshUser();
       setSuccess(true);
     } catch (e: any) {
-      Alert.alert("Error", e?.response?.data?.responseMessage || e?.message || "Invalid OTP.");
+      Alert.alert(
+        "Error",
+        e?.response?.data?.responseMessage || e?.message || "Invalid OTP."
+      );
     } finally {
       setLoading(false);
     }
@@ -536,17 +553,32 @@ function ChangeEmailScreen({
   const handleResend = async () => {
     if (countdown > 0) return;
     try {
+      setLoading(true);
       await ApiService.requestEmailChange(email.trim());
+      setOtp(["", "", "", "", ""]);
+      otpRefs.current[0]?.focus();
       startCountdown();
     } catch (e: any) {
       Alert.alert("Error", e?.response?.data?.responseMessage || e?.message || "Failed to resend.");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <View style={{ flex: 1, backgroundColor: bg }}>
       <View style={[styles.header, { backgroundColor: surface, paddingTop: insets.top + 12, borderBottomColor: border }]}>
-        <TouchableOpacity onPress={onBack} style={styles.backBtn}>
+        <TouchableOpacity
+          onPress={() => {
+            if (step === "otp") {
+              setStep("input");
+              setOtp(["", "", "", "", ""]);
+            } else {
+              onBack();
+            }
+          }}
+          style={styles.backBtn}
+        >
           <Ionicons name="arrow-back" size={22} color={text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: text }]}>Change Email</Text>
@@ -569,6 +601,7 @@ function ChangeEmailScreen({
             placeholderTextColor={subtext}
             keyboardType="email-address"
             autoCapitalize="none"
+            autoCorrect={false}
             style={[styles.emailInput, { color: text, borderColor: email ? primary : inputBorder }]}
           />
         ) : (
@@ -605,17 +638,21 @@ function ChangeEmailScreen({
           disabled={loading}
           style={[styles.proceedBtn, { opacity: loading ? 0.7 : 1 }]}
         >
-          {loading
-            ? <ActivityIndicator color="#FFFFFF" size="small" />
-            : <Text style={styles.proceedTxt}>Proceed</Text>
-          }
+          {loading ? (
+            <ActivityIndicator color="#FFFFFF" size="small" />
+          ) : (
+            <Text style={styles.proceedTxt}>{step === "input" ? "Proceed" : "Verify Email"}</Text>
+          )}
         </TouchableOpacity>
       </View>
 
       <SuccessModal
         visible={success}
-        message="Email change successfully!"
-        onClose={() => { setSuccess(false); onBack(); }}
+        message="Email changed successfully!"
+        onClose={() => {
+          setSuccess(false);
+          onBack();
+        }}
         surface={surface}
         text={text}
         insets={insets}
@@ -734,6 +771,10 @@ function ChangePasswordScreen({
           onChange={setOldPassword}
           show={showOld}
           onToggle={() => setShowOld((v) => !v)}
+          primary={primary}
+          inputBorder={inputBorder}
+          subtext={subtext}
+          text={text}
         />
         <PasswordField
           isDark={isDark}
@@ -742,6 +783,10 @@ function ChangePasswordScreen({
           onChange={setNewPassword}
           show={showNew}
           onToggle={() => setShowNew((v) => !v)}
+          primary={primary}
+          inputBorder={inputBorder}
+          subtext={subtext}
+          text={text}
         />
         <PasswordField
           isDark={isDark}
@@ -750,6 +795,10 @@ function ChangePasswordScreen({
           onChange={setConfirmPassword}
           show={showConfirm}
           onToggle={() => setShowConfirm((v) => !v)}
+          primary={primary}
+          inputBorder={inputBorder}
+          subtext={subtext}
+          text={text}
         />
       </ScrollView>
 

@@ -12,6 +12,11 @@ export const unstable_settings = {
 };
 
 export function MainApp() {
+  const router = useRouter();
+  const isLoggedIn = useAuthStore((state) => state.isLoggedIn);
+  const pushEnabled = useNotificationStore((state) => state.pushEnabled);
+  const setPushEnabled = useNotificationStore((state) => state.setPushEnabled);
+  const setExpoPushToken = useNotificationStore((state) => state.setExpoPushToken);
   const colorScheme = useColorScheme();
   const theme = getAppTheme(colorScheme);
 

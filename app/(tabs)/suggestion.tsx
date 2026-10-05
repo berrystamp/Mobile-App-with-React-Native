@@ -247,9 +247,16 @@ function CategoryScreen({
                 type: isIdea ? "IDEA" : "BUG",
                 category: customArea.trim() || "Other",
                 message: customIdea.trim(),
-              }).catch(() => {});
-            } catch {}
-            onSelect(null); // null = custom submission
+              });
+              onSelect(null);
+            } catch (error: any) {
+              Alert.alert(
+                "Submission failed",
+                error?.response?.data?.responseMessage ||
+                  error?.message ||
+                  "We could not submit your feedback. Please try again.",
+              );
+            }
           }}
           style={styles.submitBtn}
         >
@@ -294,13 +301,10 @@ function DetailScreen({
     }
     try {
       setLoading(true);
-      // Submit feedback via API
       await ApiService.submitFeedback({
         type: isIdea ? "IDEA" : "BUG",
         category,
         message: idea.trim(),
-      }).catch(() => {
-        // If endpoint not yet available, silently proceed
       });
       onSubmit();
     } catch {

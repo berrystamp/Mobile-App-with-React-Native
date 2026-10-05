@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 
 import ApiService from '@/services/apiClient';
+import { toAbsoluteImage } from '@/components/shop/utils';
 
 type DraftMock = {
   id?: number;
@@ -126,7 +127,7 @@ export default function UploadDesignScreen() {
         setAutographMessage(String(design?.autographMessage || ''));
         setFrontImageUri(String(design?.imageUrlFront || design?.previewUrlFront || design?.thumbnailUrlFront || design?.coverImage?.url || ''));
         setFrontImagePath(String(design?.imageUrlFront || design?.coverImage?.path || ''));
-        setExistingDesignUploads(Array.isArray(design?.designUploads) ? design.designUploads.map((item: any) => String(item?.fileUpload?.url || item?.fileUpload?.path || '')).filter(Boolean) : []);
+        setExistingDesignUploads(Array.isArray(design?.designUploads) ? design.designUploads.map((item: any) => toAbsoluteImage(String(item?.fileUpload?.url || item?.fileUpload?.path || ''))).filter(Boolean) : []);
         setMocks(loadedMocks);
       } catch (error: any) {
         Alert.alert('Unable to load design', error?.response?.data?.responseMessage || error?.message || 'Please try again.');
@@ -220,6 +221,7 @@ export default function UploadDesignScreen() {
       let nextFrontImagePath = frontImagePath;
       if (frontImageUri && !frontImageUri.startsWith('http') && frontImageUri !== frontImagePath) {
         nextFrontImagePath = extractUploadPath(await ApiService.uploadSingleFile(frontImageUri));
+        if (!nextFrontImagePath) throw new Error('The front image upload returned no file path.');
       }
 
       const uploadedDesignImagePaths: string[] = [];
@@ -241,10 +243,11 @@ export default function UploadDesignScreen() {
         };
       }[];
 
-      for (const mock of mocks) {
+      for (const [index, mock] of mocks.entries()) {
         let imagePath = mock.imagePath;
         if (mock.imageUri && !mock.imageUri.startsWith('http') && mock.imageUri !== mock.imagePath) {
           imagePath = extractUploadPath(await ApiService.uploadSingleFile(mock.imageUri));
+        if (!imagePath) throw new Error(`Mock ${index + 1} upload returned no file path.`);
         }
 
         normalizedMocks.push({
