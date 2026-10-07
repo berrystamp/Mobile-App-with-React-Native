@@ -2,10 +2,12 @@ import { AuthProvider } from '@/context/AuthContext';
 import NotificationNavigation from '@/components/NotificationNavigation';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { getAppTheme } from '@/lib/theme/appTheme';
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import "./global.css";
+import { useAuthStore } from '@/store/authStore';
+import { useNotificationStore } from '@/store/notificationStore';
 
 export const unstable_settings = {
   anchor: 'index',
