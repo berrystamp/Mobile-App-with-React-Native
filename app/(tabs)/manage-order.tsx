@@ -124,7 +124,9 @@ export default function ManageOrderScreen() {
   }
 }, [role]);
 
-  useEffect(() => { loadOrders(); }, [loadOrders]);
+  useEffect(() => {
+    void Promise.resolve().then(() => loadOrders());
+  }, [loadOrders]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
