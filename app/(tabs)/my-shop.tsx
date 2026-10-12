@@ -415,7 +415,7 @@ function AddToCollectionSheet({ visible,collectionItems, theme, designId, onClos
                 {collectionItems.map((col:any) => (
                   <TouchableOpacity key={String(col.id)} onPress={() => setSelected(col.id)} style={{ width: '48%', borderRadius: 10, marginBottom: 12, borderWidth: 2, borderColor: selected === col.id ? theme.primary : 'transparent', overflow: 'hidden', backgroundColor: theme.inputBg }}>
                     {col.imagePath ? (
-                      <Image source={{ uri: col.imagePath }} style={{ width: '100%', height: 90 }} resizeMode="cover" />
+                      <Image source={{ uri: col.imagePath }} style={{ width: '100%', height: 90 }} resizeMode="contain" />
                     ) : (
                       <View style={{ width: '100%', height: 90, alignItems: 'center', justifyContent: 'center' }}>
                         <Ionicons name="albums-outline" size={28} color={theme.muted} />
@@ -449,7 +449,7 @@ function AddToCollectionSheet({ visible,collectionItems, theme, designId, onClos
 }
 
 // ─── EditProfileSheet ─────────────────────────────────────────────────────────
-function EditProfileSheet({ visible, theme, profile, onClose, onSaved }: { visible: boolean; theme: ReturnType<typeof useTheme>; profile: any; onClose: () => void; onSaved: () => void }) {
+function EditProfileSheet({ visible, theme, profile, onClose, onSaved }: { visible: boolean; theme: ReturnType<typeof useTheme>; profile: any; onClose: () => void; onSaved: (updated: any) => void }) {
   const [shopName, setShopName] = useState('');
   const [bio, setBio] = useState('');
   const [coverUri, setCoverUri] = useState<string | null>(null);
@@ -484,34 +484,42 @@ function EditProfileSheet({ visible, theme, profile, onClose, onSaved }: { visib
     setSelectedSpecs((prev) => prev.includes(spec) ? prev.filter((s) => s !== spec) : [...prev, spec]);
   };
 
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      let coverPath = profile?.cover || '';
-      let avatarPath = profile?.avatar || '';
-      if (coverUri) {
-        const uploaded = await ApiService.uploadSingleFile(coverUri);
-        coverPath = uploaded?.path || uploaded?.url || uploaded?.originalFilePath || coverUri;
-      }
-      if (avatarUri) {
-        const uploaded = await ApiService.uploadSingleFile(avatarUri);
-        avatarPath = uploaded?.path || uploaded?.url || uploaded?.originalFilePath || avatarUri;
-      }
-      await ApiService.updateMyProfile({
-        name: shopName.trim(),
-        bio: bio.trim(),
-        categories: selectedSpecs,
-        ...(coverPath ? { coverPic: coverPath.replace("https://berry-stamp-prod.s3.amazonaws.com/","") } : {}),
-        ...(avatarPath ? { profilePic: avatarPath.replace("https://berry-stamp-prod.s3.amazonaws.com/","") } : {}),
-      });
-      onSaved();
-      onClose();
-    } catch (e: any) {
-      Alert.alert('Save failed', e?.response?.data?.responseMessage || e?.message || 'Please try again.');
-    } finally {
-      setSaving(false);
+ const handleSave = async () => {
+  setSaving(true);
+  try {
+    let coverPath = profile?.cover || '';
+    let avatarPath = profile?.avatar || '';
+    if (coverUri) {
+      const uploaded = await ApiService.uploadSingleFile(coverUri);
+      coverPath = uploaded?.path || uploaded?.url || uploaded?.originalFilePath || coverUri;
     }
-  };
+    if (avatarUri) {
+      const uploaded = await ApiService.uploadSingleFile(avatarUri);
+      avatarPath = uploaded?.path || uploaded?.url || uploaded?.originalFilePath || avatarUri;
+    }
+    await ApiService.updateMyProfile({
+      name: shopName.trim(),
+      bio: bio.trim(),
+      categories: selectedSpecs,
+      ...(coverPath ? { coverPic: coverPath.replace("https://berry-stamp-prod.s3.amazonaws.com/", "") } : {}),
+      ...(avatarPath ? { profilePic: avatarPath.replace("https://berry-stamp-prod.s3.amazonaws.com/", "") } : {}),
+    });
+
+    // pass the locally-known new values straight back up
+    onSaved({
+      fullName: shopName.trim(),
+      bio: bio.trim(),
+      categories: selectedSpecs,
+      cover: coverUri || profile?.cover,
+      avatar: avatarUri || profile?.avatar,
+    });
+    onClose();
+  } catch (e: any) {
+    Alert.alert('Save failed', e?.response?.data?.responseMessage || e?.message || 'Please try again.');
+  } finally {
+    setSaving(false);
+  }
+};
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -528,7 +536,7 @@ function EditProfileSheet({ visible, theme, profile, onClose, onSaved }: { visib
             {/* Cover picker */}
             <TouchableOpacity onPress={() => pickImage('cover')} style={{ height: 120, borderRadius: 12, backgroundColor: theme.inputBg, alignItems: 'center', justifyContent: 'center', marginBottom: 16, overflow: 'hidden' }}>
               {coverUri || profile?.cover ? (
-                <Image source={{ uri: coverUri || profile?.cover }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                <Image source={{ uri: coverUri || profile?.cover }} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
               ) : null}
               <View style={{ position: 'absolute', backgroundColor: 'rgba(0,0,0,0.35)', borderRadius: 20, padding: 8 }}>
                 <Ionicons name="camera" size={22} color="#fff" />
@@ -804,7 +812,7 @@ function MoveToCollectionSheet({ visible, theme, designId, fromCollectionId, onC
                 ) : collections.map((col) => (
                   <TouchableOpacity key={String(col.id)} onPress={() => setSelected(col.id)} style={{ width: '48%', borderRadius: 10, marginBottom: 12, borderWidth: 2, borderColor: selected === col.id ? theme.primary : 'transparent', overflow: 'hidden', backgroundColor: theme.inputBg }}>
                     {col.imagePath ? (
-                      <Image source={{ uri: col.imagePath }} style={{ width: '100%', height: 90 }} resizeMode="cover" />
+                      <Image source={{ uri: col.imagePath }} style={{ width: '100%', height: 90 }} resizeMode="contain" />
                     ) : (
                       <View style={{ width: '100%', height: 90, alignItems: 'center', justifyContent: 'center' }}>
                         <Ionicons name="albums-outline" size={28} color={theme.muted} />
@@ -1050,7 +1058,7 @@ function CollectionDetailScreen({ visible, theme, collection, username, readOnly
         <ScrollView showsVerticalScrollIndicator={false}>
           {collection.imagePath ? (
             <View style={{ width: '100%', height: 200, backgroundColor: theme.inputBg, alignItems: 'center', justifyContent: 'center' }}>
-              <Image source={{ uri: collection.imagePath }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+              <Image source={{ uri: collection.imagePath }} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
             </View>
           ) : (
             <View style={{ width: '100%', height: 200, backgroundColor: theme.inputBg, alignItems: 'center', justifyContent: 'center' }}>
@@ -1254,12 +1262,32 @@ export default function MyShopScreen() {
     finally { setInsightLoading(false); }
   };
 
-  const shareResource = useCallback(async (title: string, type: 'design' | 'collection' | 'profile', id?: string | number) => {
-    const resourceUrl = id ? `berrystamp://${type}/${encodeURIComponent(String(id))}` : 'berrystamp://';
+  const shareResource = useCallback(async (
+    title: string,
+    type: 'design' | 'collection' | 'profile',
+    resourceId?: string | number,
+    designerProfileId?: string | number,
+  ) => {
+    // The website's confirmed public route is /designer/{profileId}/shop.
+    // Collections are shown on that shop page with ?tab=Collection; individual
+    // collection/design detail routes have not been confirmed by the website.
+    const profileIdForUrl = type === 'profile' ? resourceId : designerProfileId;
+    const hasProfileId = profileIdForUrl != null && String(profileIdForUrl).trim() !== '';
+    const shopUrl = hasProfileId
+      ? `https://berrystamp.com/designer/${encodeURIComponent(String(profileIdForUrl).trim())}/shop`
+      : 'https://berrystamp.com';
+    const resourceUrl = type === 'collection' && hasProfileId
+      ? `${shopUrl}?tab=Collection`
+      : shopUrl;
+    const resourceDetails = type === 'collection'
+      ? '\nThis link opens the designer shop’s Collection tab.'
+      : type === 'design'
+        ? '\nOpen the shop page to view this design.'
+        : '';
     try {
       await Share.share({
         title,
-        message: `${title}\n${resourceUrl}`,
+        message: `${title}\n${resourceUrl}${resourceDetails}`,
         url: resourceUrl,
       });
     } catch (error: any) {
@@ -1274,16 +1302,18 @@ export default function MyShopScreen() {
       `Check out "${design?.title || design?.name || 'this design'}" on Berrystamp.`,
       'design',
       design?.id,
+      shop?.profile?.profileId,
     );
-  }, [shareResource]);
+  }, [shareResource, shop?.profile?.profileId]);
 
   const handleShareCollection = useCallback((collection: any) => {
     shareResource(
       `Check out "${collection?.name || 'this collection'}" collection on Berrystamp.`,
       'collection',
       collection?.id,
+      shop?.profile?.profileId,
     );
-  }, [shareResource]);
+  }, [shareResource, shop?.profile?.profileId]);
 
   const handleShareProfile = useCallback((shopProfile: any) => {
     shareResource(
@@ -1374,7 +1404,7 @@ export default function MyShopScreen() {
         {/* ── Cover ── */}
         <View style={{ height: 180, position: 'relative' }}>
           {profile?.cover ? (
-            <Image source={{ uri: profile.cover }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+            <Image source={{ uri: profile.cover }} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
           ) : (
             <View style={{ width: '100%', height: '100%', backgroundColor: theme.primary + '44' }} />
           )}
@@ -1590,7 +1620,13 @@ export default function MyShopScreen() {
         theme={theme}
         profile={profile}
         onClose={() => setShowEditProfile(false)}
-        onSaved={() => loadShop()}
+       onSaved={(updated) => {
+    setShop((prev: any) => ({
+      ...prev,
+      profile: { ...prev.profile, ...updated },
+    }));
+    loadShop(true); // background sync, doesn't block UI
+  }}
       />
 
       <NewCollectionSheet

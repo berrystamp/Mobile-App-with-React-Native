@@ -1,8 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
+    Dimensions,
     Image,
     Modal,
     Platform,
@@ -24,9 +25,11 @@ import { formatNaira } from "@/lib/currency";
 import { normalizeDesign, normalizeDesignListResponse } from "@/lib/designs";
 import { upsertLocalConversation } from "@/lib/localConversations";
 import {
+  addRecentDesign,
     getCartItems,
     getRecentDesignIds,
     saveCartItems,
+
 } from "@/lib/localStorage";
 import {
     getPrintPreferences,
@@ -68,6 +71,10 @@ type PreferenceErrors = {
   hasOwnItem?: string;
   pickupAddress?: string;
 };
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const CARD_WIDTH = (SCREEN_WIDTH - 48) / 2;
+const GALLERY_HEIGHT = SCREEN_WIDTH * 1.25; 
 
 export default function CartScreen() {
   const router = useRouter();
@@ -240,22 +247,23 @@ export default function CartScreen() {
 
   // Keep the local cache in sync, including when the last item is removed.
   useEffect(() => {
-    saveCartItems(cartItems);
-  }, [cartItems]);
+    if (!isLoading) void saveCartItems(cartItems);
+  }, [cartItems, isLoading]);
 
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
     if (!isLoading && openPrintPrefs === "1" && cartItems.length > 0) {
-      setPrefModalVisible(true);
+      setShowPrintModal(true);
+      router.setParams({ openPrintPrefs: undefined });
     }
-  }, [cartItems.length, isLoading, openPrintPrefs]);
+  }, [cartItems.length, isLoading, openPrintPrefs, router]));
 
   const designCost = useMemo(
     () =>
       cartItems.reduce(
-        (sum, item) => (item.checked ? sum + item.price * item.quantity : sum),
+        (sum, item) => (item.checked && (cartTab === 'designated' ? Boolean(item.printerId) : !item.printerId) ? sum + item.price * item.quantity : sum),
         0,
       ),
-    [cartItems],
+    [cartItems, cartTab],
   );
 
   const selectedItems = useMemo(
@@ -387,7 +395,6 @@ export default function CartScreen() {
       pathname: "/(tabs)/select-printer",
       params: {
         cartItems: JSON.stringify(printCartItems),
-        estimatedAmount: result.estimatedAmount,
         dateOfDelivery: result.dateOfDelivery,
         deliveryAddress: JSON.stringify(result.deliveryAddress),
         hasOwnItem: String(result.hasOwnItem),
@@ -533,17 +540,34 @@ export default function CartScreen() {
   }
 
   return (
-    // ✅ Replaced main container View with SafeAreaView
-    <SafeAreaView className="flex-1 bg-[#F8F8FB] dark:bg-[#121212]">
-      <View className="flex-row items-center justify-between border-b border-[#E8E8EC] bg-white px-4 pt-14 pb-4 dark:border-[#2C2C2E] dark:bg-[#1C1C1E]">
-        <Text className="text-lg font-bold text-[#1C1C1E] dark:text-white">
-          Shopping Cart
-        </Text>
-        <Text className="text-[13px] text-[#828282]">
-          {visibleCartItems.length} item
-          {visibleCartItems.length !== 1 ? "s" : ""}
-        </Text>
-      </View>
+    <View className="flex-1 bg-gray-50 dark:bg-[#121212]">
+      <ScrollView
+        className="flex-1 pt-12"
+        contentContainerStyle={{ paddingBottom: 180 }}
+        showsVerticalScrollIndicator={false}
+      >
+        <View className="flex-row items-center justify-between px-6 py-4">
+          <TouchableOpacity onPress={() => router.back()}>
+            <Ionicons
+              name="arrow-back"
+              size={24}
+              color={isDark ? "#FFFFFF" : "#000000"}
+            />
+          </TouchableOpacity>
+          <Text className="text-xl font-semibold text-[#333333] dark:text-white">
+           Shopping Cart
+          </Text>
+          <TouchableOpacity onPress={async () => {
+            try {
+              await ApiService.clearCart();
+              setCartItems([]);
+            } catch {
+              showAlert({ type: "error", title: "Unable to clear cart", message: "Please try again." });
+            }
+          }}>
+            <Text className="text-lg font-semibold text-[#EB5757]">Clear</Text>
+          </TouchableOpacity>
+        </View>
 
       {cartItems.length > 0 && (
         <View className="flex-row border-b border-[#E8E8EC] bg-white px-4 pt-2 dark:border-[#2C2C2E] dark:bg-[#1C1C1E]">
@@ -569,8 +593,7 @@ export default function CartScreen() {
       )}
 
       {cartItems.length === 0 ? (
-        <ScrollView
-          contentContainerStyle={{ flexGrow: 1 }}
+        <View
           className="bg-white dark:bg-[#121212]"
         >
           <View className="flex-1 items-center justify-center py-12">
@@ -594,28 +617,24 @@ export default function CartScreen() {
               </Text>
             </TouchableOpacity>
           </View>
-        </ScrollView>
-      ) : (
-        <>
-          <ScrollView
-            className="flex-1"
-            contentContainerStyle={{ paddingBottom: 20 }}
-          >
-            <View className="bg-white p-4 dark:bg-[#1C1C1E]">
-              {visibleCartItems.map((item) => (
-                <View
-                  key={item.id}
-                  className="mb-4 overflow-hidden rounded-lg border border-[#E8E8EC] bg-white dark:border-[#2C2C2E] dark:bg-[#121212]"
-                >
-                  <View className="flex-row gap-3 p-3">
-                    <TouchableOpacity
-                      onPress={() => handleCheckboxChange(item.id)}
-                      className={`h-5 w-5 items-center justify-center rounded border-2 ${item.checked ? "border-[#3B2D85] bg-[#3B2D85]" : "border-[#D0D0D0]"}`}
-                    >
-                      {item.checked && (
-                        <Ionicons name="checkmark" size={16} color="white" />
-                      )}
-                    </TouchableOpacity>
+        </View>
+        ) : (
+          <>
+            {visibleCartItems.map((item) => (
+              <View key={item.id} className="items-center">
+                <View className="my-2 flex-row w-[92%] rounded-xl  bg-white p-3.5  dark:border-gray-800 dark:bg-[#1E1E1E]">
+                  <TouchableOpacity
+                    onPress={() => handleCheckboxChange(item.id)}
+                    className="my-auto mr-3 py-1"
+                  >
+                    {item.checked ? (
+                      <View className="h-6 w-6 items-center justify-center rounded-md border border-[#3B2D85] bg-[#3B2D85]">
+                        <Ionicons name="checkmark" size={14} color="white" />
+                      </View>
+                    ) : (
+                      <View className="h-6 w-6 rounded-md border-2 border-[#BDBDBD]" />
+                    )}
+                  </TouchableOpacity>
 
                     <Image
                       source={item.imageSource}
@@ -680,10 +699,83 @@ export default function CartScreen() {
                   </View>
                 </View>
               ))}
-            </View>
-          </ScrollView>
 
-          {/* ✅ Added dynamic paddingBottom based on the device insets and average bottom tab bar height (65px) */}
+            {recentDesigns.length ? (
+              <View className="mb-4 px-6">
+                <Text className="mb-4 text-lg font-bold text-[#333333] dark:text-white">
+                  Explore recent designs
+                </Text>
+                <View className="flex-row flex-wrap justify-between">
+                  {recentDesigns.map((design) => {
+                    const imageUri = design.imagePath?.startsWith("http")
+                      ? design.imagePath
+                      : design.imagePath
+                        ? `https://backend-prod-api.berrystamp.com/${design.imagePath}`
+                        : "";
+                    const artistName =
+                      `${design.profile.firstName} ${design.profile.lastName}`.trim() ||
+                      design.profile.username;
+                    const mockPrices = design.mocks
+                      .map((mock) => mock.price)
+                      .filter((price) => price > 0);
+                    const lowestPrice =
+                      mockPrices.length > 0
+                        ? Math.min(...mockPrices)
+                        : design.amount || 0;
+
+                    return (
+                      <TouchableOpacity
+                        key={design.id}
+                         style={{ width: CARD_WIDTH }} className="mb-6 bg-transparent"
+                        onPress={async () => {
+                          await addRecentDesign(design.id);
+                          router.push({
+                            pathname: "/products",
+                            params: { designId: String(design.id) },
+                          });
+                        }}
+                      >
+                        <View className="mb-2 h-32
+                         items-center justify-center overflow-hidden rounded-lg bg-[#F8F9FA] dark:bg-gray-800">
+                          {imageUri ? (
+          <Image source={{ uri: imageUri }} className="h-full w-full" />
+        ) : (
+          <View className="flex-1 items-center justify-center">
+            <Ionicons name="image-outline" size={28} color={isDark ? '#555' : '#CCC'} />
+          </View>
+        )}
+                        </View>
+                        <TouchableOpacity           className="absolute right-[10px] top-[10px] h-6 w-6 items-center justify-center rounded-full bg-[#3E2F8A] dark:bg-[#3E2F8A]"
+        >
+          <Ionicons
+            name={design.liked ? 'heart' : 'heart-outline'}
+            size={16}
+            color={design.liked ? '#FF3B30' : (isDark ? '#FFF' : '#FFF')}
+          />
+                        </TouchableOpacity>
+                        <Text
+                          className="mb-1 text-sm font-semibold text-[#333333] dark:text-white"
+                          numberOfLines={1}
+                        >
+                          {design.title}
+                        </Text>
+                        <Text className="mb-2 text-[10px] text-[#828282] dark:text-gray-400">
+                          By {artistName}
+                        </Text>
+                        <Text className="text-sm font-bold text-[#333333] dark:text-white">
+                          {formatNaira(lowestPrice)}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            ) : null}
+          </>
+        )}
+      </ScrollView>
+
+      {cartItems.length > 0 && (
           <View
             className="border-t border-[#E8E8EC] bg-white px-4 pt-4 dark:border-[#2C2C2E] dark:bg-[#1C1C1E]"
             style={{ paddingBottom: Math.max(insets.bottom, 16) + 65 }}
@@ -709,7 +801,6 @@ export default function CartScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </>
       )}
 
       <PrintPreferencesModal
@@ -787,7 +878,7 @@ export default function CartScreen() {
         onClose={() => setShowPrintModal(false)}
         onContinue={handlePrintPreferencesContinue}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 

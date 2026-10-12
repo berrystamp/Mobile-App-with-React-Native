@@ -61,8 +61,15 @@ export const normalizeManageOrderStatus = (value: unknown): ManageOrderStatus =>
 
 export const normalizeManageOrder = (input: any, index = 0): ManageOrderItem => {
   const item = input?.responseBody || input?.data || input || {};
-  const orderNumber = item.orderNumber || item.code || item.trackingNumber || item.reference || item.orderCode;
-  const title = item.title || item.name || item.orderTitle || item.type || item.orderType || 'Order';
+  const orderNumber = item.ref || item.orderNumber || item.code || item.trackingNumber || item.reference || item.orderCode;
+  const title = item.title || item.name || item.orderTitle || item.orderRequest?.customDesignRequest?.theme || item.orderRequest?.printRequest?.mockName || item.orderType || item.type || 'Order';
+  const request = item.orderRequest || item;
+  const provider = request.providerProfile || item.printer || item.designer || {};
+  const printRequest = request.printRequest || {};
+  const customRequest = request.customDesignRequest || {};
+  const orderStatus = item.orderStatus || item.status;
+  const customer = request.customerProfile || item.customer || {};
+  const providerName = provider.name || provider.userName || provider.username || item.printerName || item.designerName;
   const designerName =
     item.designerName ||
     item.shopName ||
@@ -78,28 +85,34 @@ export const normalizeManageOrder = (input: any, index = 0): ManageOrderItem => 
     ...toList(item.printItems),
     ...toList(item.items),
     ...toList(item.specifications?.itemsToPrint),
+    ...(printRequest.mockName ? [printRequest.mockName] : []),
+    ...toList(printRequest.mockTypes),
   ];
 
   return {
     id: String(item.id || orderNumber || index + 1),
     code: String(orderNumber || item.id || `ORDER-${index + 1}`).toUpperCase(),
     title,
-    shopName: designerName,
-    amount: Number(item.amount || item.totalAmount || item.price || item.total || 0),
-    status: normalizeManageOrderStatus(item.status),
-    description: item.description || item.note || item.summary || 'No order description available.',
+    shopName: providerName || designerName,
+    providerName,
+    providerRole: provider.profileType || (item.printer ? 'PRINTER' : undefined),
+    customerName: customer.name || customer.userName || item.customerName,
+    amount: Number(item.totalAmount ?? item.amount ?? item.price ?? item.total ?? 0),
+    status: normalizeManageOrderStatus(orderStatus),
+    description: item.description || request.description || customRequest.purpose || item.note || item.summary || 'No order description available.',
     designer: designerName,
-    updatedAt: toDisplayDate(item.updatedAt || item.lastModifiedDate || item.modifiedAt),
-    createdAt: toDisplayDate(item.createdAt || item.createdDate),
-    dueOn: toDisplayDate(item.dueOn || item.deliveryDate || item.dueDate),
+    updatedAt: toDisplayDate(item.updatedAt || item.lastModifiedDate || item.modifiedAt || item.deliveryDate),
+    createdAt: toDisplayDate(item.createdAt || item.createdDate || request.createdAt || request.dateCreated),
+    dueOn: toDisplayDate(item.deliveryDate || request.dateOfDelivery || printRequest.dateOfDelivery || item.dueOn || item.dueDate),
     purpose:
       item.purpose ||
+      customRequest.purpose ||
       item.designPurpose ||
       item.specifications?.purpose ||
       item.specifications?.designPurpose ||
       'Not specified',
     itemsToPrint: printItems.length ? Array.from(new Set(printItems)) : ['Not specified'],
-    uploadedDesigns: toImageList(item.uploadedDesigns || item.designs || item.attachments || item.files || item.images),
+    uploadedDesigns: toImageList(item.uploadedDesigns || item.designs || item.attachments || item.files || item.images || [printRequest.designCoverImage, printRequest.mockItemUrl, printRequest.designFrontImageUrl, customRequest.image].filter(Boolean)),
   };
 };
 

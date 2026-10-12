@@ -1,3 +1,4 @@
+import { transactionDirection } from '@/lib/wallet';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useState, useMemo } from 'react';
@@ -76,12 +77,12 @@ export default function WalletScreen() {
   const ledgerBalance = Number(wallet?.ledgerBalance ?? wallet?.availableBalance ?? balance);
 
   const totalCredits = useMemo(
-    () => history.filter((i) => String(i.transactionType).toUpperCase() === 'CREDIT')
+    () => history.filter((i) => transactionDirection(i) === 'CREDIT')
       .reduce((s, i) => s + Number(i.amount || 0), 0),
     [history],
   );
   const totalDebits = useMemo(
-    () => history.filter((i) => String(i.transactionType).toUpperCase() === 'DEBIT')
+    () => history.filter((i) => transactionDirection(i) === 'DEBIT')
       .reduce((s, i) => s + Math.abs(Number(i.amount || 0)), 0),
     [history],
   );
@@ -89,7 +90,7 @@ export default function WalletScreen() {
   const filtered = useMemo(() =>
     activeFilter === 'All'
       ? history
-      : history.filter((i) => String(i.transactionType).toUpperCase() === activeFilter),
+      : history.filter((i) => transactionDirection(i) === activeFilter),
     [history, activeFilter],
   );
 
@@ -188,6 +189,16 @@ export default function WalletScreen() {
           </View>
         </View>
 
+        <TouchableOpacity
+          onPress={() =>
+            router.push({ pathname: '/wallet', params: { openWithdraw: '1' } })
+          }
+          style={{ backgroundColor: primary, borderRadius: 14, paddingVertical: 14, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: 14 }}
+        >
+          <Ionicons name="arrow-up-circle-outline" size={18} color="#FFFFFF" />
+          <Text style={{ fontSize: 14, fontWeight: '600', color: '#FFFFFF' }}>Withdraw</Text>
+        </TouchableOpacity>
+
         {/* Quick actions */}
         <View style={{ flexDirection: 'row', gap: 10, marginBottom: 20 }}>
           <TouchableOpacity
@@ -243,7 +254,7 @@ export default function WalletScreen() {
         ) : (
           <View style={{ backgroundColor: surface, borderRadius: 16, overflow: 'hidden' }}>
             {filtered.map((item, index) => {
-              const isCredit = String(item.type).toUpperCase() === 'CREDIT';
+              const isCredit = transactionDirection(item) === 'CREDIT';
               const amount = Number(item.amount || 0);
               const isLast = index === filtered.length - 1;
               return (
@@ -282,7 +293,7 @@ export default function WalletScreen() {
                   {/* Amount */}
                   <View style={{ alignItems: 'flex-end' }}>
                     <Text style={{ fontSize: 14, fontWeight: '700', color: isCredit ? '#22B573' : '#FF5B5B' }}>
-                      {isCredit ? '+' : '-'}{formatNaira(Math.abs(amount))}
+                      {showBalance ? `${isCredit ? '+' : '-'}${formatNaira(Math.abs(amount))}` : '******'}
                     </Text>
                     <View style={{
                       marginTop: 3, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6,

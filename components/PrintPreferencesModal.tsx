@@ -328,6 +328,7 @@ export default function PrintPreferencesModal({ visible, onClose, onContinue }: 
     if (!validate()) return;
 
     await savePrintPreferences({
+      estimatedAmount: "",
       deliveryDate,
       deliveryAddress: deliveryLocation!.name,
       pickupAddress: pickupLocation?.name ?? "",

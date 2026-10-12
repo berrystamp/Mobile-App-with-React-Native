@@ -8,6 +8,8 @@ import { MessageEmptyState } from '@/components/messages/MessageEmptyState';
 import type { ConversationSummaryDto } from '@/lib/messages';
 import { getMergedConversations } from '@/lib/messages';
 import ApiService from '@/services/apiClient';
+import { getAccountProfile } from '@/lib/accountProfile';
+import { useAuthStore } from '@/store/authStore';
 
 const reportReasons = [
   { id: 'not-trustworthy', label: 'Not trustworthy' },
@@ -34,11 +36,12 @@ export default function MessagesScreen() {
   const fetchConversations = useCallback(async () => {
     try {
       setLoading(true);
-      const currentUser = await ApiService.getCurrentUser().catch(() => null);
-      const myId = Number((currentUser as any)?.id || (currentUser as any)?.profileId || 0);
+      const profileResponse = await ApiService.getMyProfile();
+      const currentUser = profileResponse?.responseBody || profileResponse;
+      const myId = Number(getAccountProfile(currentUser, useAuthStore.getState().role)?.id || 0);
       setCurrentUserId(myId);
       const response = await ApiService.getConversations(0, 60);
-      const all = await getMergedConversations(response);
+      const all = await getMergedConversations(response, myId || undefined);
       // Filter out self-conversations (user chatting with their own other account)
       const filtered = myId ? all.filter((t) => Number(t.participantId) !== myId) : all;
       setThreads(filtered);

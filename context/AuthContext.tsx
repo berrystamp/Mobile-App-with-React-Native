@@ -37,9 +37,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshUser = async () => {
     try {
       const userData = await AsyncStorage.getItem('userData');
-      if (userData) {
+      const token = await AsyncStorage.getItem('userToken');
+      if (token && userData) {
         setUser(JSON.parse(userData));
         setIsAuthenticated(true);
+      } else {
+        setUser(null);
+        setIsAuthenticated(false);
       }
     } catch (error) {
       console.error('Failed to refresh user state', error);
@@ -93,11 +97,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     profileType: string = 'CUSTOMER',
   ): Promise<{ success: boolean; error?: string }> => {
     try {
-      const result = await ApiService.login(email, password, 'CUSTOMER');
+      const result = await ApiService.login(email, password, profileType);
 
       if (result.requestSuccessful && result.responseBody?.token) {
         const loggedInUser = (await ApiService.getCurrentUser()) || result.responseBody.user;
-        const normalizedAccountType = toAccountType('CUSTOMER');
+        const normalizedAccountType = toAccountType(profileType);
 
         setUser(loggedInUser);
         setIsAuthenticated(true);

@@ -1,3 +1,5 @@
+import { getAccountProfile } from '@/lib/accountProfile';
+import { toProfileType, useAuthStore } from '@/store/authStore';
 import { useAppAlert } from "@/components/common/AppAlert";
 import { AvatarBadge } from "@/components/messages/AvatarBadge";
 import { useFileUpload } from "@/hooks/useFileUpload";
@@ -189,7 +191,7 @@ const normalizeOrderDetail = (raw: any) => {
     itemProvidedByCustomer: body.itemProvidedByCustomer || false,
     ref: body.ref || "",
     orderRequestId: req?.id || body?.orderRequestId,
-    orderType: req?.orderType || "PRINT",
+    orderType: String(req?.orderType || body.orderType || (req?.printRequest ? "PRINT" : req?.customDesignRequest ? "DESIGN" : "")).toUpperCase(),
     budgetAmount: req?.budgetAmount || 0,
     dateOfDelivery: req?.dateOfDelivery || "",
     
@@ -378,24 +380,16 @@ export default function ChatScreen() {
     [],
   );
 
-  const currentProfileType = useMemo(() => {
-    const fromConversation = String(conversation.participantProfileType || '').toUpperCase();
-    if (fromConversation === 'PRINTER') return 'PRINTER';
-    if (fromConversation === 'DESIGNER') return 'DESIGNER';
-    if (fromConversation === 'CUSTOMER') return 'CUSTOMER';
-
-    const routeRole = String(participantRole || '').toUpperCase();
-    if (routeRole.includes('PRINTER')) return 'PRINTER';
-    if (routeRole.includes('DESIGNER')) return 'DESIGNER';
-    if (routeRole.includes('CUSTOMER')) return 'CUSTOMER';
-
-    return "";
-  }, [conversation.participantProfileType, participantRole]);
+  const currentProfileType = useAuthStore((state) => toProfileType(state.role));
 
   const isDesigner = currentProfileType === "DESIGNER";
   const isPrinter = currentProfileType === "PRINTER";
   const isCustomer = currentProfileType === "CUSTOMER";
   const isProvider = isDesigner || isPrinter;
+  const isPrintDetail = (detail: any) => {
+    if (detail?.orderType) return String(detail.orderType).toUpperCase().includes('PRINT');
+    return detail?.providerProfile?.profileType === 'PRINTER' || isPrinter;
+  };
 
   const displayMessages = useMemo(() => {
     const seenOrderCards = new Set<string>();
@@ -416,7 +410,8 @@ export default function ChatScreen() {
     const load = async () => {
       try {
         setIsLoading(true);
-        const me = await ApiService.getCurrentUser();
+        const profileResponse = await ApiService.getMyProfile();
+        const me = profileResponse?.responseBody || profileResponse;
 
         if (conversationId) {
           const [convoRes, messagesRes] = await Promise.all([
@@ -424,13 +419,13 @@ export default function ChatScreen() {
             ApiService.getConversationMessages(String(conversationId), 0, 100),
           ]);
 
-          const allConversations = normalizeConversationsResponse(convoRes);
+          const allConversations = normalizeConversationsResponse(convoRes, getAccountProfile(me, useAuthStore.getState().role)?.id);
           const selected = allConversations.find(
             (item) => item.id === String(conversationId),
           );
           if (selected) setConversation((c) => ({ ...c, ...selected }));
 
-          const myId = me?.id || me?.userId || me?.profileId;
+          const myId = getAccountProfile(me, useAuthStore.getState().role)?.id;
           const normalized = normalizeChatMessages(messagesRes, myId, selected);
           const readMessages = markUnreadAsRead(normalized);
 
@@ -499,12 +494,13 @@ export default function ChatScreen() {
     let cancelled = false;
     const refreshMessages = async () => {
       try {
-        const [me, messagesRes] = await Promise.all([
-          ApiService.getCurrentUser(),
+        const [profileResponse, messagesRes] = await Promise.all([
+          ApiService.getMyProfile(),
           ApiService.getConversationMessages(String(conversationId), 0, 100),
         ]);
         if (cancelled) return;
-        const myId = me?.id || me?.userId || me?.profileId;
+        const me = profileResponse?.responseBody || profileResponse;
+        const myId = getAccountProfile(me, useAuthStore.getState().role)?.id;
         const normalized = normalizeChatMessages(messagesRes, myId, conversation);
         
         const missingOrders = normalized.filter((m) => {
@@ -810,7 +806,7 @@ export default function ChatScreen() {
   const renderOrderCard = (orderDetail: any) => {
     if (!orderDetail) return null;
     const imageUrl = orderDetail.coverImageUrl;
-    const isPrintOrder = orderDetail.orderType === "PRINT";
+    const isPrintOrder = isPrintDetail(orderDetail);
     const labelText = isPrintOrder ? "Print order request" : "Custom order request";
     const fallbackTitle = isPrintOrder ? (orderDetail.mockName || "Print Order") : "Custom Order";
 
@@ -866,7 +862,7 @@ export default function ChatScreen() {
     const hasOffer = detail.hasOffer || Boolean(detail.id && detail.title);
     const canRespondToOffer = isCustomer && hasOffer && isReviewStatus(detail.orderStatus);
     const isUpdatingThisOrder = updatingOrderId === String(detail.id);
-    const isPrintOrder = detail.orderType === "PRINT";
+    const isPrintOrder = isPrintDetail(detail);
     const fallbackTitle = isPrintOrder ? (detail.mockName || "Print Order") : "Custom Order";
 
     return (
@@ -948,7 +944,7 @@ export default function ChatScreen() {
         ) : (
           <View className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 mt-1">
             <Text className="text-center text-[13px] text-slate-500 dark:text-slate-400 mb-3">
-              {isProvider ? "You received an order request" : "Waiting for offer from designer"}
+              {isProvider ? "You received an order request" : (isPrintOrder ? "Waiting for offer from printer" : "Waiting for offer from designer")}
             </Text>
           </View>
         )}
@@ -1182,7 +1178,7 @@ export default function ChatScreen() {
                 </View>
               )}
               
-              {selectedOrderRequest?.orderType === "PRINT" ? (
+              {isPrintDetail(selectedOrderRequest) ? (
                 <>
                   {selectedOrderRequest?.mockName && (
                     <View className="mb-4">
@@ -1300,7 +1296,7 @@ export default function ChatScreen() {
                 <>
                   <View className="mb-4">
                     <Text className="text-[13px] font-bold text-slate-900 dark:text-slate-100 mb-1">Order title</Text>
-                    <Text className="text-[14px] text-slate-600 dark:text-slate-300">{selectedOrderDetail.title || selectedOrderDetail.purpose || (selectedOrderDetail.orderType === "PRINT" ? "Print Order" : "Custom Order")}</Text>
+                    <Text className="text-[14px] text-slate-600 dark:text-slate-300">{selectedOrderDetail.title || selectedOrderDetail.purpose || (isPrintDetail(selectedOrderDetail) ? "Print Order" : "Custom Order")}</Text>
                   </View>
                   <View className="mb-4">
                     <Text className="text-[13px] font-bold text-slate-900 dark:text-slate-100 mb-1">Brief description of order agreed specifications</Text>

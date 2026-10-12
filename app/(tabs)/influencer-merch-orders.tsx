@@ -111,7 +111,7 @@ export default function InfluencerMerchOrdersScreen() {
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity
-            onPress={() => router.back()}
+            onPress={() => router.canGoBack() ? router.back() : router.replace("/manage-order")}
             style={styles.backButton}
           >
             <Ionicons name="arrow-back" size={22} color={theme.text} />

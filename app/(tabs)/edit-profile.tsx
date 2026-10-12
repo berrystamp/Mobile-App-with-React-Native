@@ -1,3 +1,5 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { nextShopLocationUpdate } from '@/lib/shopLocation';
 import { useAppAlert } from "@/components/common/AppAlert";
 import { useAuth } from "@/context/AuthContext";
 import { useFileUpload } from "@/hooks/useFileUpload";
@@ -266,6 +268,8 @@ export default function EditProfileScreen() {
   const [locationSuggestions, setLocationSuggestions] = useState<GeocodedAddress[]>([]);
   const [locationSearching, setLocationSearching] = useState(false);
   const [savingLocation, setSavingLocation] = useState(false);
+  const [nextLocationUpdate, setNextLocationUpdate] = useState<Date | null>(null);
+  const locationStorageKey = 'shop-location-updated:' + user?.id + ':' + role;
   const locationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isCustomer = role === "CUSTOMER";
@@ -295,6 +299,11 @@ export default function EditProfileScreen() {
           : role === "PRINTER" ? merged.printerProfile
             : merged.customerProfile;
 
+      const savedUpdate = await AsyncStorage.getItem(locationStorageKey);
+      const lastUpdate = currentProfile?.shopLocationUpdatedAt || currentProfile?.locationUpdatedAt || savedUpdate;
+      const nextUpdate = nextShopLocationUpdate(lastUpdate);
+      setNextLocationUpdate(nextUpdate && nextUpdate.getTime() > Date.now() ? nextUpdate : null);
+
       const profilePic = currentProfile?.profileImage?.url || currentProfile?.profilePic || normalized.profilePicturePath || "";
       const coverPic = currentProfile?.coverPic || currentProfile?.coverPhotoPath || currentProfile?.coverImage?.url || normalized.coverPic || "";
 
@@ -317,7 +326,7 @@ export default function EditProfileScreen() {
     } finally {
       setLoading(false);
     }
-  }, [role, user]);
+  }, [role, user, locationStorageKey]);
 
   useFocusEffect(useCallback(() => { loadProfile(); }, [loadProfile]));
 
@@ -391,7 +400,12 @@ export default function EditProfileScreen() {
     }, 400);
   };
 
-  const handleSelectLocation = async (address: GeocodedAddress) => {
+  const handleSelectLocation = useCallback(async (address: GeocodedAddress) => {
+    if (savingLocation) return;
+    if (nextLocationUpdate && nextLocationUpdate.getTime() > Date.now()) {
+      showAlert({ type: 'warning', title: 'Location update unavailable', message: 'You can update your shop location again on ' + nextLocationUpdate.toLocaleDateString() + '.' });
+      return;
+    }
     setLocationSearch(address.name);
     setLocationSuggestions([]);
     setSavingLocation(true);
@@ -401,6 +415,9 @@ export default function EditProfileScreen() {
         longitude: address.longitude,
         address: address.name,
       });
+      const updatedAt = new Date().toISOString();
+      await AsyncStorage.setItem(locationStorageKey, updatedAt);
+      setNextLocationUpdate(nextShopLocationUpdate(updatedAt));
       showAlert({ type: 'success', title: 'Location updated', message: 'Your shop location has been updated successfully.' });
       setShowLocationModal(false);
     } catch (err: any) {
@@ -408,7 +425,7 @@ export default function EditProfileScreen() {
     } finally {
       setSavingLocation(false);
     }
-  };
+  }, [savingLocation, nextLocationUpdate, locationStorageKey, showAlert]);
 
   if (loading) {
     return <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: bg }}><ActivityIndicator size="large" color={primary} /></View>;
@@ -421,10 +438,10 @@ export default function EditProfileScreen() {
         {/* Cover */}
         <View style={[styles.coverWrap]}>
           {coverUri
-            ? <Image source={{ uri: coverUri }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
-            : <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "#1A1A2E" }]} />
+            ? <Image source={{ uri: coverUri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+            : <View style={[StyleSheet.absoluteFill, { backgroundColor: "#1A1A2E" }]} />
           }
-          <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "rgba(0,0,0,0.38)" }]} />
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(0,0,0,0.38)" }]} />
           <View style={[styles.coverHeader, { paddingTop: insets.top + 12 }]}>
             <TouchableOpacity onPress={() => router.back()} style={styles.coverBtn}>
               <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
@@ -642,7 +659,10 @@ export default function EditProfileScreen() {
 
             <View style={{ padding: 20 }}>
               <Text style={{ fontSize: 14, color: textMuted, marginBottom: 12, lineHeight: 20 }}>
-                Search for your shop's address so customers nearby can find you.
+                Search for your shop&apos;s address so customers nearby can find you.
+                {'\n'}Shop location can be updated once every two months.
+                {nextLocationUpdate
+                  ? '\nNext update: ' + nextLocationUpdate.toLocaleDateString() : ''}
               </Text>
               <View style={{ flexDirection: "row", alignItems: "center", borderWidth: 1, borderRadius: 10, borderColor: inputBorder, backgroundColor: surface, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 8 }}>
                 <Ionicons name="search-outline" size={18} color={textMuted} style={{ marginRight: 8 }} />
