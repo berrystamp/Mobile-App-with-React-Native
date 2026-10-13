@@ -75,7 +75,7 @@ export function ConversationRow({ conversation, onPress, onLongPress }: Conversa
             </Text>
           </View>
           
-          {conversation.unreadCount > 0 ? (
+          {conversation.hasUnreadMessages && conversation.unreadCount > 0 ? (
             <View className="min-w-[22px] h-[22px] rounded-full bg-[#4A3298] items-center justify-center px-1.5">
               <Text className="text-white text-[12px] font-bold">
                 {conversation.unreadCount}

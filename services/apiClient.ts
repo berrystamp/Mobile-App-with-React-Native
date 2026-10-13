@@ -960,10 +960,10 @@ class ApiService {
     return response.data;
   }
 
-  async getConversationMessages(conversationId: string, page: number = 0, size: number = 100) {
+  async getConversationMessages(conversationId: string, page: number = 0, size: number = 100, sort: string = 'createdAt,asc') {
     const profileType = getProfileType();
     const response = await api.get(`/conversations/${conversationId}/messages`, {
-      params: { page, size, sort: 'createdAt,asc' },
+      params: { page, size, sort },
       headers: { profileType },
     });
 
@@ -1155,14 +1155,26 @@ class ApiService {
 
   async markMessageAsRead(messageId: string) {
     const profileType = getProfileType();
-    const response = await api.patch(
-      `/messages/send/${messageId}/read`,
-      {
-        headers: { profileType },
-      },
-    );
-
-    return response.data;
+    const path = `/messages/${encodeURIComponent(messageId)}/read`;
+    console.log('[ChatRead] PATCH started', { path, messageId, profileType });
+    try {
+      const response = await api.patch(path, {}, { headers: { profileType } });
+      console.log('[ChatRead] PATCH succeeded', {
+        path, messageId,
+        httpStatus: response.status,
+        requestSuccessful: response.data?.requestSuccessful,
+        responseMessage: response.data?.responseMessage,
+      });
+      return response.data;
+    } catch (error) {
+      const failure = error as { response?: { status?: number; data?: { responseMessage?: string; message?: string } } };
+      console.warn('[ChatRead] PATCH failed', {
+        path, messageId,
+        httpStatus: failure.response?.status,
+        responseMessage: failure.response?.data?.responseMessage || failure.response?.data?.message,
+      });
+      throw error;
+    }
   }
 
   async deleteConversation(conversationId: string) {

@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Modal, Pressable, SafeAreaView, Text, TextInput, TouchableOpacity, View, useColorScheme } from 'react-native';
 
 import { ConversationRow } from '@/components/messages/ConversationRow';
@@ -10,6 +10,7 @@ import { getMergedConversations } from '@/lib/messages';
 import ApiService from '@/services/apiClient';
 import { getAccountProfile } from '@/lib/accountProfile';
 import { useAuthStore } from '@/store/authStore';
+import { useConversationStore } from '@/store/conversationStore';
 
 const reportReasons = [
   { id: 'not-trustworthy', label: 'Not trustworthy' },
@@ -27,11 +28,21 @@ export default function MessagesScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+  const refreshedResponse = useConversationStore((state) => state.response);
   const [selectedConversation, setSelectedConversation] = useState<ConversationSummaryDto | null>(null);
   const [showActions, setShowActions] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showReportReasons, setShowReportReasons] = useState(false);
   const [showReportSuccess, setShowReportSuccess] = useState(false);
+
+  useEffect(() => {
+    if (!refreshedResponse || !currentUserId) return;
+    let cancelled = false;
+    getMergedConversations(refreshedResponse, currentUserId).then((all) => {
+      if (!cancelled) setThreads(all.filter((thread) => Number(thread.participantId) !== currentUserId));
+    });
+    return () => { cancelled = true; };
+  }, [refreshedResponse, currentUserId]);
 
   const fetchConversations = useCallback(async () => {
     try {
@@ -44,6 +55,11 @@ export default function MessagesScreen() {
       const all = await getMergedConversations(response, myId || undefined);
       // Filter out self-conversations (user chatting with their own other account)
       const filtered = myId ? all.filter((t) => Number(t.participantId) !== myId) : all;
+      console.log('[ChatRead] Messages screen backend unread status', filtered.map((thread) => ({
+        conversationId: thread.id,
+        hasUnreadMessages: thread.raw?.hasUnreadMessages,
+        unreadMessageCount: thread.raw?.unreadMessageCount,
+      })));
       setThreads(filtered);
     } catch {
       setThreads(await getMergedConversations([]));
