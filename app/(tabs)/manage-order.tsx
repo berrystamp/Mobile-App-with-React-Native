@@ -254,7 +254,7 @@ export default function ManageOrderScreen() {
         { 
           backgroundColor: theme.surface, 
           borderTopColor: theme.border,
-          marginBottom: insets.bottom + 80 
+          paddingBottom: insets.bottom,
         }
       ]}>
         {/* 3. Changed ScrollView to a standard View */}

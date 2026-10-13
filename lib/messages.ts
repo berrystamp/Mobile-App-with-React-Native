@@ -68,6 +68,8 @@ export interface BackendParticipantProfile {
 }
 
 export interface BackendConversationMessage {
+  id?: string | number;
+  messageId?: string | number;
   content?: string;
   caption?: string;
   sender?: BackendParticipantProfile;
@@ -345,6 +347,15 @@ export async function getMergedConversations(response: any, myProfileId?: number
   });
 }
 
+export function getBackendMessageId(message?: BackendConversationMessage): string | undefined {
+  // Never use the synthetic list index as an ID for a backend mutation.
+  const candidates = [message?.id, message?.messageId, message?.messageIdentifier];
+  const id = candidates.find((value) =>
+    (typeof value === 'string' && value.trim().length > 0) ||
+    (typeof value === 'number' && Number.isFinite(value)));
+  return id === undefined ? undefined : String(id);
+}
+
 export function normalizeMessagesResponse(response: any, myUserId?: number): ChatMessageDto[] {
   const list = unwrapList(response);
 
@@ -357,7 +368,7 @@ export function normalizeMessagesResponse(response: any, myUserId?: number): Cha
     const createdAt = item?.createdAt || item?.timestamp || item?.readDateTime;
 
     return {
-      id: String(item?.id || item?.messageIdentifier || `${index}`),
+      id: getBackendMessageId(item) ?? String(index),
       type: 'text',
       author,
       text: content,

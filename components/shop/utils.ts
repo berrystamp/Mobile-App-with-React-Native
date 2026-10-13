@@ -104,7 +104,7 @@ export async function fetchShopData(
       id: item?.id || String(Math.random()),
       name: String(item?.name || item?.title || "Untitled collection"),
       imagePath: toAbsoluteImage(
-        item?.picture,
+        item?.picture || item?.imagePath || item?.coverPath || "",
       ),
       description: item.description,
       designCount: Number(

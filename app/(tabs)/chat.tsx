@@ -5,12 +5,14 @@ import { AvatarBadge } from "@/components/messages/AvatarBadge";
 import { useFileUpload } from "@/hooks/useFileUpload";
 import { ENV } from "@/lib/config/env";
 import {
+    getBackendMessageId,
     normalizeConversationsResponse,
     normalizeMessagesResponse,
     type ChatMessageDto,
     type ConversationSummaryDto,
 } from "@/lib/messages";
 import ApiService from "@/services/apiClient";
+import { useConversationStore } from '@/store/conversationStore';
 import { Feather, Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Image } from "expo-image";
@@ -358,26 +360,69 @@ export default function ChatScreen() {
     [participantId],
   );
 
+  const lastReadMessage = useRef<string | null>(null);
   const markUnreadAsRead = useCallback(
-    (items: (ChatMessageDto & { imageUrl?: string })[]) => {
-      const unread = items.filter(
-        (message) =>
-          message.author === "other" && message.readDateTime === null,
-      );
-      if (unread.length) {
-        Promise.allSettled(
-          unread.map((message) =>
-            ApiService.markMessageAsRead(String(message.id)),
-          ),
-        ).catch(() => {});
+    async (items: (ChatMessageDto & { imageUrl?: string })[]) => {
+      if (!conversationId || !items.length) {
+        console.log('[ChatRead] Skipped: no conversation or loaded messages', { conversationId, messageCount: items.length });
+        return items;
       }
-      return items.map((message) =>
-        unread.some((item) => item.id === message.id)
-          ? { ...message, readDateTime: new Date().toISOString() }
-          : message,
-      );
+      try {
+        // Fetch the newest page so chats with over 100 messages use the actual last message.
+        const latestResponse = await ApiService.getConversationMessages(String(conversationId), 0, 1, 'createdAt,desc');
+        const latest = normalizeMessagesResponse(latestResponse)[0];
+        if (!latest) {
+          console.log('[ChatRead] Skipped: latest-message query returned no messages', { conversationId });
+          return items;
+        }
+        const messageId = getBackendMessageId(latest.raw);
+        console.log('[ChatRead] Latest message before read', {
+          conversationId, messageId,
+          id: latest.raw?.id,
+          backendMessageId: latest.raw?.messageId,
+          messageIdentifier: latest.raw?.messageIdentifier,
+          read: latest.raw?.read,
+          readDateTime: latest.raw?.readDateTime,
+        });
+        if (!messageId) {
+          throw new Error('The latest message has no id, messageId, or messageIdentifier.');
+        }
+        const key = `${conversationId}:${messageId}`;
+        if (lastReadMessage.current === key) {
+          console.log('[ChatRead] Skipped: already marked and confirmed clear', { conversationId, messageId });
+          return items;
+        }
+        await ApiService.markMessageAsRead(String(messageId));
+        const response = await ApiService.getConversations(0, 80);
+        useConversationStore.getState().setResponse(response);
+        const refreshed = normalizeConversationsResponse(response).find((item) => item.id === String(conversationId));
+        console.log('[ChatRead] Conversation after read and refresh', {
+          conversationId, messageId,
+          conversationFound: Boolean(refreshed),
+          hasUnreadMessages: refreshed?.raw?.hasUnreadMessages,
+          unreadMessageCount: refreshed?.raw?.unreadMessageCount,
+        });
+        // Retry on the next poll if the backend still reports unread messages.
+        if (refreshed && !refreshed.hasUnreadMessages && refreshed.unreadCount === 0) {
+          lastReadMessage.current = key;
+        } else {
+          console.warn('[ChatRead] Conversation still unread after read request', {
+            conversationId, messageId,
+            hasUnreadMessages: refreshed?.hasUnreadMessages,
+            unreadMessageCount: refreshed?.unreadCount,
+          });
+        }
+      } catch (error) {
+        const failure = error as { message?: string; response?: { status?: number; data?: { responseMessage?: string } } };
+        console.warn('[ChatRead] Failed to mark conversation as read or refresh badges', {
+          conversationId,
+          status: failure.response?.status,
+          message: failure.response?.data?.responseMessage || failure.message,
+        });
+      }
+      return items;
     },
-    [],
+    [conversationId],
   );
 
   const currentProfileType = useAuthStore((state) => toProfileType(state.role));
@@ -427,7 +472,7 @@ export default function ChatScreen() {
 
           const myId = getAccountProfile(me, useAuthStore.getState().role)?.id;
           const normalized = normalizeChatMessages(messagesRes, myId, selected);
-          const readMessages = markUnreadAsRead(normalized);
+          const readMessages = await markUnreadAsRead(normalized);
 
           const orderMessages = readMessages.filter(
             (m) => m.chatType === "ORDER" || m.chatType === "ORDER_REQUEST"
@@ -531,7 +576,8 @@ export default function ChatScreen() {
                 return next;
             });
         }
-        setMessages(markUnreadAsRead(normalized));
+        const readMessages = await markUnreadAsRead(normalized);
+        if (!cancelled) setMessages(readMessages);
       } catch {
         // Silently fail on background refresh
       }
