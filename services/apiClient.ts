@@ -359,11 +359,8 @@ class ApiService {
       console.log(response.data)
       return response.data;
     } catch (error: any) {
-      // Ignore 404s and return empty content, but throw on other server errors
-      if (error?.response?.status && error.response.status !== 404) {
-        throw error;
-      }
-      return { responseBody: { content: [] } };
+      // Do not disguise a missing/failed orders endpoint as a genuinely empty order list.
+      throw error;
     }
   }
 
@@ -371,15 +368,8 @@ class ApiService {
     const activeProfileType = profileType;
     const headers = { profileType: activeProfileType };
 
-    try {
-      const response = await api.get(`/orders/${orderId}`, { headers });
-      return response.data;
-    } catch (error: any) {
-      if (error?.response?.status && error.response.status !== 404) {
-        throw error;
-      }
-      return { responseBody: null };
-    }
+    const response = await api.get(`/orders/${orderId}`, { headers });
+    return response.data;
   }
 
   // ─── Influencer Merch order management (printer flow) ───────────────────
@@ -1222,49 +1212,27 @@ class ApiService {
   }
 
   /**
-   * Submit user feedback (idea or bug report) to the backend.
-   * Tries multiple endpoint candidates in order until one succeeds.
+   * Feedback has no backend endpoint. Open a pre-addressed email draft instead of
+   * trying undocumented API routes or falsely reporting that feedback was saved.
+   * The user must tap Send in their email app.
    */
   async submitFeedback(payload: { type: 'IDEA' | 'BUG'; category: string; message: string }) {
-    const headers = { profileType: getProfileType() };
-    const requestPayload = {
-      ...payload,
-      comment: payload.message,
-    };
-    const candidates = [
-      () => api.post('/feedback', requestPayload, { headers }),
-      () => api.post('/suggestions', requestPayload, { headers }),
-      () => api.post('/support/feedback', requestPayload, { headers }),
-      () => api.post('/user/feedback', requestPayload, { headers }),
-    ];
-
-    let lastNotFound: any = null;
-    for (const request of candidates) {
-      try {
-        const response = await request();
-        const data = response.data;
-        if (data?.requestSuccessful === false) {
-          const error: any = new Error(
-            data?.responseMessage || data?.message || 'Feedback submission failed',
-          );
-          error.response = { data };
-          throw error;
-        }
-        return data;
-      } catch (error: any) {
-        if (error?.response?.status === 404) {
-          lastNotFound = error;
-          continue;
-        }
-        throw error;
-      }
-    }
-
-    throw new Error(
-      lastNotFound
-        ? 'The feedback API is not available on the current backend.'
-        : 'Feedback submission failed.',
-    );
+    const user = await this.getCurrentUser().catch(() => null);
+    const subject = `[Berrystamp ${payload.type === 'IDEA' ? 'Idea' : 'Bug Report'}] ${payload.category}`;
+    const body = [
+      `Type: ${payload.type}`,
+      `Category: ${payload.category}`,
+      `Profile: ${getProfileType()}`,
+      `User: ${user?.name || user?.userName || user?.email || 'Not available'}`,
+      '',
+      payload.message.trim(),
+    ].join('\n');
+    const mailto = `mailto:berrystamp1@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    const { Linking } = require('react-native');
+    const canOpen = await Linking.canOpenURL(mailto);
+    if (!canOpen) throw new Error('No email app is configured. Please email berrystamp1@gmail.com directly.');
+    await Linking.openURL(mailto);
+    return { requestSuccessful: true, delivery: 'email-draft-opened', message: 'Email draft opened. Tap Send in your email app to submit it.' };
   }
 
   async registerPushToken(token: string) {
@@ -1923,12 +1891,13 @@ class ApiService {
   // ─── Settings: Change email (request OTP + verify) ─────────────────────────
   async requestEmailChange(newEmail: string) {
     const response = await api.post('/user/change-email', { email: newEmail });
-    console.log(response.data);
+    if (response.data?.requestSuccessful === false) throw new Error(response.data?.responseMessage || 'Email change request failed.');
     return response.data;
   }
 
   async verifyEmailChange(newEmail: string, otp: string) {
     const response = await api.post('/user/change-email/verify', { email: newEmail, otp });
+    if (response.data?.requestSuccessful === false) throw new Error(response.data?.responseMessage || 'Email verification failed.');
     const user = await this.getCurrentUser();
     if (user) await AsyncStorage.setItem('userData', JSON.stringify({ ...user, email: newEmail }));
     return response.data;

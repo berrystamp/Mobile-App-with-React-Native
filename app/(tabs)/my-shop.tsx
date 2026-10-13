@@ -448,7 +448,7 @@ function AddToCollectionSheet({ visible,collectionItems, theme, designId, onClos
                 {collectionItems.map((col:any) => (
                   <TouchableOpacity key={String(col.id)} onPress={() => setSelected(col.id)} style={{ width: '48%', borderRadius: 10, marginBottom: 12, borderWidth: 2, borderColor: selected === col.id ? theme.primary : 'transparent', overflow: 'hidden', backgroundColor: theme.inputBg }}>
                     {col.imagePath ? (
-                      <Image source={{ uri: col.imagePath }} style={{ width: '100%', height: 90 }} resizeMode="cover" />
+                      <Image source={{ uri: col.imagePath }} style={{ width: '100%', height: 90 }} resizeMode="contain" />
                     ) : (
                       <View style={{ width: '100%', height: 90, alignItems: 'center', justifyContent: 'center' }}>
                         <Ionicons name="albums-outline" size={28} color={theme.muted} />
@@ -569,7 +569,7 @@ function EditProfileSheet({ visible, theme, profile, onClose, onSaved }: { visib
             {/* Cover picker */}
             <TouchableOpacity onPress={() => pickImage('cover')} style={{ height: 120, borderRadius: 12, backgroundColor: theme.inputBg, alignItems: 'center', justifyContent: 'center', marginBottom: 16, overflow: 'hidden' }}>
               {coverUri || profile?.cover ? (
-                <Image source={{ uri: coverUri || profile?.cover }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                <Image source={{ uri: coverUri || profile?.cover }} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
               ) : null}
               <View style={{ position: 'absolute', backgroundColor: 'rgba(0,0,0,0.35)', borderRadius: 20, padding: 8 }}>
                 <Ionicons name="camera" size={22} color="#fff" />
@@ -845,7 +845,7 @@ function MoveToCollectionSheet({ visible, theme, designId, fromCollectionId, onC
                 ) : collections.map((col) => (
                   <TouchableOpacity key={String(col.id)} onPress={() => setSelected(col.id)} style={{ width: '48%', borderRadius: 10, marginBottom: 12, borderWidth: 2, borderColor: selected === col.id ? theme.primary : 'transparent', overflow: 'hidden', backgroundColor: theme.inputBg }}>
                     {col.imagePath ? (
-                      <Image source={{ uri: col.imagePath }} style={{ width: '100%', height: 90 }} resizeMode="cover" />
+                      <Image source={{ uri: col.imagePath }} style={{ width: '100%', height: 90 }} resizeMode="contain" />
                     ) : (
                       <View style={{ width: '100%', height: 90, alignItems: 'center', justifyContent: 'center' }}>
                         <Ionicons name="albums-outline" size={28} color={theme.muted} />
@@ -1092,7 +1092,7 @@ function CollectionDetailScreen({ visible, theme, collection, username, readOnly
         <ScrollView showsVerticalScrollIndicator={false}>
           {collection.imagePath ? (
             <View style={{ width: '100%', height: 200, backgroundColor: theme.inputBg, alignItems: 'center', justifyContent: 'center' }}>
-              <Image source={{ uri: collection.imagePath }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+              <Image source={{ uri: collection.imagePath }} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
             </View>
           ) : (
             <View style={{ width: '100%', height: 200, backgroundColor: theme.inputBg, alignItems: 'center', justifyContent: 'center' }}>
@@ -1316,16 +1316,18 @@ export default function MyShopScreen() {
       `Check out "${design?.title || design?.name || 'this design'}" on Berrystamp.`,
       'design',
       design?.id,
+      shop?.profile?.profileId,
     );
-  }, [shareResource]);
+  }, [shareResource, shop?.profile?.profileId]);
 
   const handleShareCollection = useCallback((collection: any) => {
     shareResource(
       `Check out "${collection?.name || 'this collection'}" collection on Berrystamp.`,
       'collection',
       collection?.id,
+      shop?.profile?.profileId,
     );
-  }, [shareResource]);
+  }, [shareResource, shop?.profile?.profileId]);
 
   const handleShareProfile = useCallback((shopProfile: any) => {
     shareResource(
@@ -1416,7 +1418,7 @@ export default function MyShopScreen() {
         {/* ── Cover ── */}
         <View style={{ height: 180, position: 'relative' }}>
           {profile?.cover ? (
-            <Image source={{ uri: profile.cover }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+            <Image source={{ uri: profile.cover }} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
           ) : (
             <View style={{ width: '100%', height: '100%', backgroundColor: theme.primary + '44' }} />
           )}

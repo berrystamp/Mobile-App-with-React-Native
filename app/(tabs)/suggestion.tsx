@@ -416,11 +416,11 @@ export default function SuggestionScreen() {
     mode === "idea"
       ? {
           title: userName ? `Thanks ${userName}!` : "Thanks!",
-          message: "Great! You have successfully sent your idea to our customer service unit. Thanks",
+          message: "Your email draft is open. Tap Send in your email app to deliver your idea to berrystamp1@gmail.com.",
         }
       : {
           title: "Bug reported successfully!",
-          message: "Thanks! Our customer service will see to the problem as soon as possible.",
+          message: "Your email draft is open. Tap Send in your email app to deliver this report to berrystamp1@gmail.com.",
         };
 
   // ── Render ──
