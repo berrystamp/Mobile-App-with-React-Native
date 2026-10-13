@@ -1854,17 +1854,19 @@ class ApiService {
     const headers = { profileType: getProfileType() };
     const candidates = [
       // Preferred analytics resource.
-      () => api.get(`/insights/design/${designId}`, { headers }),
+      `/insights/design/${designId}`,
       // Backward-compatible resources used by older deployments.
-      () => api.get(`/designs/${designId}/insights`, { headers }),
-      () => api.get(`/designs/insights/${designId}`, { headers }),
-      () => api.get(`/analytics/designs/${designId}`, { headers }),
+      `/designs/${designId}/insights`,
+      `/designs/insights/${designId}`,
+      `/analytics/designs/${designId}`,
     ];
 
-    for (const request of candidates) {
+    for (const endpoint of candidates) {
       try {
-        const response = await request();
+        if (__DEV__) console.log('[Post insight] Request', { endpoint, designId, profileType: headers.profileType });
+        const response = await api.get(endpoint, { headers });
         const data = response.data;
+        if (__DEV__) console.log('[Post insight] Response', { endpoint, status: response.status, data });
         if (data?.requestSuccessful === false) {
           const error: any = new Error(
             data?.responseMessage || data?.message || 'Unable to load post insights',
@@ -1874,7 +1876,13 @@ class ApiService {
         }
         return data;
       } catch (error: any) {
-        if (error?.response?.status && ![400, 404].includes(error.response.status)) {
+        if (__DEV__) console.log('[Post insight] Failed', {
+          endpoint,
+          status: error?.response?.status,
+          data: error?.response?.data,
+          message: error?.message,
+        });
+        if (![404, 405].includes(error?.response?.status)) {
           throw error;
         }
       }

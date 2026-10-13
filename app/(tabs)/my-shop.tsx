@@ -1,11 +1,12 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   FlatList,
   Image,
   Modal,
+  Platform,
   RefreshControl,
   ScrollView,
   Share,
@@ -63,6 +64,33 @@ function useTheme(isDark: boolean) {
 }
 
 // ─── Sheet handle ─────────────────────────────────────────────────────────────
+// iOS must finish dismissing its modal before presenting the native share sheet.
+function useShareAfterDismiss(visible: boolean) {
+  const pendingShare = useRef<(() => void) | null>(null);
+  const onDismiss = useCallback(() => {
+    const action = pendingShare.current;
+    pendingShare.current = null;
+    action?.();
+  }, []);
+
+  useEffect(() => {
+    if (visible || Platform.OS === 'ios') return;
+    const timer = setTimeout(onDismiss, 350);
+    return () => clearTimeout(timer);
+  }, [visible, onDismiss]);
+
+  const share = (action: () => void, close: () => void) => {
+    if (Platform.OS === 'web') {
+      close();
+      action();
+      return;
+    }
+    pendingShare.current = action;
+    close();
+  };
+  return { share, onDismiss };
+}
+
 function SheetHandle() {
   return <View style={{ width: 48, height: 4, borderRadius: 2, backgroundColor: '#CFCFD6', alignSelf: 'center', marginTop: 12, marginBottom: 8 }} />;
 }
@@ -123,7 +151,7 @@ function CollectionCard({ item, theme, onMenu, onPress, readOnly }: { item: Coll
     <TouchableOpacity onPress={onPress} activeOpacity={0.88} style={{ width: '48.5%', borderRadius: 12, marginBottom: 12, backgroundColor: theme.surface, overflow: 'hidden' }}>
       <View style={{ position: 'relative', width: '100%', height: 120, backgroundColor: theme.inputBg, alignItems: 'center', justifyContent: 'center' }}>
         {item.imagePath ? (
-          <Image source={{ uri: item.imagePath }} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
+          <Image source={{ uri: item.imagePath }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
         ) : (
           <Ionicons name="albums-outline" size={28} color={theme.muted} />
         )}
@@ -163,15 +191,16 @@ function DesignMenuSheet({ visible, theme, onClose, onUpdate, onAddToCollection,
   visible: boolean; theme: ReturnType<typeof useTheme>; onClose: () => void;
   onUpdate: () => void; onAddToCollection: () => void; onInsights: () => void; onShare: () => void; onDelete: () => void;
 }) {
+  const sharing = useShareAfterDismiss(visible);
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} onDismiss={sharing.onDismiss}>
       <TouchableOpacity style={S.backdrop} activeOpacity={1} onPress={onClose}>
         <View style={[S.sheet, { backgroundColor: theme.surface }]}>
           <SheetHandle />
           {/* <SheetRow color={theme.text} label="Update Design" icon="create-outline" onPress={() => { onClose(); onUpdate(); }} /> */}
           <SheetRow color={theme.text} label="Add to collection" icon="add-circle-outline" onPress={() => { onClose(); onAddToCollection(); }} />
-          <SheetRow color={theme.text} label="View post insights" icon="bar-chart-outline" onPress={() => { onClose(); onInsights(); }} />
-          <SheetRow color={theme.text} label="Share design" icon="share-social-outline" onPress={() => { onClose(); onShare(); }} />
+          <SheetRow color={theme.text} label="View post insights" icon="bar-chart-outline" onPress={() => sharing.share(onInsights, onClose)} />
+          <SheetRow color={theme.text} label="Share design" icon="share-social-outline" onPress={() => sharing.share(onShare, onClose)} />
           <SheetRow label="Delete Design" icon="trash-outline" color={theme.red} onPress={() => { onClose(); onDelete(); }} />
           <View style={{ height: 10 }} />
         </View>
@@ -186,13 +215,14 @@ function CollectionMenuSheet({ visible, theme, onClose, onUpdate, onShare, onDel
   onUpdate: () => void; onShare: () => void; onDelete: () => void;
 }) {
   const insets = useSafeAreaInsets();
+  const sharing = useShareAfterDismiss(visible);
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} onDismiss={sharing.onDismiss}>
       <TouchableOpacity style={S.backdrop} activeOpacity={1} onPress={onClose}>
         <View style={[S.sheet, { backgroundColor: theme.surface, paddingBottom: Math.max(insets.bottom, 12) }]}>
           <SheetHandle />
           <SheetRow color={theme.text} label="Update Collection" icon="create-outline" onPress={() => { onClose(); onUpdate(); }} />
-          <SheetRow color={theme.text} label="Share collection" icon="share-social-outline" onPress={() => { onClose(); onShare(); }} />
+          <SheetRow color={theme.text} label="Share collection" icon="share-social-outline" onPress={() => sharing.share(onShare, onClose)} />
           <SheetRow label="Delete Collection" icon="trash-outline" color={theme.red} onPress={() => { onClose(); onDelete(); }} />
         </View>
       </TouchableOpacity>
@@ -263,8 +293,9 @@ function PostInsightSheet({ visible, theme, insight, loading, onClose }: { visib
   const body = insight?.responseBody?.insight || insight?.responseBody?.data || insight?.responseBody || insight?.data || insight?.insight || insight || {};
   const numberValue = (...values: any[]) => {
     const value = values.find((item) => item !== undefined && item !== null && item !== '');
+    if (value === undefined) return null;
     const numeric = Number(value);
-    return Number.isFinite(numeric) ? numeric : 0;
+    return Number.isFinite(numeric) && numeric >= 0 ? numeric : null;
   };
   const accountReached = numberValue(body?.accountReached, body?.accountsReached, body?.reach, body?.totalAccountsReached);
   const postClicks = numberValue(body?.postClicks, body?.clicks, body?.profileClicks, body?.totalClicks);
@@ -284,6 +315,8 @@ function PostInsightSheet({ visible, theme, insight, loading, onClose }: { visib
           </View>
           {loading ? (
             <ActivityIndicator size="large" color={theme.primary} style={{ marginVertical: 32 }} />
+          ) : !insight ? (
+            <Text style={{ color: theme.muted, textAlign: 'center', padding: 24 }}>Post insights are unavailable. Please try again later.</Text>
           ) : (
             <ScrollView showsVerticalScrollIndicator={false}>
               <View style={{ paddingHorizontal: 20 }}>
@@ -295,7 +328,7 @@ function PostInsightSheet({ visible, theme, insight, loading, onClose }: { visib
                     { label: 'No of Sales', value: noOfSales },
                   ].map((stat) => (
                     <View key={stat.label} style={{ flex: 1, alignItems: 'center', backgroundColor: theme.inputBg, borderRadius: 10, padding: 12, marginHorizontal: 4 }}>
-                      <Text style={{ fontSize: 20, fontWeight: '800', color: theme.text }}>{stat.value}</Text>
+                      <Text style={{ fontSize: 20, fontWeight: '800', color: theme.text }}>{stat.value ?? 'N/A'}</Text>
                       <Text style={{ fontSize: 11, color: theme.muted, textAlign: 'center', marginTop: 4 }}>{stat.label}</Text>
                     </View>
                   ))}
@@ -304,15 +337,15 @@ function PostInsightSheet({ visible, theme, insight, loading, onClose }: { visib
                 <View style={{ backgroundColor: theme.inputBg, borderRadius: 10, padding: 14, gap: 12 }}>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                     <Text style={{ color: theme.text, fontSize: 14 }}>Total impressions</Text>
-                    <Text style={{ color: theme.text, fontWeight: '700', fontSize: 14 }}>{totalImpressions}</Text>
+                    <Text style={{ color: theme.text, fontWeight: '700', fontSize: 14 }}>{totalImpressions ?? 'N/A'}</Text>
                   </View>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                     <Text style={{ color: theme.text, fontSize: 14 }}>Followers account reached</Text>
-                    <Text style={{ color: theme.primary, fontWeight: '700', fontSize: 14 }}>{followersPct}%</Text>
+                    <Text style={{ color: theme.primary, fontWeight: '700', fontSize: 14 }}>{followersPct == null ? 'N/A' : `${followersPct}%`}</Text>
                   </View>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                     <Text style={{ color: theme.text, fontSize: 14 }}>Non-followers account reached</Text>
-                    <Text style={{ color: theme.primary, fontWeight: '700', fontSize: 14 }}>{nonFollowersPct}%</Text>
+                    <Text style={{ color: theme.primary, fontWeight: '700', fontSize: 14 }}>{nonFollowersPct == null ? 'N/A' : `${nonFollowersPct}%`}</Text>
                   </View>
                 </View>
               </View>
@@ -975,6 +1008,7 @@ function CollectionDetailScreen({ visible, theme, collection, username, readOnly
   const [designs, setDesigns] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [menuDesign, setMenuDesign] = useState<any | null>(null);
+  const sharing = useShareAfterDismiss(Boolean(menuDesign));
   const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [showMoveSheet, setShowMoveSheet] = useState(false);
@@ -1078,7 +1112,7 @@ function CollectionDetailScreen({ visible, theme, collection, username, readOnly
                     <View style={{ position: 'relative' }}>
                       <View style={{ width: '100%', height: 110, backgroundColor: theme.inputBg, alignItems: 'center', justifyContent: 'center' }}>
                         {design._imageUri ? (
-                          <Image source={{ uri: design._imageUri }} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
+                          <Image source={{ uri: design._imageUri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
                         ) : (
                           <Ionicons name="image-outline" size={24} color={theme.muted} />
                         )}
@@ -1104,7 +1138,7 @@ function CollectionDetailScreen({ visible, theme, collection, username, readOnly
 
         {/* Design menu — owner only */}
         {!readOnly && (
-          <Modal visible={Boolean(menuDesign)} transparent animationType="slide" onRequestClose={() => setMenuDesign(null)}>
+          <Modal visible={Boolean(menuDesign)} transparent animationType="slide" onRequestClose={() => setMenuDesign(null)} onDismiss={sharing.onDismiss}>
             <TouchableOpacity style={S.backdrop} activeOpacity={1} onPress={() => setMenuDesign(null)}>
               <View style={[S.sheet, { backgroundColor: theme.surface }]}>
                 <SheetHandle />
@@ -1113,9 +1147,9 @@ function CollectionDetailScreen({ visible, theme, collection, username, readOnly
                 <SheetRow color={theme.text} label="Move to collection" icon="albums-outline"
                   onPress={() => { const d = menuDesign; setMenuDesign(null); setMoveDesignId(d?.id); setShowMoveSheet(true); }} />
                 <SheetRow color={theme.text} label="View post insights" icon="bar-chart-outline"
-                  onPress={() => { const d = menuDesign; setMenuDesign(null); handleInsights(d); }} />
+                  onPress={() => { const d = menuDesign; sharing.share(() => handleInsights(d), () => setMenuDesign(null)); }} />
                 <SheetRow color={theme.text} label="Share design" icon="share-social-outline"
-                  onPress={() => { const d = menuDesign; setMenuDesign(null); handleShare(d); }} />
+                  onPress={() => { const d = menuDesign; sharing.share(() => handleShare(d), () => setMenuDesign(null)); }} />
                 <SheetRow label="Delete Design" icon="trash-outline" color={theme.red}
                   onPress={() => { setDeleteTarget(menuDesign); setMenuDesign(null); }} />
                 <View style={{ height: 10 }} />
@@ -1244,7 +1278,7 @@ export default function MyShopScreen() {
     (shop?.collections || []).map((item: any) => ({
       id: item.id,
       name: item.name,
-      imagePath: item.imagePath,
+      imagePath: toAbsoluteImage(item.imagePath || item.picture || item.coverPath || ''),
       designCount: item.designCount,
     })), [shop?.collections]);
 
@@ -1263,12 +1297,12 @@ export default function MyShopScreen() {
   };
 
   const shareResource = useCallback(async (title: string, type: 'design' | 'collection' | 'profile', id?: string | number) => {
-    const resourceUrl = id ? `berrystamp://${type}/${encodeURIComponent(String(id))}` : 'berrystamp://';
+    const resourceUrl = id != null ? `berrystamp://${type}/${encodeURIComponent(String(id))}` : 'berrystamp://';
     try {
       await Share.share({
         title,
         message: `${title}\n${resourceUrl}`,
-        url: resourceUrl,
+        ...(Platform.OS === 'ios' ? { url: resourceUrl } : {}),
       });
     } catch (error: any) {
       if (error?.message && !String(error.message).toLowerCase().includes('cancel')) {

@@ -1,3 +1,4 @@
+import { TransactionDetailsSheet } from '@/components/wallet/TransactionDetailsSheet';
 import { transactionAmount, transactionDirection } from '@/lib/wallet';
 import { formatNaira } from "@/lib/currency";
 import { normalizePaymentDetails } from "@/lib/profile";
@@ -112,7 +113,6 @@ export default function WalletScreen() {
   const [selectedTransaction, setSelectedTransaction] = useState<any | null>(
     null,
   );
-  const [showTransactionAmount, setShowTransactionAmount] = useState(false);
 
   const numericAmount = parseFloat(amountStr.replace(/[^0-9]/g, "") || "0");
   const hasPaymentDetails = !!(
@@ -306,7 +306,6 @@ export default function WalletScreen() {
                   activeOpacity={0.8}
                   onPress={() => {
                     setSelectedTransaction(tx);
-                    setShowTransactionAmount(false);
                   }}
                   style={[
                     styles.txItem,
@@ -339,8 +338,8 @@ export default function WalletScreen() {
                     </Text>
                     <Text style={[styles.txDate, { color: theme.textMuted }]}>
                       {formatDateStr(tx.createdAt || tx.createdDate || tx.date)}
-                      {tx.reference
-                        ? `  ·  ${String(tx.reference).slice(0, 12)}`
+                      {(tx.transactionReference || tx.reference || tx.transactionRef)
+                        ? `  ·  ${String(tx.transactionReference || tx.reference || tx.transactionRef).slice(0, 12)}`
                         : ""}
                     </Text>
                   </View>
@@ -381,103 +380,10 @@ export default function WalletScreen() {
             })
           )}
         </ScrollView>
-        <Modal
-          visible={Boolean(selectedTransaction)}
-          transparent
-          animationType="slide"
-          onRequestClose={() => setSelectedTransaction(null)}
-        >
-          <View style={styles.modalOverlay}>
-            <View
-              style={[styles.modalSheet, { backgroundColor: theme.surface }]}
-            >
-              <TouchableOpacity
-                style={styles.modalClose}
-                onPress={() => setSelectedTransaction(null)}
-              >
-                <Ionicons name="close" size={22} color={theme.text} />
-              </TouchableOpacity>
-              <Text style={[styles.modalTitle, { color: theme.text }]}>
-                Transaction details
-              </Text>
-              <View style={styles.transactionDetailAmount}>
-                <Text style={[styles.modalAmount, { color: theme.text }]}>
-                  {showTransactionAmount
-                    ? formatNaira(
-                        Math.abs(
-                          Number(
-                            selectedTransaction?.amount ??
-                              selectedTransaction?.value ??
-                              0,
-                          ),
-                        ),
-                      )
-                    : "₦••••••"}
-                </Text>
-                <TouchableOpacity
-                  onPress={() =>
-                    setShowTransactionAmount((visible) => !visible)
-                  }
-                >
-                  <Ionicons
-                    name={
-                      showTransactionAmount ? "eye-off-outline" : "eye-outline"
-                    }
-                    size={22}
-                    color={theme.textMuted}
-                  />
-                </TouchableOpacity>
-              </View>
-              {[
-                [
-                  "Description",
-                  selectedTransaction?.description ||
-                    selectedTransaction?.narration ||
-                    "Transaction",
-                ],
-                [
-                  "Type",
-                  transactionDirection(selectedTransaction),
-                ],
-                [
-                  "Status",
-                  String(selectedTransaction?.status || "N/A").toUpperCase(),
-                ],
-                [
-                  "Reference",
-                  selectedTransaction?.reference ||
-                    selectedTransaction?.transactionRef ||
-                    "N/A",
-                ],
-                [
-                  "Date",
-                  formatDateStr(
-                    selectedTransaction?.createdAt ||
-                      selectedTransaction?.createdDate ||
-                      selectedTransaction?.date,
-                  ),
-                ],
-              ].map(([label, value]) => (
-                <View
-                  key={label}
-                  style={[
-                    styles.detailRow,
-                    { borderBottomColor: theme.border },
-                  ]}
-                >
-                  <Text
-                    style={[styles.detailLabel, { color: theme.textMuted }]}
-                  >
-                    {label}
-                  </Text>
-                  <Text style={[styles.detailValue, { color: theme.text }]}>
-                    {String(value)}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        </Modal>
+        <TransactionDetailsSheet
+          transaction={selectedTransaction}
+          onClose={() => setSelectedTransaction(null)}
+        />
       </View>
     );
   }
@@ -969,13 +875,6 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   txBadgeText: { fontSize: 10, fontWeight: "600" },
-  transactionDetailAmount: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-    marginBottom: 18,
-  },
   // Withdraw screen
   withdrawScrollContent: { paddingTop: 8 },
   withdrawSection: { paddingHorizontal: 16, paddingTop: 20, marginBottom: 4 },
