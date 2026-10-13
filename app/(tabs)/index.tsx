@@ -217,16 +217,13 @@ export default function HomeScreen() {
       // ── Fetch real insights once we have the profile id ──────────────────
       const roleProfile =
         activeRole === "DESIGNER"
-          ? rawBody.designerProfile
+          ? rawBody.designerProfile || normalized.designerProfile || (current as any)?.designerProfile
           : activeRole === "PRINTER"
-            ? rawBody.printerProfile
-            : rawBody.customerProfile;
+            ? rawBody.printerProfile || normalized.printerProfile || (current as any)?.printerProfile
+            : rawBody.customerProfile || normalized.customerProfile || (current as any)?.customerProfile;
 
-      const profileId =
-        (activeRole === 'PRINTER' ? rawBody.printerProfile?.id :
-          activeRole === 'DESIGNER' ? rawBody.designerProfile?.id : rawBody.customerProfile?.id) ||
-        rawBody.id ||
-        (current as any)?.id;
+      // Insights are keyed by profile ID, not the owning user ID. Never fall back to rawBody.id.
+      const profileId = roleProfile?.id;
 
       if (profileId) {
         const [insightRes, pieRes, barRes] = await Promise.all([

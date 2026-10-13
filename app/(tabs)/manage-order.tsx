@@ -114,11 +114,6 @@ export default function ManageOrderScreen() {
   try {
     if (!isRefresh) setLoading(true);
 
-    // --- DEMO MODE: comment this block out and uncomment the API call below to go live ---
-    await new Promise((res) => setTimeout(res, 400)); // fake network delay
-    // setOrders(MOCK_ORDERS);
-    // --- END DEMO MODE ---
-
     const response = await ApiService.getManageOrders({ profileType: toProfileType(role) });
     setOrders(normalizeManageOrderListResponse(response));
   } catch (error: any) {
@@ -129,7 +124,9 @@ export default function ManageOrderScreen() {
   }
 }, [role]);
 
-  useEffect(() => { loadOrders(); }, [loadOrders]);
+  useEffect(() => {
+    void Promise.resolve().then(() => loadOrders());
+  }, [loadOrders]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
