@@ -1316,18 +1316,16 @@ export default function MyShopScreen() {
       `Check out "${design?.title || design?.name || 'this design'}" on Berrystamp.`,
       'design',
       design?.id,
-      shop?.profile?.profileId,
     );
-  }, [shareResource, shop?.profile?.profileId]);
+  }, [shareResource]);
 
   const handleShareCollection = useCallback((collection: any) => {
     shareResource(
       `Check out "${collection?.name || 'this collection'}" collection on Berrystamp.`,
       'collection',
       collection?.id,
-      shop?.profile?.profileId,
     );
-  }, [shareResource, shop?.profile?.profileId]);
+  }, [shareResource]);
 
   const handleShareProfile = useCallback((shopProfile: any) => {
     shareResource(
@@ -1694,3 +1692,4 @@ const S = StyleSheet.create({
   outlineBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderRadius: 10, paddingVertical: 13 },
   filledBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: 10, paddingVertical: 13 },
 });
+
