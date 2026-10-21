@@ -1211,28 +1211,29 @@ class ApiService {
     return { requestSuccessful: true };
   }
 
-  /**
-   * Feedback has no backend endpoint. Open a pre-addressed email draft instead of
-   * trying undocumented API routes or falsely reporting that feedback was saved.
-   * The user must tap Send in their email app.
-   */
+  // Reports and suggestions are persisted by the backend API.
   async submitFeedback(payload: { type: 'IDEA' | 'BUG'; category: string; message: string }) {
     const user = await this.getCurrentUser().catch(() => null);
-    const subject = `[Berrystamp ${payload.type === 'IDEA' ? 'Idea' : 'Bug Report'}] ${payload.category}`;
-    const body = [
-      `Type: ${payload.type}`,
-      `Category: ${payload.category}`,
-      `Profile: ${getProfileType()}`,
-      `User: ${user?.name || user?.userName || user?.email || 'Not available'}`,
-      '',
-      payload.message.trim(),
-    ].join('\n');
-    const mailto = `mailto:berrystamp1@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    const { Linking } = require('react-native');
-    const canOpen = await Linking.canOpenURL(mailto);
-    if (!canOpen) throw new Error('No email app is configured. Please email berrystamp1@gmail.com directly.');
-    await Linking.openURL(mailto);
-    return { requestSuccessful: true, delivery: 'email-draft-opened', message: 'Email draft opened. Tap Send in your email app to submit it.' };
+    const email = String(user?.email || user?.responseBody?.email || '').trim();
+    if (!email) throw new Error('Your account email could not be found. Please sign in again.');
+    const subject = `[Berrystamp ${payload.type === 'IDEA' ? 'Suggestion' : 'Report'}] ${payload.category}`;
+    const response = await api.post('/reports', {
+      subject,
+      email,
+      category: payload.category,
+      message: payload.message.trim(),
+    });
+    return response.data;
+  }
+
+  async getMyReports() {
+    const response = await api.get('/reports');
+    return response.data;
+  }
+
+  async getReport(reportId: string | number) {
+    const response = await api.get(`/reports/${encodeURIComponent(String(reportId))}`);
+    return response.data;
   }
 
   async registerPushToken(token: string) {
@@ -1888,18 +1889,20 @@ class ApiService {
     return response.data;
   }
 
-  // ─── Settings: Change email (request OTP + verify) ─────────────────────────
+  // ─── Settings: Change email (request OTP + confirm) ────────────────────────
   async requestEmailChange(newEmail: string) {
-    const response = await api.post('/user/change-email', { email: newEmail });
-    if (response.data?.requestSuccessful === false) throw new Error(response.data?.responseMessage || 'Email change request failed.');
+    const normalizedEmail = newEmail.trim().toLowerCase();
+    const response = await api.post('/user/change-email/request', { newEmail: normalizedEmail });
     return response.data;
   }
 
   async verifyEmailChange(newEmail: string, otp: string) {
-    const response = await api.post('/user/change-email/verify', { email: newEmail, otp });
-    if (response.data?.requestSuccessful === false) throw new Error(response.data?.responseMessage || 'Email verification failed.');
-    const user = await this.getCurrentUser();
-    if (user) await AsyncStorage.setItem('userData', JSON.stringify({ ...user, email: newEmail }));
+    const normalizedEmail = newEmail.trim().toLowerCase();
+    // Keep OTP as a string: numeric conversion would strip leading zeroes.
+    const response = await api.post('/user/change-email/confirm', { newEmail: normalizedEmail, otp: String(otp).trim() });
+    // Only persist the new email after the confirmation endpoint succeeds (HTTP 200).
+    const user = await this.getCurrentUser().catch(() => null);
+    if (user) await AsyncStorage.setItem('userData', JSON.stringify({ ...user, email: normalizedEmail }));
     return response.data;
   }
 

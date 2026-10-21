@@ -290,17 +290,18 @@ function PaymentPromptModal({ visible, theme, onClose, onAddNow }: { visible: bo
 
 // ─── PostInsightSheet ─────────────────────────────────────────────────────────
 function PostInsightSheet({ visible, theme, insight, loading, onClose }: { visible: boolean; theme: ReturnType<typeof useTheme>; insight: any; loading: boolean; onClose: () => void }) {
-  const body = insight?.responseBody?.insight || insight?.responseBody?.data || insight?.responseBody || insight?.data || insight?.insight || insight || {};
+  const rawBody = insight?.responseBody?.insight || insight?.responseBody?.data || insight?.responseBody || insight?.data || insight?.insight || insight || {};
+  const body = rawBody?.metrics || rawBody?.analytics || rawBody?.postInsight || rawBody?.insight || rawBody;
   const numberValue = (...values: any[]) => {
     const value = values.find((item) => item !== undefined && item !== null && item !== '');
     if (value === undefined) return null;
     const numeric = Number(value);
     return Number.isFinite(numeric) && numeric >= 0 ? numeric : null;
   };
-  const accountReached = numberValue(body?.accountReached, body?.accountsReached, body?.reach, body?.totalAccountsReached);
-  const postClicks = numberValue(body?.postClicks, body?.clicks, body?.profileClicks, body?.totalClicks);
-  const noOfSales = numberValue(body?.sales, body?.noOfSales, body?.numberOfSales, body?.totalSales);
-  const totalImpressions = numberValue(body?.totalImpressions, body?.impressions, body?.views, body?.totalViews);
+  const accountReached = numberValue(body?.accountReached, body?.accountsReached, body?.accounts_reached, body?.reach, body?.totalAccountsReached, body?.totalReach);
+  const postClicks = numberValue(body?.postClicks, body?.clicks, body?.profileClicks, body?.totalClicks, body?.linkClicks);
+  const noOfSales = numberValue(body?.sales, body?.noOfSales, body?.numberOfSales, body?.totalSales, body?.salesCount);
+  const totalImpressions = numberValue(body?.totalImpressions, body?.impressions, body?.views, body?.totalViews, body?.viewCount);
   const followersPct = numberValue(body?.followersReachedPercentage, body?.followersPercentage, body?.followersReachPercentage);
   const nonFollowersPct = numberValue(body?.nonFollowersReachedPercentage, body?.nonFollowersPercentage, body?.nonFollowersReachPercentage);
 

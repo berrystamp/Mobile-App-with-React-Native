@@ -555,7 +555,7 @@ function ChangeEmailScreen({
     try {
       setLoading(true);
       await ApiService.requestEmailChange(email.trim());
-      setOtp(["", "", "", "", ""]);
+      setOtp("");
       otpRefs.current[0]?.focus();
       startCountdown();
     } catch (e: any) {
@@ -572,7 +572,7 @@ function ChangeEmailScreen({
           onPress={() => {
             if (step === "otp") {
               setStep("input");
-              setOtp(["", "", "", "", ""]);
+              setOtp("");
             } else {
               onBack();
             }

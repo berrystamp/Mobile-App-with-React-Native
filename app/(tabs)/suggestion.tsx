@@ -307,8 +307,8 @@ function DetailScreen({
         message: idea.trim(),
       });
       onSubmit();
-    } catch {
-      Alert.alert("Error", "Failed to submit. Please try again.");
+    } catch (error: any) {
+      Alert.alert("Submission failed", error?.response?.data?.responseMessage || error?.response?.data?.message || error?.message || "Failed to submit. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -416,11 +416,11 @@ export default function SuggestionScreen() {
     mode === "idea"
       ? {
           title: userName ? `Thanks ${userName}!` : "Thanks!",
-          message: "Your email draft is open. Tap Send in your email app to deliver your idea to berrystamp1@gmail.com.",
+          message: "Your suggestion has been submitted successfully. We will review it soon.",
         }
       : {
           title: "Bug reported successfully!",
-          message: "Your email draft is open. Tap Send in your email app to deliver this report to berrystamp1@gmail.com.",
+          message: "Your report has been submitted successfully. Our team will review it.",
         };
 
   // ── Render ──

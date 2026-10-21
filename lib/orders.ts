@@ -67,7 +67,7 @@ export const normalizeManageOrder = (input: any, index = 0): ManageOrderItem => 
   const provider = request.providerProfile || item.printer || item.designer || {};
   const printRequest = request.printRequest || {};
   const customRequest = request.customDesignRequest || {};
-  const orderStatus = item.orderStatus || item.status;
+  const orderStatus = item.orderStatus || item.status || item.order?.status;
   const customer = request.customerProfile || item.customer || {};
   const providerName = provider.name || provider.userName || provider.username || item.printerName || item.designerName;
   const designerName =
@@ -97,13 +97,13 @@ export const normalizeManageOrder = (input: any, index = 0): ManageOrderItem => 
     providerName,
     providerRole: provider.profileType || (item.printer ? 'PRINTER' : undefined),
     customerName: customer.name || customer.userName || item.customerName,
-    amount: Number(item.totalAmount ?? item.amount ?? item.price ?? item.total ?? 0),
+    amount: Number(item.totalAmount ?? item.orderAmount ?? item.amountPaid ?? item.amount ?? item.price ?? item.total ?? item.grandTotal ?? 0),
     status: normalizeManageOrderStatus(orderStatus),
     description: item.description || request.description || customRequest.purpose || item.note || item.summary || 'No order description available.',
     designer: designerName,
     updatedAt: toDisplayDate(item.updatedAt || item.lastModifiedDate || item.modifiedAt || item.deliveryDate),
-    createdAt: toDisplayDate(item.createdAt || item.createdDate || request.createdAt || request.dateCreated),
-    dueOn: toDisplayDate(item.deliveryDate || request.dateOfDelivery || printRequest.dateOfDelivery || item.dueOn || item.dueDate),
+    createdAt: toDisplayDate(item.createdAt || item.createdDate || item.dateCreated || item.orderDate || request.createdAt || request.dateCreated),
+    dueOn: toDisplayDate(item.deliveryDate || item.expectedDeliveryDate || request.dateOfDelivery || printRequest.dateOfDelivery || item.dueOn || item.dueDate),
     purpose:
       item.purpose ||
       customRequest.purpose ||
@@ -117,18 +117,25 @@ export const normalizeManageOrder = (input: any, index = 0): ManageOrderItem => 
 };
 
 export const normalizeManageOrderListResponse = (input: any): ManageOrderItem[] => {
-  const body = input?.responseBody || input?.data || input || {};
-  const list = Array.isArray(body)
-    ? body
-    : Array.isArray(body.content)
-      ? body.content
-      : Array.isArray(body.orders)
-        ? body.orders
-        : Array.isArray(body.items)
-          ? body.items
-          : [];
-
-  return list.map((item: unknown, index: number) => normalizeManageOrder(item, index));
+  // APIs may wrap a pageable list several levels deep (responseBody/data/content).
+  // Walk known envelope keys instead of silently rendering an empty list.
+  const queue: any[] = [input];
+  const seen = new Set<any>();
+  while (queue.length) {
+    const body = queue.shift();
+    if (!body || typeof body !== 'object' || seen.has(body)) continue;
+    seen.add(body);
+    if (Array.isArray(body)) {
+      if (body.length === 0) return [];
+      if (body.some((item) => item && typeof item === 'object')) {
+        return body.map((item: unknown, index: number) => normalizeManageOrder(item, index));
+      }
+    }
+    for (const key of ['content', 'orders', 'items', 'results', 'records', 'responseBody', 'data', 'orderList']) {
+      if (body[key] !== undefined && body[key] !== null) queue.push(body[key]);
+    }
+  }
+  return [];
 };
 
 // ─── Influencer Merch (printer flow) ───────────────────────────────────────
