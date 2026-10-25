@@ -1,6 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
-import * as ImagePicker from "expo-image-picker";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
 import {
@@ -10,7 +9,6 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
 
-import { useFileUpload } from "@/hooks/useFileUpload";
 import { getAvailableProfileTypes, mergeUserAndProfile, normalizeProfileResponse } from "@/lib/profile";
 import ApiService from "@/services/apiClient";
 import { toAccountType, toProfileType, useAuthStore } from "@/store/authStore";
@@ -101,13 +99,11 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const isDark = useColorScheme() === "dark";
   const { role, setAccountType } = useAuthStore();
-  const { uploading, uploadFile } = useFileUpload();
 
   const [user, setUser] = useState<User | null>(null);
   const [profilePayload, setProfilePayload] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [notificationCount, setNotificationCount] = useState(0);
-  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   // In-app browser state
   const [browserVisible, setBrowserVisible] = useState(false);
@@ -161,37 +157,6 @@ export default function ProfileScreen() {
   }, [activeRole]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
-
-  // ─── Profile photo update ────────────────────────────────────────────────
-  const handlePickProfilePhoto = async () => {
-    try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== "granted") {
-        Alert.alert("Permission required", "Allow access to your photos to update your profile picture.");
-        return;
-      }
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: "images" as any,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.85,
-      });
-      if (result.canceled || !result.assets?.[0]?.uri) return;
-      setUploadingPhoto(true);
-      const { path } = await uploadFile(result.assets[0].uri);
-      await ApiService.updateMyProfile({
-        profilePic: path.replace("https://berry-stamp-prod.s3.amazonaws.com/", ""),
-      });
-      await load();
-    } catch (err: any) {
-      Alert.alert(
-        "Update failed",
-        err?.response?.data?.responseMessage || err?.message || "Could not update photo. Please try again.",
-      );
-    } finally {
-      setUploadingPhoto(false);
-    }
-  };
 
   const profile = useMemo(() => mergeUserAndProfile(user, {}), [user]);
   const availableProfiles = useMemo(
@@ -256,7 +221,6 @@ export default function ProfileScreen() {
     {
       icon: "help-circle-outline" as const,
       label: "FAQ",
-      // Navigate to the in-app FAQ screen (not an external browser)
       onPress: () => router.push("/faq"),
     },
     {
@@ -354,38 +318,14 @@ export default function ProfileScreen() {
 
           {/* Avatar + name row */}
           <View style={{ flexDirection: "row", alignItems: "center" }}>
-            {/* Tappable avatar — works for all roles */}
-            <TouchableOpacity
-              onPress={handlePickProfilePhoto}
-              activeOpacity={0.85}
-              disabled={uploadingPhoto || uploading}
-              style={{ position: "relative" }}
-            >
+            {/* Static avatar — setting moved elsewhere */}
+            <View style={{ position: "relative" }}>
               <Image
                 source={{ uri: toAvatar(profile.avatar) }}
                 style={{ width: 62, height: 62, borderRadius: 31, borderWidth: 2, borderColor: "rgba(255,255,255,0.2)" }}
                 contentFit="cover"
               />
-              <View
-                style={{
-                  position: "absolute",
-                  bottom: 0,
-                  right: 0,
-                  width: 20,
-                  height: 20,
-                  borderRadius: 10,
-                  backgroundColor: "#FFFFFF",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                {uploadingPhoto || uploading ? (
-                  <ActivityIndicator size="small" color="#4B3A99" style={{ transform: [{ scale: 0.6 }] }} />
-                ) : (
-                  <Ionicons name="camera" size={12} color="#4B3A99" />
-                )}
-              </View>
-            </TouchableOpacity>
+            </View>
 
             <View style={{ marginLeft: 12, flex: 1 }}>
               <Text style={{ fontSize: 17, fontWeight: "700", color: "#FFFFFF" }}>{displayName}</Text>

@@ -146,7 +146,7 @@ class ApiService {
 
 
   async getUserProfile(profileId: string | number) {
-    console.log(profileId)
+  
     const response = await api.get(`/public/profile/${profileId}`);
     return response.data;
   }
@@ -286,8 +286,6 @@ class ApiService {
   async updateMyProfile(payload: Record<string, unknown>) {
 
     const profileType = getProfileType();
-    console.log(profileType)
-    console.log(payload)
     const response = await api.put('/profile', payload, {
       headers: { profileType },
     });
@@ -356,7 +354,7 @@ class ApiService {
     try {
       // Replaced the candidate loop with the exact endpoint provided
       const response = await api.get('/orders', { params, headers });
-      console.log(response.data)
+    
       return response.data;
     } catch (error: any) {
       // Do not disguise a missing/failed orders endpoint as a genuinely empty order list.
@@ -461,7 +459,7 @@ class ApiService {
   }
 
   async getOrderById(orderId: string | number) {
-    console.log(orderId)
+    
     const headers = { profileType: getProfileType() };
     const response = await api.get(`/orders/${orderId}`, { headers });
     return response.data;
@@ -642,35 +640,42 @@ class ApiService {
       });
   }
 
-  async getMyInterests() {
-    try {
-      const response = await api.get('/user/design-interest');
-      const body = response.data?.responseBody || response.data || {};
-      const interests = body.interests || body.categories || body.content || [];
-      if (Array.isArray(interests)) {
-        return interests.map((item: any) => String(item).trim()).filter(Boolean);
-      }
-    } catch (error: any) {
-      if (error?.response?.status && error.response.status !== 404) {
-        throw error;
-      }
-    }
+ async getMyInterests(): Promise<string[]> {
+  const response = await api.get('/user');
+  const body = response.data?.responseBody || response.data || {};
 
-    const profileResponse = await this.getMyProfile();
-    const body = profileResponse?.responseBody || profileResponse || {};
-    const profileType = getProfileType();
+  const candidates =
+    body.designInterests ??
+    body.customerProfile?.designInterests ??
+    body.designerProfile?.designInterests ??
+    body.printerProfile?.designInterests ??
+    [];
 
-    const profileByType =
-      profileType === 'DESIGNER'
-        ? body.designerProfile
-        : profileType === 'PRINTER'
-          ? body.printerProfile
-          : body.customerProfile;
+  if (!Array.isArray(candidates)) return [];
 
-    const interests = profileByType?.categories || body.categories || body.interests || [];
-    return Array.isArray(interests) ? interests.map((item: any) => String(item).trim()).filter(Boolean) : [];
+  return candidates
+    .map((item: any) => this.extractInterestLabel(item))
+    .filter(Boolean);
+}
+
+// Helper: safely turn a string OR object into a trimmed label.
+private extractInterestLabel(item: any): string {
+  if (item == null) return '';
+  if (typeof item === 'string') return item.trim();
+  if (typeof item === 'number') return String(item);
+  if (typeof item === 'object') {
+    const candidate =
+      item.name ??
+      item.interest ??
+      item.interestName ??
+      item.label ??
+      item.title ??
+      item.value ??
+      '';
+    return String(candidate).trim();
   }
-
+  return '';
+}
   async updateMyInterests(interests: string[]) {
     const cleanedInterests = Array.from(new Set(interests.map((item) => item.trim()).filter(Boolean)));
     const candidates = [
@@ -962,7 +967,7 @@ class ApiService {
 
   async sendMessage(payload: { toProfileId: number; content: string; caption?: string; chatType?: string }) {
     const profileType = getProfileType();
-    console.log(payload)
+    
     const response = await api.post(
       '/messages/send',
       payload,
@@ -1146,15 +1151,9 @@ class ApiService {
   async markMessageAsRead(messageId: string) {
     const profileType = getProfileType();
     const path = `/messages/${encodeURIComponent(messageId)}/read`;
-    console.log('[ChatRead] PATCH started', { path, messageId, profileType });
+  
     try {
-      const response = await api.patch(path, {}, { headers: { profileType } });
-      console.log('[ChatRead] PATCH succeeded', {
-        path, messageId,
-        httpStatus: response.status,
-        requestSuccessful: response.data?.requestSuccessful,
-        responseMessage: response.data?.responseMessage,
-      });
+      const response = await api.patch(path, {}, { headers: { profileType } })
       return response.data;
     } catch (error) {
       const failure = error as { response?: { status?: number; data?: { responseMessage?: string; message?: string } } };
@@ -1618,7 +1617,7 @@ class ApiService {
     const response = await api.get('/wallets', {
       headers: { profileType },
     });
-    console.log(`Responnse for wallet ${JSON.stringify(response.data)}`);
+    
     return response.data;
   }
 
@@ -1694,7 +1693,7 @@ class ApiService {
       () => api.post('/collections', payload, { headers }),
 
     ];
-    console.log(payload)
+  
     for (const request of candidates) {
       try {
         const response = await request();
@@ -1759,10 +1758,10 @@ class ApiService {
     for (const request of candidates) {
       try {
         const response = await request();
-        console.log(JSON.stringify(response))
+      
         return response.data;
       } catch (error: any) {
-        console.log("Error", error)
+        
         if (error?.response?.status && ![400, 404].includes(error.response.status)) throw error;
       }
     }
@@ -1957,28 +1956,28 @@ class ApiService {
   // ==========================================
 
    async getReferralHistory(page: number = 0, size: number = 10) {
-    const response = await api.get('/api/v1/referral', {
+    const response = await api.get('/referral', {
       params: { page, size }
     });
     return response.data;
   }
 
    async getReferralSummary() {
-    const response = await api.get('/api/v1/referral/stats');
+    const response = await api.get('/referral/stats');
     return response.data;
   }
 
    async getReferralCode() {
-    const response = await api.get('/api/v1/referral/code');
+    const response = await api.get('/referral/code');
     return response.data;
   }
 
    async redeemReferralReward(payload: any) {
     if (payload.mode === 'WALLET') {
-      const response = await api.post('/api/v1/referral/redeem/wallet');
+      const response = await api.post('/referral/redeem/wallet');
       return response.data;
     } else {
-      const response = await api.post('/api/v1/referral/redeem/bank', {
+      const response = await api.post('/referral/redeem/bank', {
         bankName: payload.bankName,
         bankCode: payload.bankCode || '',
         accountName: payload.accountName,

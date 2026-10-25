@@ -46,7 +46,7 @@ function HomeDesignCard({
   imageHeight?: number;
 }) {
   const isDark = useColorScheme() === "dark";
-  console.log(design)
+  
   const imageUrl = design.imagePath?.startsWith("http")
     ? design.imagePath
     : design.imagePath

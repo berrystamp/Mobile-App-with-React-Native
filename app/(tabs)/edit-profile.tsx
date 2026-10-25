@@ -97,7 +97,6 @@ function DeactivateDeleteScreen({
         logout();
       }
     } catch {
-      // stub — will work once backend is wired
       showAlert({
         type: 'warning',
         title: confirmModal === "deactivate" ? "Deactivate" : "Delete",
@@ -248,6 +247,7 @@ export default function EditProfileScreen() {
   const { uploading, uploadFile } = useFileUpload();
   const { show: showAlert, element: alertElement } = useAppAlert();
   const { section } = useLocalSearchParams<{ section?: string }>();
+  
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [fullName, setFullName] = useState("");
@@ -310,7 +310,6 @@ export default function EditProfileScreen() {
       setFullName(merged.fullName || "");
       setBrandName(currentProfile?.name || currentProfile?.userName || "");
       setBio(currentProfile?.bio || "");
-      // categories is the field used by the API (same as what my-shop reads)
       setSpecifications(
         currentProfile?.categories ||
         currentProfile?.specifications ||
@@ -332,9 +331,20 @@ export default function EditProfileScreen() {
 
   const pickImage = async (setter: (uri: string) => void, aspect: [number, number]) => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") { showAlert({ type: 'warning', title: 'Permission required', message: 'Allow access to your photos.' }); return; }
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: "images" as any, aspect, quality: 0.85 });
-    if (!result.canceled && result.assets?.[0]?.uri) setter(result.assets[0].uri);
+    if (status !== "granted") { 
+        showAlert({ type: 'warning', title: 'Permission required', message: 'Allow access to your photos.' }); 
+        return; 
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({ 
+        mediaTypes: ImagePicker.MediaTypeOptions.Images, 
+        allowsEditing: true, 
+        aspect, 
+        quality: 0.85 
+    });
+    
+    if (!result.canceled && result.assets?.[0]?.uri) {
+        setter(result.assets[0].uri);
+    }
   };
 
   const handleSave = async () => {
@@ -347,31 +357,29 @@ export default function EditProfileScreen() {
         const uploaded = await uploadFile(avatarUri);
         avatarPath = uploaded.path;
       }
-      if (!isCustomer && coverUri && (coverUri.startsWith("file:") || coverUri.startsWith("content:"))) {
+      
+      // Cover pics shouldn't be blocked just because they are a customer if the API expects it
+      if (coverUri && (coverUri.startsWith("file:") || coverUri.startsWith("content:"))) {
         const uploaded = await uploadFile(coverUri);
         coverPath = uploaded.path;
       }
 
-      const payload: any = {
-        name: isCustomer ? fullName.trim() : brandName.trim() || fullName.trim(),
-        ...(isCustomer ? {} : { bio: bio.trim() }),
-        profilePic: avatarPath.replace("https://berry-stamp-prod.s3.amazonaws.com/", "") || undefined,
-        ...(isCustomer ? {} : { coverPic: coverPath.replace("https://berry-stamp-prod.s3.amazonaws.com/", "") || undefined }),
-        // send both field names so the backend accepts whichever it expects
-        ...(role === "DESIGNER" || role === "PRINTER"
-          ? {
-            categories: specifications.filter(Boolean),
-          }
-          : {}),
+      // Exact backend payload requirement
+      const payload = {
+        name: isCustomer ? fullName.trim() : (brandName.trim() || fullName.trim()),
+        profilePic: avatarPath ? avatarPath.replace("https://berry-stamp-prod.s3.amazonaws.com/", "") : "",
+        coverPic: coverPath ? coverPath.replace("https://berry-stamp-prod.s3.amazonaws.com/", "") : "",
+        bio: bio.trim() || "",
+        categories: specifications.filter(Boolean) || [],
       };
 
       await ApiService.updateMyProfile(payload);
       await refreshUser();
+      
       setStoredAvatarPath(avatarPath);
       setStoredCoverPath(coverPath);
       showAlert({ type: 'success', title: 'Saved', message: 'Profile updated successfully.' });
     } catch (error: any) {
-      // Extract the most descriptive message the backend returned
       const msg =
         error?.response?.data?.responseMessage ||
         error?.response?.data?.message ||

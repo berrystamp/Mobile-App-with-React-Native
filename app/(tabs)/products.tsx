@@ -1,6 +1,6 @@
 import { useAppAlert } from "@/components/common/AppAlert";
 import PrintPreferencesModal, { type PrintPreferencesResult } from "@/components/PrintPreferencesModal";
-import { useCustomDesignStore } from "@/context/CustomDesignContext"; // Import your shared state hook
+import { useCustomDesignStore } from "@/context/CustomDesignContext";
 import { formatNaira } from "@/lib/currency";
 import { normalizeDesign, normalizeDesignListResponse } from "@/lib/designs";
 import { SearchFilters, addSearchHistory, getSearchFilters } from "@/lib/localStorage";
@@ -9,13 +9,26 @@ import { Design, Mock } from "@/types";
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Dimensions, FlatList, Image, Linking, Modal, Pressable, ScrollView, Share, Text, TextInput, TouchableOpacity, View, useColorScheme } from "react-native";
+import {
+  ActivityIndicator,
+  Dimensions,
+  FlatList,
+  Image,
+  Linking,
+  Modal,
+  Pressable,
+  ScrollView,
+  Share,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+  useColorScheme,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { BlurView } from "expo-blur";
-
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const CARD_WIDTH = (SCREEN_WIDTH - 48) / 2;
+const CARD_WIDTH = (SCREEN_WIDTH - 56) / 2; 
 const GALLERY_HEIGHT = SCREEN_WIDTH * 1.25;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -23,12 +36,6 @@ const GALLERY_HEIGHT = SCREEN_WIDTH * 1.25;
 const getLowestPrice = (design: Design) => {
   const prices = design.mocks.map((m) => m.price).filter((p) => p > 0);
   return prices.length ? Math.min(...prices) : design.amount || 0;
-};
-
-const toAbsUrl = (path?: string) => {
-  if (!path) return '';
-  if (path.startsWith('http')) return path;
-  return `https://berrystamp-backend-production.up.railway.app/${path.replace(/^\/+/, '')}`;
 };
 
 const getMockSizes = (mock?: Mock | null): string[] => {
@@ -52,51 +59,46 @@ function ProductCard({
   const price = getLowestPrice(design);
   const artistName = `${design.profile.firstName} ${design.profile.lastName}`.trim() || design.profile.username;
   const imageUrl = design.imagePath?.startsWith('http') ? design.imagePath : design.imagePath ? `https://berrystamp-backend-production.up.railway.app/${design.imagePath}` : '';
-
+  console.log(JSON.stringify(design))
   return (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.9} 
-    style={{ width: CARD_WIDTH }} className="mb-6 bg-transparent">
-      <View style={{ height: CARD_WIDTH * 1.3 }} 
-      className="mb-[10px] overflow-hidden rounded-xl bg-[#F5F5F7] dark:bg-[#1C1C1E]">
+    <TouchableOpacity onPress={onPress} activeOpacity={0.8} style={{ width: CARD_WIDTH }} className="mb-6 bg-transparent">
+      <View style={{ height: CARD_WIDTH * 1.3 }} className="mb-3 overflow-hidden rounded-2xl bg-[#F5F5F7] dark:bg-[#1C1C1E]">
         {imageUrl ? (
-          <Image source={{ uri: imageUrl }} className="h-full w-full" />
+          <Image source={{ uri: imageUrl }} className="h-full w-full" resizeMode="cover" />
         ) : (
           <View className="flex-1 items-center justify-center">
             <Ionicons name="image-outline" size={28} color={isDark ? '#555' : '#CCC'} />
           </View>
         )}
-        <View className="absolute bottom-2 left-2  overflow-hidden rounded-full bg-[#0050BA]">
-  <View className="flex-row items-center px-2.5 py-1.5">
-    <MaterialCommunityIcons
-      name="crown"
-      size={13}
-      color="#FFFFFF"
-    />
+        
+        <View className="absolute bottom-2.5 left-2.5 overflow-hidden rounded-full bg-[#0050BA]/90">
+          <View className="flex-row items-center px-2 py-1">
+            <MaterialCommunityIcons name="crown" size={12} color="#FFFFFF" />
+            <Text className="ml-1 text-[9px] font-bold tracking-wide text-white uppercase">
+              Influencer
+            </Text>
+          </View>
+        </View>
 
-    <Text className="ml-1 text-[10px] font-semibold text-white">
-      Influencer
-    </Text>
-  </View>
-</View>
         <TouchableOpacity
           onPress={() => onFavorite(design.id)}
-          className="absolute right-[10px] top-[10px] h-6 w-6 items-center justify-center rounded-full bg-[#3E2F8A] dark:bg-[#3E2F8A]"
+          className="absolute right-2.5 top-2.5 h-8 w-8 items-center justify-center rounded-full bg-white/90 shadow-sm dark:bg-black/70"
         >
           <Ionicons
             name={design.liked ? 'heart' : 'heart-outline'}
-            size={16}
-            color={design.liked ? '#FF3B30' : (isDark ? '#FFF' : '#FFF')}
+            size={18}
+            color={design.liked ? '#FF3B30' : (isDark ? '#FFF' : '#1C1C1E')}
           />
         </TouchableOpacity>
       </View>
       <View className="px-1">
-        <Text numberOfLines={1} className="mb-1 text-[14px] font-semibold text-[#1C1C1E] dark:text-white tracking-wide">
+        <Text numberOfLines={1} className="mb-1 text-[14px] font-semibold text-[#1C1C1E] dark:text-white">
           {design.title}
         </Text>
-        <Text numberOfLines={1} className="mb-[6px] text-[12px] text-[#8E8E93]">
-          Designed by {artistName}
+        <Text numberOfLines={1} className="mb-1.5 text-[12px] text-[#8E8E93]">
+          by {artistName}
         </Text>
-        <Text className="text-[14px] font-bold text-[#1C1C1E] dark:text-white">
+        <Text className="text-[14px] font-extrabold text-[#3E2F8A] dark:text-[#A993FF]">
           {formatNaira(price)}
         </Text>
       </View>
@@ -116,61 +118,49 @@ function ShareSheet({
   onClose: () => void;
 }) {
   if (!design) return null;
+  const isDark = useColorScheme() === 'dark';
 
   const handleSocialShare = async (platform: string) => {
-    const message = `Discover "${design.title}" on Berrystamp. ${design.description || ''}`;
+    const message = `Check out "${design.title}" on Berrystamp!`;
     const encodedMessage = encodeURIComponent(message);
-    
-    // Facebook and LinkedIn require a URL to share properly via web intents.
-    // Replace this with your actual dynamic product URL if you have one.
-    const productUrl = encodeURIComponent('https://berrystamp.com'); 
+    const productUrl = encodeURIComponent(`https://berrystamp.com/design/${design.id}`); 
     
     let appUrl = '';
     let webUrl = '';
 
-    // Route to specific platform schemes and their web fallbacks
     switch (platform) {
       case 'Whatsapp':
-        appUrl = `whatsapp://send?text=${encodedMessage}`;
-        webUrl = `https://wa.me/?text=${encodedMessage}`;
+        appUrl = `whatsapp://send?text=${encodedMessage} ${productUrl}`;
+        webUrl = `https://wa.me/?text=${encodedMessage} ${productUrl}`;
         break;
       case 'X':
-        appUrl = `twitter://post?message=${encodedMessage}`;
-        webUrl = `https://twitter.com/intent/tweet?text=${encodedMessage}`;
+        appUrl = `twitter://post?message=${encodedMessage}&url=${productUrl}`;
+        webUrl = `https://twitter.com/intent/tweet?text=${encodedMessage}&url=${productUrl}`;
         break;
       case 'Facebook':
-        appUrl = `fb://`; // Opens the app
+        appUrl = `fb://`;
         webUrl = `https://www.facebook.com/sharer/sharer.php?u=${productUrl}&quote=${encodedMessage}`;
         break;
       case 'LinkedIn':
-        appUrl = `linkedin://`; // Opens the app
+        appUrl = `linkedin://`;
         webUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${productUrl}`;
         break;
     }
 
     try {
-      // Try to open the native app first
-      const canOpenApp = await Linking.canOpenURL(appUrl);
-      if (canOpenApp) {
-        await Linking.openURL(appUrl);
-      } else if (webUrl) {
-        // Fallback to the web browser intent if the app isn't installed
-        await Linking.openURL(webUrl);
-      }
+      await Linking.openURL(appUrl).catch(() => {
+        return Linking.openURL(webUrl);
+      });
     } catch (e) {
       console.warn(`Could not open ${platform}`, e);
     }
-    
     onClose();
   };
 
   const handleCopy = async () => {
-    // If you want this to strictly "Copy Link" without the share sheet, 
-    // you should use expo-clipboard (e.g., Clipboard.setStringAsync(url)).
-    // Leaving this as Share.share for now unless you want it changed too.
     try {
       await Share.share({
-        message: `Discover "${design.title}" on Berrystamp. ${design.description || ''}`,
+        message: `Check out "${design.title}" on Berrystamp! ${design.description || ''}`,
         title: design.title,
       });
     } catch { }
@@ -180,42 +170,45 @@ function ShareSheet({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable className="flex-1 justify-end bg-black/50" onPress={onClose}>
-        <Pressable onPress={(e) => e.stopPropagation()} className="rounded-t-[24px] bg-white p-6 pb-10 dark:bg-[#1C1C1E]">
+        <View 
+          onStartShouldSetResponder={() => true} 
+          className="rounded-t-[32px] bg-white p-6 pb-12 dark:bg-[#1C1C1E]"
+        >
           <View className="mb-6 flex-row items-center justify-between">
-            <Text className="text-[18px] font-bold text-[#1C1C1E] dark:text-white">Share Product</Text>
-            <TouchableOpacity onPress={onClose} className="h-8 w-8 items-center justify-center rounded-full bg-[#F5F5F7] dark:bg-[#2C2C2E]">
-              <Ionicons name="close" size={18} className="text-[#1C1C1E] dark:text-white" />
+            <Text className="text-[20px] font-extrabold text-[#1C1C1E] dark:text-white">Share Product</Text>
+            <TouchableOpacity onPress={onClose} className="h-9 w-9 items-center justify-center rounded-full bg-[#F5F5F7] dark:bg-[#2C2C2E]">
+              <Ionicons name="close" size={20} color={isDark ? '#FFF' : '#1C1C1E'} />
             </TouchableOpacity>
           </View>
 
-          <View className="mb-8 flex-row justify-between">
+          <View className="mb-8 flex-row justify-between px-2">
             {['Whatsapp', 'X', 'LinkedIn', 'Facebook'].map((label) => (
-              <TouchableOpacity key={label} onPress={() => handleSocialShare(label)} className="w-[50px] items-center">
-                <View className="mb-2 h-[50px] w-[50px] items-center justify-center rounded-full bg-[#4A3298]">
-                  <Ionicons name="share-social-outline" size={24} color="#FFF" />
+              <TouchableOpacity key={label} onPress={() => handleSocialShare(label)} className="items-center">
+                <View className="mb-3 h-14 w-14 items-center justify-center rounded-full bg-[#3E2F8A]">
+                  <Ionicons name="share-social-outline" size={26} color="#FFF" />
                 </View>
-                <Text className="text-center text-[11px] text-[#8E8E93]">{label}</Text>
+                <Text className="text-center text-[12px] font-medium text-[#8E8E93]">{label}</Text>
               </TouchableOpacity>
             ))}
           </View>
 
           <View className="flex-row items-center rounded-2xl bg-[#F5F5F7] p-3 dark:bg-[#2C2C2E]">
-            <View className="mr-3 h-12 w-12 overflow-hidden rounded-lg bg-[#E0E0E0]">
+            <View className="mr-3 h-14 w-14 overflow-hidden rounded-xl bg-[#E0E0E0]">
               {design.imagePath ? <Image source={{ uri: design.imagePath }} className="h-full w-full" /> : null}
             </View>
             <View className="flex-1">
-              <Text numberOfLines={1} className="text-[15px] font-semibold text-[#1C1C1E] dark:text-white">
+              <Text numberOfLines={1} className="text-[16px] font-bold text-[#1C1C1E] dark:text-white">
                 {design.title}
               </Text>
-              <Text numberOfLines={1} className="mt-0.5 text-[13px] text-[#8E8E93]">
+              <Text numberOfLines={1} className="mt-1 text-[13px] text-[#8E8E93]">
                 Berrystamp Exclusives
               </Text>
             </View>
-            <TouchableOpacity onPress={handleCopy} className="ml-3 rounded-xl bg-[#4A3298] px-4 py-2.5">
-              <Text className="text-[14px] font-semibold text-white">Copy Link</Text>
+            <TouchableOpacity onPress={handleCopy} className="ml-3 rounded-xl bg-[#3E2F8A] px-5 py-3">
+              <Text className="text-[14px] font-bold text-white">Share link</Text>
             </TouchableOpacity>
           </View>
-        </Pressable>
+        </View>
       </Pressable>
     </Modal>
   );
@@ -236,9 +229,6 @@ function ProductDetailScreen({
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { show: showAlert } = useAppAlert();
-  console.log('ProductDetailScreen render', { design });
-
-  // 1. Hook straight into the shared context mutations
   const { setDesignFor, setTheme, setItems, setProductContext } = useCustomDesignStore();
 
   const [galleryIndex, setGalleryIndex] = useState(0);
@@ -252,7 +242,6 @@ function ProductDetailScreen({
   const [showShare, setShowShare] = useState(false);
   const [relatedDesigns, setRelatedDesigns] = useState<Design[]>([]);
   const [showPrintModal, setShowPrintModal] = useState(false);
-  // Cart item built for the print flow – set before opening the modal
   const [pendingPrintCartItems, setPendingPrintCartItems] = useState<any[]>([]);
 
   const gallery = useMemo(() => {
@@ -268,10 +257,7 @@ function ProductDetailScreen({
 
   const mockSizes = useMemo(() => getMockSizes(selectedMock), [selectedMock]);
   const artistName = (design as any).shopName || (design as any).brandName || design.designerName || `${design.profile.firstName} ${design.profile.lastName}`.trim() || design.profile.username || 'Berrystamp Studio';
-  const lowestPrice = useMemo(() => {
-    const prices = design.mocks.map((m) => m.price).filter((p) => p > 0);
-    return prices.length ? Math.min(...prices) : design.amount || 0;
-  }, [design]);
+  const lowestPrice = useMemo(() => getLowestPrice(design), [design]);
 
   useEffect(() => {
     ApiService.getDesigns({ page: 0, size: 8, designer: design.designerId })
@@ -300,22 +286,12 @@ function ProductDetailScreen({
         size: selectedSize || undefined,
       });
       if (printNow) {
-        // Build the cart item payload and open Print Preferences Modal
-        setPendingPrintCartItems([
-          {
-            id: String(design.id),
-            designId: Number(design.id),
-            mockId: Number(selectedMock.id),
-            name: design.title,
-            imageUrl: selectedMock?.imagePath || design.imagePath || '',
-            price: selectedMock?.price || design.amount || 0,
-            quantity,
-            colour: selectedColour || '',
-            size: selectedSize || '',
-            variantText: [selectedColour, selectedSize].filter(Boolean).join(' / '),
-            designerName: artistName,
-          },
-        ]);
+        setPendingPrintCartItems([{
+          id: String(design.id), designId: Number(design.id), mockId: Number(selectedMock.id),
+          name: design.title, imageUrl: selectedMock?.imagePath || design.imagePath || '', price: selectedMock?.price || design.amount || 0,
+          quantity, colour: selectedColour || '', size: selectedSize || '', variantText: [selectedColour, selectedSize].filter(Boolean).join(' / '),
+          designerName: artistName,
+        }]);
         setShowPrintModal(true);
         return;
       }
@@ -335,55 +311,35 @@ function ProductDetailScreen({
     router.push({
       pathname: '/(tabs)/select-printer',
       params: {
-        cartItems: JSON.stringify(pendingPrintCartItems),
-        dateOfDelivery: result.dateOfDelivery,
-        deliveryAddress: JSON.stringify(result.deliveryAddress),
-        hasOwnItem: String(result.hasOwnItem),
-        ...(result.pickupAddress ? { pickupAddress: JSON.stringify(result.pickupAddress) } : {}),
+        cartItems: JSON.stringify(pendingPrintCartItems), dateOfDelivery: result.dateOfDelivery, deliveryAddress: JSON.stringify(result.deliveryAddress),
+        hasOwnItem: String(result.hasOwnItem), ...(result.pickupAddress ? { pickupAddress: JSON.stringify(result.pickupAddress) } : {}),
       },
     });
   };
 
-  // 2. Updated to use CustomDesignContext state instead of URL params path construction
   const handleRequestCustomization = () => {
-    setDesignFor('');
-    setTheme('');
-    setItems([]);
+    setDesignFor(''); setTheme(''); setItems([]);
     setProductContext({
-      sourceDesignId: design.id,
-      sourceDesignTitle: design.title,
-      sourceDesignImage: selectedMock?.imagePath || design.imagePath,
-      designerId: design.designerId || design.profile.id,
-      designerName: artistName,
-      availableMocks: design.mocks.map((m) => ({
-        id: m.id,
-        name: m.name,
-        imagePath: m.imagePath,
-        price: m.price,
-      })),
+      sourceDesignId: design.id, sourceDesignTitle: design.title, sourceDesignImage: selectedMock?.imagePath || design.imagePath,
+      designerId: design.designerId || design.profile.id, designerName: artistName,
+      availableMocks: design.mocks.map((m) => ({ id: m.id, name: m.name, imagePath: m.imagePath, price: m.price })),
       selectedMockId: selectedMock?.id,
     });
-
     onClose();
-    router.push('/(tabs)/create-custom-design'); // Simple navigation without param bundles
+    router.push('/(tabs)/create-custom-design');
   };
 
   return (
     <View className="flex-1 bg-white dark:bg-black">
       <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
-
+        
         {/* Full Bleed Image Gallery */}
         <View style={{ width: SCREEN_WIDTH, height: GALLERY_HEIGHT }} className="bg-[#F5F5F7] dark:bg-[#1C1C1E]">
-          <ScrollView
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            onMomentumScrollEnd={(e) => setGalleryIndex(Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH))}
-          >
+          <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} onMomentumScrollEnd={(e) => setGalleryIndex(Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH))}>
             {gallery.map((item) => (
               <View key={item.id} style={{ width: SCREEN_WIDTH, height: GALLERY_HEIGHT }}>
                 {item.uri ? (
-                  <Image source={{ uri: item.uri }} className="h-full w-full object-cover" resizeMode="cover" />
+                  <Image source={{ uri: item.uri }} className="h-full w-full" resizeMode="cover" />
                 ) : (
                   <View className="flex-1 items-center justify-center">
                     <Ionicons name="image-outline" size={64} className="text-[#D1D1D6] dark:text-[#3A3A3C]" />
@@ -392,115 +348,29 @@ function ProductDetailScreen({
               </View>
             ))}
           </ScrollView>
-          
-           
 
-{/* Influencer Badge */}
-<View className="absolute bottom-5 left-4 mb-4 overflow-hidden rounded-full bg-[#0050BA]">
-  <View className="flex-row items-center px-2.5 py-1.5">
-    <MaterialCommunityIcons
-      name="crown"
-      size={13}
-      color="#FFFFFF"
-    />
+          {/* SLEEK FLOATING ACTION HEADER */}
+          <View style={{ top: Math.max(insets.top, 10) }} className="absolute left-4 right-4 z-10 flex-row items-center justify-between">
+            {/* Back Button */}
+            <TouchableOpacity onPress={onClose} className="h-11 w-11 items-center justify-center rounded-full bg-black/40 shadow-sm backdrop-blur-md">
+              <Ionicons name="chevron-back" size={24} color="#FFFFFF" className="ml-[-2px]" />
+            </TouchableOpacity>
 
-    <Text className="ml-1 text-[10px] font-semibold text-white">
-      Influencer
-    </Text>
-  </View>
-</View>
-          
-          {/* Floating Action Header */}
-          <View
-  style={{ top: Math.max(insets.top, 20) }}
-  className="absolute left-0 right-0 z-10 overflow-hidden"
->
-  <BlurView
-    intensity={40}
-    tint="light"
-    className="flex-row items-center px-4 py-2"
-  >
-    {/* Back */}
-    <TouchableOpacity
-      onPress={onClose}
-      className="mr-3 h-10 w-10 items-center justify-center"
-    >
-      <Ionicons
-        name="chevron-back"
-        size={24}
-        color="#FFFFFF"
-      />
-    </TouchableOpacity>
-
-    {/* Designer */}
-    <View className="flex-1 flex-row items-center">
-      {/* Profile Picture */}
-      <View className="mr-2.5 h-9 w-9 overflow-hidden rounded-full border border-white/40">
-        {design.profile?.profilePicturePath ? (
-          <Image
-            source={{
-              uri: design.profile.profilePicturePath,
-            }}
-            className="h-full w-full"
-            resizeMode="cover"
-          />
-        ) : (
-          <View className="h-full w-full items-center justify-center bg-[#4A3298]">
-            <Text className="text-[13px] font-bold text-white">
-              {artistName?.charAt(0)?.toUpperCase()}
-            </Text>
+            {/* Actions */}
+            <View className="flex-row items-center gap-3">
+              <TouchableOpacity onPress={handleFavorite} className="h-11 w-11 items-center justify-center rounded-full bg-black/40 shadow-sm backdrop-blur-md">
+                <Ionicons name={isFavorite ? "heart" : "heart-outline"} size={22} color={isFavorite ? "#FF3B30" : "#FFFFFF"} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setShowShare(true)} className="h-11 w-11 items-center justify-center rounded-full bg-black/40 shadow-sm backdrop-blur-md">
+                <Feather name="share" size={20} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
           </View>
-        )}
-      </View>
 
-      {/* Name + Shop */}
-      <View className="flex-1">
-        <Text
-          numberOfLines={1}
-          className="text-[13px] font-semibold text-white"
-        >
-          {design.profile?.username || artistName}
-        </Text>
-
-        <Text
-          numberOfLines={1}
-          className="mt-0.5 text-[10px] text-white/75"
-        >
-          {artistName}
-        </Text>
-      </View>
-    </View>
-
-    {/* Like + Share */}
-    <View className="ml-3 flex-row items-center gap-3">
-      <TouchableOpacity
-        onPress={handleFavorite}
-        className="h-10 w-10 items-center justify-center"
-      >
-        <Ionicons
-          name={isFavorite ? "heart" : "heart-outline"}
-          size={22}
-          color={isFavorite ? "#FF3B30" : "#FFFFFF"}
-        />
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        onPress={() => setShowShare(true)}
-        className="h-10 w-10 items-center justify-center"
-      >
-        <Feather
-          name="share"
-          size={20}
-          color="#FFFFFF"
-        />
-      </TouchableOpacity>
-    </View>
-  </BlurView>
-</View>
           {/* Pagination Counter */}
           {gallery.length > 1 && (
-            <View className="absolute bottom-[30px] right-0 align-self-center rounded-xl bg-black/50 px-3 py-1.5">
-              <Text className="text-[12px] font-semibold tracking-widest text-white">
+            <View className="absolute bottom-10 right-4 rounded-full bg-black/50 px-3 py-1.5 backdrop-blur-md">
+              <Text className="text-[12px] font-bold tracking-widest text-white">
                 {galleryIndex + 1} / {gallery.length}
               </Text>
             </View>
@@ -508,37 +378,45 @@ function ProductDetailScreen({
         </View>
 
         {/* Content Box Container */}
-        <View className="-mt-5  bg-white px-5 pt-7 pb-[120px] dark:bg-black">
-          <Text className=" font-light text-[15px] text-[#636366] dark:text-[#8E8E93]">
-            Description
-          </Text>
-          <View className=" flex items-flex-start justify-between gap-4">
-            <Text className="flex-1 text-[22px] font-light tracking-tight text-[#1C1C1E] dark:text-white">
-              {design.title}
-            </Text>
-            <Text className="mb-2 text-[15px] font-light leading-6 text-[#3A3A3C] dark:text-[#E5E5EA]">
-            {design.description || "Premium quality design crafted for exceptional aesthetics and comfort."}
-          </Text> 
-          </View>
+        <View className="-mt-6 bg-white px-6 pt-8 pb-[120px] rounded-t-[32px] dark:bg-black shadow-sm">
+          
+          {/* Top Title & Price Section */}
+          <View className="flex-row items-start justify-between gap-4 mb-5">
+            <View className="flex-1">
+              <Text className="text-[24px] font-extrabold tracking-tight text-[#1C1C1E] dark:text-white">
+                {design.title}
+              </Text>
+              
+              {/* Designer Info moved securely into the layout hierarchy */}
+              <View className="mt-3 flex-row items-center">
+                <View className="mr-2 h-7 w-7 overflow-hidden rounded-full bg-[#E5E5EA] dark:bg-[#2C2C2E]">
+                  {design.profile?.profilePicturePath ? (
+                    <Image source={{ uri: design.profile.profilePicturePath }} className="h-full w-full" />
+                  ) : (
+                    <View className="flex-1 items-center justify-center bg-[#3E2F8A]">
+                      <Text className="text-[11px] font-bold text-white">{artistName?.charAt(0)?.toUpperCase()}</Text>
+                    </View>
+                  )}
+                </View>
+                <Text className="text-[14px] font-medium text-[#8E8E93]">
+                  {artistName}
+                </Text>
+              </View>
+            </View>
 
-          <Text className="mb-5 text-[15px] text-[#636366] dark:text-[#8E8E93]">
-            Designed by <Text className="font-semibold text-[#0050BA]">{artistName}</Text>
-          </Text>
-          <Text className="text-[22px] mb-3 font-extrabold text-[#1C1C1E] dark:text-white">
+            <Text className="text-[24px] font-extrabold text-[#3E2F8A] dark:text-[#A993FF]">
               {formatNaira(lowestPrice)}
             </Text>
+          </View>
 
-          {/* <Text className="mb-7 text-[15px] leading-6 text-[#3A3A3C] dark:text-[#E5E5EA]">
-            {design.description || "Premium quality design crafted for exceptional aesthetics and comfort."}
-          </Text> */}
-          
-
-          
+          <Text className="mb-8 text-[15px] leading-6 text-[#3A3A3C] dark:text-[#D1D1D6]">
+            {design.description || "Premium quality design crafted for exceptional aesthetics and comfort. Explore the styles below to personalize your fit."}
+          </Text>
 
           {/* Styles Selection */}
-          <View className="border-t border-[#F5F5F7] pt-6 dark:border-[#2C2C2E]">
-            <Text className="mb-4 text-[15px] font-bold text-[#1C1C1E] dark:text-white">Available Styles</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-6">
+          <View className="border-t border-[#F5F5F7] pt-8 dark:border-[#2C2C2E]">
+            <Text className="mb-4 text-[16px] font-bold text-[#1C1C1E] dark:text-white">Available Styles</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-8">
               {design.mocks.map((mock) => {
                 const isActive = selectedMock?.id === mock.id;
                 return (
@@ -549,18 +427,16 @@ function ProductDetailScreen({
                       setSelectedColour(mock.colours?.[0] || '');
                       setSelectedSize(getMockSizes(mock)[0] || '');
                     }}
-                    style={{ width: 80 }}
-                    className={`mr-4 overflow-hidden rounded-xl border-2 ${isActive ? 'border-[#4A3298]' : 'border-transparent'}`}
+                    style={{ width: 85, height: 85 }}
+                    className={`mr-4 overflow-hidden rounded-2xl border-2 ${isActive ? 'border-[#3E2F8A]' : 'border-transparent bg-[#F5F5F7] dark:bg-[#1C1C1E]'}`}
                   >
-                    <View className="bg-[#F5F5F7] dark:bg-[#1C1C1E]" style={{ width: 80, height: 80 }}>
-                      {mock.imagePath ? (
-                        <Image source={{ uri: mock.imagePath }} className="h-full w-full" />
-                      ) : (
-                        <View className="flex-1 items-center justify-center">
-                          <Ionicons name="shirt-outline" size={32} className="text-[#CCC] dark:text-[#555]" />
-                        </View>
-                      )}
-                    </View>
+                    {mock.imagePath ? (
+                      <Image source={{ uri: mock.imagePath }} className="h-full w-full" />
+                    ) : (
+                      <View className="flex-1 items-center justify-center">
+                        <Ionicons name="shirt-outline" size={32} className="text-[#CCC] dark:text-[#555]" />
+                      </View>
+                    )}
                   </TouchableOpacity>
                 );
               })}
@@ -568,15 +444,15 @@ function ProductDetailScreen({
 
             {/* Colors Selection */}
             {!!selectedMock?.colours?.length && (
-              <View className="mb-6">
-                <Text className="mb-4 text-[15px] font-light text-[#1C1C1E] dark:text-white">Color Options</Text>
-                <View className="flex-row flex-wrap gap-3">
+              <View className="mb-8">
+                <Text className="mb-4 text-[16px] font-bold text-[#1C1C1E] dark:text-white">Color Options</Text>
+                <View className="flex-row flex-wrap gap-4">
                   {selectedMock.colours.map((colour) => (
                     <TouchableOpacity
                       key={colour}
                       onPress={() => setSelectedColour(colour)}
-                      style={{ backgroundColor: colour, borderColor: selectedColour === colour ? '#4A3298' : (isDark ? '#2C2C2E' : '#E5E5EA') }}
-                      className="h-10 w-10 rounded-md border-2 shadow-sm"
+                      style={{ backgroundColor: colour, borderColor: selectedColour === colour ? '#3E2F8A' : (isDark ? '#3A3A3C' : '#E5E5EA') }}
+                      className={`h-11 w-11 rounded-full border-[3px] shadow-sm ${selectedColour === colour ? 'scale-110' : ''}`}
                     />
                   ))}
                 </View>
@@ -585,16 +461,16 @@ function ProductDetailScreen({
 
             {/* Size Selection */}
             {!!mockSizes.length && (
-              <View className="mb-6">
-                <Text className="mb-4 text-[15px] font-light text-[#1C1C1E] dark:text-white">Size Selection</Text>
+              <View className="mb-8">
+                <Text className="mb-4 text-[16px] font-bold text-[#1C1C1E] dark:text-white">Size</Text>
                 <View className="flex-row flex-wrap gap-3">
                   {mockSizes.map((size) => (
                     <TouchableOpacity
                       key={size}
                       onPress={() => setSelectedSize(size)}
-                      className={`min-w-[50px] items-center rounded-lg border px-4 py-3 ${selectedSize === size ? 'border-[#4A3298] bg-[#4A3298]' : 'border-[#E5E5EA] bg-transparent dark:border-[#2C2C2E]'}`}
+                      className={`min-w-[60px] items-center rounded-xl border-2 px-4 py-3 ${selectedSize === size ? 'border-[#3E2F8A] bg-[#3E2F8A]' : 'border-[#E5E5EA] bg-transparent dark:border-[#3A3A3C]'}`}
                     >
-                      <Text className={`text-[14px] font-semibold ${selectedSize === size ? 'text-white' : 'text-[#1C1C1E] dark:text-[#E5E5EA]'}`}>{size}</Text>
+                      <Text className={`text-[15px] font-bold ${selectedSize === size ? 'text-white' : 'text-[#1C1C1E] dark:text-white'}`}>{size}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -602,39 +478,38 @@ function ProductDetailScreen({
             )}
 
             {/* Quantity Selector */}
-            <View className="mb-8 flex items-start gap-2">
-              <Text className="text-[15px] font-light text-[#1C1C1E] dark:text-white"> Select quantity</Text>
-              <View className="flex-row items-center rounded-lg ">
-                <TouchableOpacity onPress={() => setQuantity((q) => Math.max(1, q - 1))} className="h-9 w-9 items-center justify-center">
-                  <Text className="text-[20px] font-medium p-[6px] rounded-[5px] w-[28px] h-[28px] text-center text-white dark:text-white bg-[#3E2F8A]">−</Text>
+            <View className="mb-10 flex-row items-center justify-between">
+              <Text className="text-[16px] font-bold text-[#1C1C1E] dark:text-white">Quantity</Text>
+              <View className="flex-row items-center rounded-xl bg-[#F5F5F7] p-1 dark:bg-[#1C1C1E]">
+                <TouchableOpacity onPress={() => setQuantity((q) => Math.max(1, q - 1))} className="h-10 w-10 items-center justify-center rounded-lg bg-white shadow-sm dark:bg-[#2C2C2E]">
+                  <Text className="text-[20px] font-medium text-[#1C1C1E] dark:text-white">−</Text>
                 </TouchableOpacity>
-                <Text className="w-10 text-center text-[16px] font-bold text-[#1C1C1E] dark:text-white">{quantity}</Text>
-                <TouchableOpacity onPress={() => setQuantity((q) => q + 1)} className="h-9 w-9 items-center justify-center">
-                  <Text className="text-[20px] font-medium p-[6px] rounded-[5px] w-[28px] h-[28px] text-center text-white dark:text-white bg-[#3E2F8A]">+</Text>
+                <Text className="w-12 text-center text-[16px] font-bold text-[#1C1C1E] dark:text-white">{quantity}</Text>
+                <TouchableOpacity onPress={() => setQuantity((q) => q + 1)} className="h-10 w-10 items-center justify-center rounded-lg bg-white shadow-sm dark:bg-[#2C2C2E]">
+                  <Text className="text-[20px] font-medium text-[#1C1C1E] dark:text-white">+</Text>
                 </TouchableOpacity>
               </View>
             </View>
 
             {/* Actions Grid */}
-            <TouchableOpacity onPress={handleRequestCustomization} className="mb-6 flex-row items-center justify-center rounded-xl border border-[#E5E5EA] py-4 dark:border-[#2C2C2E]">
+            <TouchableOpacity onPress={handleRequestCustomization} className="mb-4 flex-row items-center justify-center rounded-2xl border-2 border-[#E5E5EA] py-4 dark:border-[#2C2C2E]">
               <Ionicons name="color-wand-outline" size={20} className="mr-2 text-[#1C1C1E] dark:text-white" />
-              <Text className="text-[15px] font-semibold text-[#1C1C1E] dark:text-white">Request Custom Order</Text>
+              <Text className="text-[16px] font-bold text-[#1C1C1E] dark:text-white">Request Custom Order</Text>
             </TouchableOpacity>
 
             <View className="mb-10 flex-row gap-4">
-              <TouchableOpacity onPress={() => handleAddToCart(false)} disabled={addingToCart} className="flex-1 items-center rounded-xl border border-[#3E2F8A] py-[18px] bg-transparent dark:border-white">
-                {addingToCart ? <ActivityIndicator size="small" className="text-[#1C1C1E] dark:text-white" /> :
-                 <Text className="text-[15px] font-bold text-[#3E2F8A] dark:text-white">Add to Cart</Text>}
+              <TouchableOpacity onPress={() => handleAddToCart(false)} disabled={addingToCart} className="flex-1 h-14 items-center justify-center rounded-2xl border-2 border-[#3E2F8A] bg-transparent">
+                {addingToCart ? <ActivityIndicator size="small" color="#3E2F8A" /> : <Text className="text-[16px] font-bold text-[#3E2F8A] dark:text-[#A993FF]">Add to Cart</Text>}
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => handleAddToCart(true)} disabled={addingToCart} className="flex-1 items-center rounded-xl bg-[#4A3298] py-[18px]">
-                <Text className="text-[15px] font-bold text-white">Print Now</Text>
+              <TouchableOpacity onPress={() => handleAddToCart(true)} disabled={addingToCart} className="flex-1 h-14 items-center justify-center rounded-2xl bg-[#3E2F8A] shadow-md shadow-[#3E2F8A]/30">
+                <Text className="text-[16px] font-bold text-white">Print Now</Text>
               </TouchableOpacity>
             </View>
 
             {/* More Items from Same Designer */}
             {relatedDesigns.length > 0 && (
               <View>
-                <Text className="mb-5 text-[18px] font-bold text-[#1C1C1E] dark:text-white">More from {artistName}</Text>
+                <Text className="mb-6 text-[20px] font-extrabold text-[#1C1C1E] dark:text-white">More from {artistName}</Text>
                 <View className="flex-row flex-wrap justify-between">
                   {relatedDesigns.map((item) => (
                     <ProductCard
@@ -650,48 +525,27 @@ function ProductDetailScreen({
           </View>
         </View>
       </ScrollView>
-     { cartSuccess && (
-    <View className="absolute bottom-6 left-4 right-4 z-50">
-      <View className="flex-row items-center rounded-2xl border border-[#34C759]/30 bg-white px-4 py-3.5 shadow-lg dark:border-[#34C759]/30 dark:bg-[#1C1C1E]">
 
-        {/* Success Icon */}
-        <View className="h-9 w-9 items-center justify-center rounded-full bg-[#34C759]/10">
-          <Ionicons
-            name="checkmark-circle"
-            size={22}
-            color="#34C759"
-          />
+      {/* Success Toast */}
+      {cartSuccess && (
+        <View className="absolute bottom-10 left-6 right-6 z-50">
+          <View className="flex-row items-center rounded-2xl border border-[#34C759]/20 bg-white px-4 py-4 shadow-xl dark:border-[#34C759]/20 dark:bg-[#1C1C1E]">
+            <View className="h-10 w-10 items-center justify-center rounded-full bg-[#34C759]/15">
+              <Ionicons name="checkmark-circle" size={24} color="#34C759" />
+            </View>
+            <View className="ml-3 flex-1">
+              <Text className="text-[14px] font-bold text-[#1C1C1E] dark:text-white">Added to Cart</Text>
+              <Text className="text-[12px] text-[#8E8E93]">Item saved successfully</Text>
+            </View>
+            <TouchableOpacity onPress={() => { router.push('/cart'); onClose(); }} className="rounded-xl bg-[#F5F5F7] px-4 py-2.5 dark:bg-[#2C2C2E]">
+              <Text className="text-[13px] font-bold text-[#3E2F8A] dark:text-[#A993FF]">View Cart</Text>
+            </TouchableOpacity>
+          </View>
         </View>
+      )}
 
-        {/* Message */}
-        <View className="ml-3 flex-1">
-          <Text className="mt-0.5 text-[11px] text-[#8E8E93]">
-            Item added successfully
-          </Text>
-        </View>
-
-        {/* View Cart */}
-        <TouchableOpacity
-          onPress={() => {
-            router.push('/cart');
-            onClose();
-          }}
-          className="rounded-full  px-3.5 py-2"
-        >
-          <Text className="text-[12px] text-[#3E2F8A] font-bold">
-            Go to cart
-          </Text>
-        </TouchableOpacity>
-
-      </View>
-    </View>
-  )}
       <ShareSheet visible={showShare} design={design} onClose={() => setShowShare(false)} />
-      <PrintPreferencesModal
-        visible={showPrintModal}
-        onClose={() => setShowPrintModal(false)}
-        onContinue={handlePrintPreferencesContinue}
-      />
+      <PrintPreferencesModal visible={showPrintModal} onClose={() => setShowPrintModal(false)} onContinue={handlePrintPreferencesContinue} />
     </View>
   );
 }
@@ -766,26 +620,23 @@ export default function ProductsScreen() {
     try { await ApiService.toggleFavorite(String(id)); } catch { setProducts((prev) => prev.map((d) => (d.id === id ? { ...d, liked: !d.liked } : d))); }
   };
 
-  const handleCartAdded = (_design: Design, _mock: Mock, _colour: string, _size: string, _qty: number) => {
-    // Cart was updated successfully — no further action needed here.
-    // The PrintPreferencesModal is now managed inside ProductDetailScreen.
-  };
+  const handleCartAdded = () => {};
 
   if (isSingleProduct) {
     if (isLoading || (!selectedDesign && !error)) {
       return (
         <View className="flex-1 items-center justify-center bg-white dark:bg-black">
-          <ActivityIndicator size="large" color="#4A3298" />
+          <ActivityIndicator size="large" color="#3E2F8A" />
         </View>
       );
     }
     if (error || !selectedDesign) {
       return (
         <View className="flex-1 items-center justify-center bg-white px-6 dark:bg-black">
-          <Ionicons name="alert-circle-outline" size={48} color="#FF3B30" />
-          <Text className="mt-3 text-center text-[#FF3B30]">{error || 'Could not load this product.'}</Text>
-          <TouchableOpacity onPress={() => router.back()} className="mt-5 rounded-xl bg-[#4A3298] px-8 py-3.5">
-            <Text className="font-semibold text-white">Return</Text>
+          <Ionicons name="alert-circle-outline" size={56} color="#FF3B30" />
+          <Text className="mt-4 text-center text-[16px] text-[#FF3B30]">{error || 'Could not load this product.'}</Text>
+          <TouchableOpacity onPress={() => router.back()} className="mt-6 rounded-xl bg-[#3E2F8A] px-8 py-4">
+            <Text className="font-bold text-white">Return</Text>
           </TouchableOpacity>
         </View>
       );
@@ -809,73 +660,75 @@ export default function ProductsScreen() {
 
   return (
     <View className="flex-1 bg-white dark:bg-black">
-      {/* Search Header area */}
-      <View style={{ paddingTop: insets.top + 12 }} className="flex-row justify-between items-center bg-white px-5 pb-4 dark:bg-black">
-        <TouchableOpacity onPress={() => router.back()} className="-ml-2.5 mr-3 h-10 w-10 items-center justify-center">
-          <Ionicons
-    name="arrow-back"
-    size={24}
-    color={isDark ? "#FFFFFF" : "#1C1C1E"}
-  />
+      
+      {/* PERFECTLY CENTERED MAIN HEADER */}
+      <View style={{ paddingTop: Math.max(insets.top, 16) }} className="flex-row items-center justify-between px-5 pb-3">
+        {/* Left Side: Back */}
+        <TouchableOpacity onPress={() => router.back()} className="h-10 w-10 items-center justify-center rounded-full bg-[#F5F5F7] dark:bg-[#1C1C1E]">
+          <Ionicons name="chevron-back" size={22} color={isDark ? "#FFFFFF" : "#1C1C1E"} className="ml-[-2px]" />
         </TouchableOpacity>
-        <View className="flex-1 text-center">
-          <Text numberOfLines={1} className="text-[20px] font-extrabold tracking-tight text-[#1C1C1E] dark:text-white">
-            {artistNameParam ? `${artistNameParam}'s Catalog` : 'The Marketplace'}
+        
+        {/* Center: Title */}
+        <View className="flex-1 items-center px-2">
+          <Text numberOfLines={1} className="text-[18px] font-bold tracking-wide text-[#1C1C1E] dark:text-white">
+            {artistNameParam ? `${artistNameParam}'s Catalog` : 'Marketplace'}
           </Text>
         </View>
-        <TouchableOpacity onPress={() => loadProducts(searchQuery, filters)} className="h-10 w-10 items-end justify-center">
-          <Ionicons name="refresh-outline" size={22} color={isDark ? "#FFFFFF" : "#1C1C1E"} />
+        
+        {/* Right Side: Refresh */}
+        <TouchableOpacity onPress={() => loadProducts(searchQuery, filters)} className="h-10 w-10 items-center justify-center rounded-full bg-[#F5F5F7] dark:bg-[#1C1C1E]">
+          <Ionicons name="refresh" size={20} color={isDark ? "#FFFFFF" : "#1C1C1E"} />
         </TouchableOpacity>
       </View>
 
       {!designId && (
         <View className="flex-row items-center gap-3 px-5 py-3">
-          <View className="h-12 flex-1 flex-row items-center rounded-xl bg-[#F5F5F7] px-4 dark:bg-[#1C1C1E]">
-            <Ionicons name="search-outline" size={18} color={isDark ? "#8E8E93" : "#8E8E93"} />
+          <View className="h-[52px] flex-1 flex-row items-center rounded-2xl bg-[#F5F5F7] px-4 dark:bg-[#1C1C1E]">
+            <Ionicons name="search" size={20} color={isDark ? "#8E8E93" : "#8E8E93"} />
             <TextInput
               value={searchQuery}
               onChangeText={setSearchQuery}
               placeholder="Search catalog..."
               placeholderTextColor="#8E8E93"
-              className="flex-1 text-[15px] text-[#1C1C1E] dark:text-white"
+              className="ml-2 flex-1 text-[16px] text-[#1C1C1E] dark:text-white"
               returnKeyType="search"
               onSubmitEditing={() => addSearchHistory(searchQuery)}
             />
             {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchQuery('')}>
+              <TouchableOpacity onPress={() => setSearchQuery('')} className="p-1">
                 <Ionicons name="close-circle" size={18} className="text-[#8E8E93]" />
               </TouchableOpacity>
             )}
           </View>
-          <TouchableOpacity onPress={() => router.push('/Filter')} className="h-12 bg-[#3E2F8A] w-12 items-center justify-center rounded-xl ">
-            <Ionicons name="options-outline" size={22} color="white" className="text-white dark:text-[black]" />
+          <TouchableOpacity onPress={() => router.push('/Filter')} className="h-[52px] w-[52px] items-center justify-center rounded-2xl bg-[#3E2F8A] shadow-md shadow-[#3E2F8A]/30">
+            <Ionicons name="options" size={24} color="white" />
           </TouchableOpacity>
         </View>
       )}
 
       {isLoading ? (
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#4A3298" />
+          <ActivityIndicator size="large" color="#3E2F8A" />
         </View>
       ) : error ? (
         <View className="flex-1 items-center justify-center px-6">
-          <Ionicons name="alert-circle-outline" size={56} color="#FF3B30" />
-          <Text className="mt-4 text-center text-[15px] text-[#FF3B30]">{error}</Text>
-          <TouchableOpacity onPress={() => loadProducts(searchQuery, filters)} className="mt-6 rounded-xl bg-[#4A3298] px-8 py-3.5">
-            <Text className="text-[15px] font-semibold text-white">Retry Connection</Text>
+          <Ionicons name="alert-circle-outline" size={64} color="#FF3B30" />
+          <Text className="mt-4 text-center text-[16px] text-[#FF3B30]">{error}</Text>
+          <TouchableOpacity onPress={() => loadProducts(searchQuery, filters)} className="mt-8 rounded-2xl bg-[#3E2F8A] px-8 py-4">
+            <Text className="text-[16px] font-bold text-white">Retry Connection</Text>
           </TouchableOpacity>
         </View>
       ) : products.length === 0 ? (
         <View className="flex-1 items-center justify-center px-6">
-          <Ionicons name="grid-outline" size={56} className="text-[#E5E5EA] dark:text-[#2C2C2E]" />
-          <Text className="mt-4 text-center text-[15px] text-[#8E8E93]">No matching products found in the catalog.</Text>
+          <Ionicons name="shirt-outline" size={64} className="text-[#E5E5EA] dark:text-[#2C2C2E]" />
+          <Text className="mt-4 text-center text-[16px] font-medium text-[#8E8E93]">No matching products found.</Text>
         </View>
       ) : (
         <FlatList
           data={products}
           keyExtractor={(item) => String(item.id)}
           numColumns={2}
-          contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 100 }}
+          contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 16, paddingBottom: 100 }}
           columnWrapperStyle={{ justifyContent: 'space-between' }}
           showsVerticalScrollIndicator={false}
           renderItem={({ item }) => (
