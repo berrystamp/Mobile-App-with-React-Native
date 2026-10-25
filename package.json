@@ -29,7 +29,7 @@
     "@react-navigation/native-stack": "^7.14.10",
     "@stomp/stompjs": "^7.1.0",
     "axios": "^1.13.5",
-    "babel-preset-expo": "~57.0.0",
+    "babel-preset-expo": "~57.0.9",
     "expo": "~57.0.31",
     "expo-asset": "~57.0.18",
     "expo-blur": "~57.0.3",
@@ -71,7 +71,7 @@
   },
   "devDependencies": {
     "@types/react": "~19.2.4",
-    "babel-preset-expo": "~57.0.0",
+    "babel-preset-expo": "~57.0.9",
     "eslint": "^9.25.0",
     "eslint-config-expo": "~57.0.2",
     "typescript": "~6.0.3"
