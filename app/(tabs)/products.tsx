@@ -71,14 +71,14 @@ function ProductCard({
           </View>
         )}
         
-        <View className="absolute bottom-2.5 left-2.5 overflow-hidden rounded-full bg-[#0050BA]/90">
+        {/* <View className="absolute bottom-2.5 left-2.5 overflow-hidden rounded-full bg-[#0050BA]/90">
           <View className="flex-row items-center px-2 py-1">
             <MaterialCommunityIcons name="crown" size={12} color="#FFFFFF" />
             <Text className="ml-1 text-[9px] font-bold tracking-wide text-white uppercase">
               Influencer
             </Text>
           </View>
-        </View>
+        </View> */}
 
         <TouchableOpacity
           onPress={() => onFavorite(design.id)}
