@@ -25,7 +25,7 @@
       "package": "com.berrystamp.app"
     },
     "web": {
-      "output": "static",
+      "output": "single",
       "bundler": "metro",
       "favicon": "./assets/images/favicon.png"
     },
