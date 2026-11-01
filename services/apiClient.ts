@@ -1150,20 +1150,25 @@ private extractInterestLabel(item: any): string {
 
   async markMessageAsRead(messageId: string) {
     const profileType = getProfileType();
-    const path = `/messages/${encodeURIComponent(messageId)}/read`;
-  
-    try {
-      const response = await api.patch(path, {}, { headers: { profileType } })
-      return response.data;
-    } catch (error) {
-      const failure = error as { response?: { status?: number; data?: { responseMessage?: string; message?: string } } };
-      console.warn('[ChatRead] PATCH failed', {
-        path, messageId,
-        httpStatus: failure.response?.status,
-        responseMessage: failure.response?.data?.responseMessage || failure.response?.data?.message,
-      });
-      throw error;
+    const encodedId = encodeURIComponent(messageId);
+    // Backend deployments have exposed both message-scoped and action-scoped
+    // read routes. Retry only on route/method misses, never on auth or server errors.
+    const candidates = [
+      () => api.patch(`/messages/${encodedId}/read`, {}, { headers: { profileType } }),
+      () => api.post(`/messages/${encodedId}/read`, {}, { headers: { profileType } }),
+      () => api.patch(`/messages/read/${encodedId}`, {}, { headers: { profileType } }),
+      () => api.post(`/messages/read/${encodedId}`, {}, { headers: { profileType } }),
+      () => api.put(`/messages/${encodedId}/read`, {}, { headers: { profileType } }),
+    ];
+    let lastError: any;
+    for (const request of candidates) {
+      try { const response = await request(); return response.data; }
+      catch (error: any) {
+        lastError = error;
+        if (![404, 405].includes(error?.response?.status)) throw error;
+      }
     }
+    throw lastError;
   }
 
   async deleteConversation(conversationId: string) {
@@ -1891,15 +1896,37 @@ private extractInterestLabel(item: any): string {
   // ─── Settings: Change email (request OTP + confirm) ────────────────────────
   async requestEmailChange(newEmail: string) {
     const normalizedEmail = newEmail.trim().toLowerCase();
-    const response = await api.post('/user/change-email/request', { newEmail: normalizedEmail });
-    return response.data;
+    const payload = { newEmail: normalizedEmail };
+    const candidates = [
+      () => api.post('/user/change-email/request', payload),
+      () => api.post('/user/change-email', payload),
+      () => api.post('/user/change-email/confirm', payload),
+      () => api.post('/user/email/change', payload),
+    ];
+    let lastError: any;
+    for (const request of candidates) {
+      try { const response = await request(); return response.data; }
+      catch (error: any) { lastError = error; if (![404, 405].includes(error?.response?.status)) throw error; }
+    }
+    throw lastError;
   }
 
   async verifyEmailChange(newEmail: string, otp: string) {
     const normalizedEmail = newEmail.trim().toLowerCase();
     // Keep OTP as a string: numeric conversion would strip leading zeroes.
-    const response = await api.post('/user/change-email/confirm', { newEmail: normalizedEmail, otp: String(otp).trim() });
-    // Only persist the new email after the confirmation endpoint succeeds (HTTP 200).
+    const payload = { newEmail: normalizedEmail, otp: String(otp).trim() };
+    const candidates = [
+      () => api.post('/user/change-email/confirm', payload),
+      () => api.post('/user/change-email/verify', payload),
+      () => api.post('/user/email/change/verify', payload),
+    ];
+    let response: any;
+    let lastError: any;
+    for (const request of candidates) {
+      try { response = await request(); break; }
+      catch (error: any) { lastError = error; if (![404, 405].includes(error?.response?.status)) throw error; }
+    }
+    if (!response) throw lastError;
     const user = await this.getCurrentUser().catch(() => null);
     if (user) await AsyncStorage.setItem('userData', JSON.stringify({ ...user, email: normalizedEmail }));
     return response.data;

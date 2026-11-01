@@ -4,8 +4,6 @@ import {
     getPushPermissionStatus,
     pushNotificationsSupported,
     registerForPushNotifications,
-    registerPushTokenWithBackend,
-    unregisterPushTokenWithBackend,
 } from "@/services/notificationService";
 import { useNotificationStore } from "@/store/notificationStore";
 import { Ionicons } from "@expo/vector-icons";
@@ -281,15 +279,6 @@ function NotificationsScreen({
       if (value) {
         const token = await registerForPushNotifications();
         if (token) {
-          try {
-            await registerPushTokenWithBackend(token);
-          } catch (error: any) {
-            Alert.alert(
-              "Push setup incomplete",
-              error?.message || "The device permission is enabled, but the notification service could not register this device.",
-            );
-            return;
-          }
           setPushEnabled(true);
           setExpoPushToken(token);
         } else {
@@ -312,15 +301,6 @@ function NotificationsScreen({
           );
         }
       } else {
-        const token = useNotificationStore.getState().expoPushToken;
-        if (token) {
-          try {
-            await unregisterPushTokenWithBackend(token);
-          } catch {
-            // Keep the local setting in sync even when an older backend has no
-            // unregister endpoint. The OS permission remains unchanged.
-          }
-        }
         setPushEnabled(false);
         setExpoPushToken(null);
         Alert.alert(
@@ -490,6 +470,7 @@ function ChangeEmailScreen({
   const [step, setStep] = useState<"input" | "otp">("input");
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
+  const otpRef = useRef<React.ElementRef<typeof TextInput>>(null);
   const { refreshUser } = useAuth();
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -556,7 +537,7 @@ function ChangeEmailScreen({
       setLoading(true);
       await ApiService.requestEmailChange(email.trim());
       setOtp("");
-      otpRefs.current[0]?.focus();
+      otpRef.current?.focus();
       startCountdown();
     } catch (e: any) {
       Alert.alert("Error", e?.response?.data?.responseMessage || e?.message || "Failed to resend.");
@@ -608,6 +589,7 @@ function ChangeEmailScreen({
           <>
             <View style={styles.otpRow}>
               <TextInput
+                ref={otpRef}
                 value={otp}
                 onChangeText={(value) => setOtp(value.replace(/[^0-9]/g, ""))}
                 keyboardType="number-pad"
@@ -771,10 +753,6 @@ function ChangePasswordScreen({
           onChange={setOldPassword}
           show={showOld}
           onToggle={() => setShowOld((v) => !v)}
-          primary={primary}
-          inputBorder={inputBorder}
-          subtext={subtext}
-          text={text}
         />
         <PasswordField
           isDark={isDark}
@@ -783,10 +761,6 @@ function ChangePasswordScreen({
           onChange={setNewPassword}
           show={showNew}
           onToggle={() => setShowNew((v) => !v)}
-          primary={primary}
-          inputBorder={inputBorder}
-          subtext={subtext}
-          text={text}
         />
         <PasswordField
           isDark={isDark}
@@ -795,10 +769,6 @@ function ChangePasswordScreen({
           onChange={setConfirmPassword}
           show={showConfirm}
           onToggle={() => setShowConfirm((v) => !v)}
-          primary={primary}
-          inputBorder={inputBorder}
-          subtext={subtext}
-          text={text}
         />
       </ScrollView>
 

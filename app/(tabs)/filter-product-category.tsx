@@ -26,10 +26,20 @@ export default function FilterProductCategoryScreen() {
 
   useEffect(() => {
     const loadState = async () => {
-      const [filters, designResponse] = await Promise.all([getSearchFilters(), ApiService.getDesigns({ size: 40 })]);
+      const [filters, taxonomyResponse, designResponse] = await Promise.all([
+        getSearchFilters(),
+        ApiService.getDesignTaxonomy().catch(() => null),
+        ApiService.getDesigns({ page: 0, size: 100 }).catch(() => null),
+      ]);
       const designs = normalizeDesignListResponse(designResponse);
-      setSelectedItems(filters.productCategories);
-      setItems(Array.from(new Set(designs.flatMap((design) => design.mocks.map((mock) => mock.category || mock.name)).filter(Boolean))));
+      const taxonomyBody = taxonomyResponse?.responseBody || taxonomyResponse?.data || taxonomyResponse || {};
+      const taxonomyValues = [taxonomyBody.productCategories, taxonomyBody.mockCategories, taxonomyBody.categories, taxonomyBody.products]
+        .flatMap((value: any) => Array.isArray(value) ? value : [])
+        .map((value: any) => typeof value === 'string' ? value : value?.name || value?.category || value?.label)
+        .filter(Boolean);
+      const designValues = designs.flatMap((design) => design.mocks.map((mock) => mock.category || mock.name)).filter(Boolean);
+      setSelectedItems(filters.productCategories || []);
+      setItems(Array.from(new Set([...taxonomyValues, ...designValues])).sort((a, b) => String(a).localeCompare(String(b))));
     };
 
     loadState().catch((error) => console.error('Failed to load product categories', error));

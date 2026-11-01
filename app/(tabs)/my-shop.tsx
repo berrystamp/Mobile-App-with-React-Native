@@ -1298,7 +1298,7 @@ export default function MyShopScreen() {
   };
 
   const shareResource = useCallback(async (title: string, type: 'design' | 'collection' | 'profile', id?: string | number) => {
-    const resourceUrl = id != null ? `berrystamp://${type}/${encodeURIComponent(String(id))}` : 'berrystamp://';
+    const resourceUrl = id != null ? `https://berrystamp.com/${type === 'collection' ? 'collection' : type === 'design' ? 'design' : 'designer'}/${encodeURIComponent(String(id))}` : 'https://berrystamp.com';
     try {
       await Share.share({
         title,

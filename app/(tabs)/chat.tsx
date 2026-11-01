@@ -851,7 +851,7 @@ export default function ChatScreen() {
   // This renders an ORDER_REQUEST card inside the chat thread
   const renderOrderCard = (orderDetail: any) => {
     if (!orderDetail) return null;
-    const imageUrl = orderDetail.coverImageUrl;
+    const imageUrl = orderDetail.coverImageUrl || orderDetail.companyLogoUrl || orderDetail.companyLogo || orderDetail.businessLogoUrl || orderDetail.logoUrl || conversation.avatarImageUrl || conversation.avatarThumbnailUrl;
     const isPrintOrder = isPrintDetail(orderDetail);
     const labelText = isPrintOrder ? "Print order request" : "Custom order request";
     const fallbackTitle = isPrintOrder ? (orderDetail.mockName || "Print Order") : "Custom Order";
@@ -866,7 +866,7 @@ export default function ChatScreen() {
             </TouchableOpacity>
           ) : (
             <View className="items-center justify-center bg-slate-100 dark:bg-slate-800 rounded-lg" style={{ width: 112, height: 124 }}>
-              <Ionicons name="image-outline" size={24} color={themeSecondaryIconColor} />
+              <Image source={require('@/assets/logo01.png')} style={{ width: 76, height: 76 }} contentFit="contain" />
             </View>
           )}
           <Text className="mt-2 text-[11px] text-slate-700 dark:text-slate-200" numberOfLines={1}>

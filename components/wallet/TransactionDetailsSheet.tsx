@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -18,22 +18,19 @@ function formatDate(value: unknown) {
 export function TransactionDetailsSheet({ transaction, onClose }: Props) {
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
-  const [amountVisibility, setAmountVisibility] = useState({ transaction, visible: true });
-  if (amountVisibility.transaction !== transaction) {
-    setAmountVisibility({ transaction, visible: true });
-  }
-  const showAmount = amountVisibility.transaction !== transaction || amountVisibility.visible;
+  const [showAmount, setShowAmount] = useState(true);
+  useEffect(() => { setShowAmount(true); }, [transaction]);
 
   const direction = transactionDirection(transaction);
   const rows = [
-    ['Description', transaction?.description || transaction?.narration || 'Transaction'],
+    ['Description', transaction?.description || transaction?.narration || transaction?.remark || transaction?.reason || 'Transaction'],
     ['Type', direction === 'UNKNOWN' ? 'Not provided' : direction],
     ['Status', String(transaction?.status || 'Not provided').toUpperCase()],
-    ['Reference', transaction?.transactionReference || transaction?.reference || transaction?.transactionRef || 'Not provided'],
-    ['Date', formatDate(transaction?.createdAt || transaction?.createdDate || transaction?.date)],
-    ['Bank', transaction?.accountDetails?.bankName || 'Not provided'],
-    ['Account name', transaction?.accountDetails?.accountName || 'Not provided'],
-    ['Account number', transaction?.accountDetails?.accountNumber || 'Not provided'],
+    ['Reference', transaction?.transactionReference || transaction?.reference || transaction?.transactionRef || transaction?.paymentReference || transaction?.externalReference || 'Not provided'],
+    ['Date', formatDate(transaction?.createdAt || transaction?.createdDate || transaction?.transactionDate || transaction?.date)],
+    ['Bank', transaction?.accountDetails?.bankName || transaction?.bankName || transaction?.bank || 'Not provided'],
+    ['Account name', transaction?.accountDetails?.accountName || transaction?.accountName || 'Not provided'],
+    ['Account number', transaction?.accountDetails?.accountNumber || transaction?.accountNumber || 'Not provided'],
   ];
 
   return (
@@ -51,7 +48,7 @@ export function TransactionDetailsSheet({ transaction, onClose }: Props) {
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
             <View style={styles.amountRow}>
               <Text style={[styles.amount, { color: theme.text }]}>{showAmount ? formatNaira(transactionAmount(transaction)) : '₦••••••'}</Text>
-              <Pressable onPress={() => setAmountVisibility({ transaction, visible: !showAmount })} style={styles.button} accessibilityRole="button" accessibilityLabel={showAmount ? 'Hide transaction amount' : 'Show transaction amount'}>
+              <Pressable onPress={() => setShowAmount((visible) => !visible)} style={styles.button} accessibilityRole="button" accessibilityLabel={showAmount ? 'Hide transaction amount' : 'Show transaction amount'}>
                 <Ionicons name={showAmount ? 'eye-off-outline' : 'eye-outline'} size={22} color={theme.textMuted} />
               </Pressable>
             </View>
