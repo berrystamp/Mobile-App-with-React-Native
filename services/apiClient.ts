@@ -1026,7 +1026,11 @@ private extractInterestLabel(item: any): string {
     return response.data;
   }
 
-  async payForOrder(orderId: string | number, payload: { callback: string; orderId: number }) {
+  async payForOrder(orderId: string | number, payload: {
+    callback: string;
+    orderId: number;
+    channels?: string[];
+  }) {
     const profileType = getProfileType();
     const response = await api.post(`/orders/${orderId}`, payload, {
       headers: { profileType },

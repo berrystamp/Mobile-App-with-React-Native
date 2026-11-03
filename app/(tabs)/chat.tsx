@@ -806,7 +806,13 @@ export default function ChatScreen() {
     setInitializingPayment(true);
     try {
       const callbackUrl = `/order/${detail.id}`;
-      const res = await ApiService.payForOrder(detail.id, { callback: callbackUrl, orderId: Number(detail.id) });
+      const res = await ApiService.payForOrder(detail.id, {
+        callback: callbackUrl,
+        orderId: Number(detail.id),
+        // The backend must forward this list to Paystack's transaction
+        // initialization request as the `channels` field.
+        channels: ["card", "bank", "bank_transfer", "ussd", "qr", "mobile_money", "eft"],
+      });
       const body = res?.responseBody || res || {};
       const authorizationUrl = body?.authorizationUrl || body?.authorization_url || body?.data?.authorization_url || body?.data?.authorizationUrl || body?.paymentUrl || body?.url || "";
       if (!authorizationUrl) throw new Error("Payment could not be initialized. No authorization URL received.");
