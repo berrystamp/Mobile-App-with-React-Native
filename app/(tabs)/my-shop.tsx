@@ -6,7 +6,6 @@ import {
   FlatList,
   Image,
   Modal,
-  Platform,
   RefreshControl,
   ScrollView,
   Share,
@@ -21,6 +20,8 @@ import {
 import type { CollectionItem, TabType } from '@/components/shop/types';
 import { fetchShopData, toAbsoluteImage, toCountLabel, unwrapList } from '@/components/shop/utils';
 import { formatNaira } from '@/lib/currency';
+import { useShareAfterDismiss } from '@/hooks/use-share-after-dismiss';
+import { resourceShareUrl, shareResourceLink } from '@/lib/sharing';
 import { upsertLocalConversation } from '@/lib/localConversations';
 import ApiService from '@/services/apiClient';
 import { toProfileType, useAuthStore } from '@/store/authStore';
@@ -65,31 +66,6 @@ function useTheme(isDark: boolean) {
 
 // ─── Sheet handle ─────────────────────────────────────────────────────────────
 // iOS must finish dismissing its modal before presenting the native share sheet.
-function useShareAfterDismiss(visible: boolean) {
-  const pendingShare = useRef<(() => void) | null>(null);
-  const onDismiss = useCallback(() => {
-    const action = pendingShare.current;
-    pendingShare.current = null;
-    action?.();
-  }, []);
-
-  useEffect(() => {
-    if (visible || Platform.OS === 'ios') return;
-    const timer = setTimeout(onDismiss, 350);
-    return () => clearTimeout(timer);
-  }, [visible, onDismiss]);
-
-  const share = (action: () => void, close: () => void) => {
-    if (Platform.OS === 'web') {
-      close();
-      action();
-      return;
-    }
-    pendingShare.current = action;
-    close();
-  };
-  return { share, onDismiss };
-}
 
 function SheetHandle() {
   return <View style={{ width: 48, height: 4, borderRadius: 2, backgroundColor: '#CFCFD6', alignSelf: 'center', marginTop: 12, marginBottom: 8 }} />;
@@ -1191,7 +1167,7 @@ function CollectionDetailScreen({ visible, theme, collection, username, readOnly
 // ─── Main MyShopScreen ────────────────────────────────────────────────────────
 export default function MyShopScreen() {
   const router = useRouter();
-  const { profileId } = useLocalSearchParams<{ profileId?: string }>();
+  const { profileId, collectionId } = useLocalSearchParams<{ profileId?: string; collectionId?: string }>();
   const role = useAuthStore((state) => state.role);
   const activeRole = toProfileType(role);
   const readOnly = Boolean(profileId);
@@ -1237,6 +1213,7 @@ export default function MyShopScreen() {
   // ── Collection detail ──
   const [collectionDetail, setCollectionDetail] = useState<CollectionItem | null>(null);
   const [showCollectionDetail, setShowCollectionDetail] = useState(false);
+  const [dismissedCollectionLink, setDismissedCollectionLink] = useState<string | null>(null);
 
   // ── Follow ──
   const [followLoading, setFollowLoading] = useState(false);
@@ -1282,6 +1259,11 @@ export default function MyShopScreen() {
       designCount: item.designCount,
     })), [shop?.collections]);
 
+  const collectionLinkKey = `${profileId}:${collectionId}`;
+  const linkedCollection = collectionId && dismissedCollectionLink !== collectionLinkKey
+    ? collectionItems.find((item) => String(item.id) === collectionId) ?? null
+    : null;
+
   // ── Handlers ──
   const handleDesignMenu = (item: any) => { setDesignMenuTarget(item); setShowDesignMenu(true); };
   const handleCollectionMenu = (item: CollectionItem) => { setCollectionMenuTarget(item); setShowCollectionMenu(true); };
@@ -1297,19 +1279,18 @@ export default function MyShopScreen() {
   };
 
   const shareResource = useCallback(async (title: string, type: 'design' | 'collection' | 'profile', id?: string | number) => {
-    const resourceUrl = id != null ? `berrystamp://${type}/${encodeURIComponent(String(id))}` : 'berrystamp://';
     try {
-      await Share.share({
-        title,
-        message: `${title}\n${resourceUrl}`,
-        ...(Platform.OS === 'ios' ? { url: resourceUrl } : {}),
-      });
+      if (id == null || String(id).trim() === '') {
+        throw new Error('This item is unavailable. Please refresh and try again.');
+      }
+      const resourceUrl = resourceShareUrl(type, id, shop?.profile?.profileId ?? profileId);
+      await shareResourceLink(title, resourceUrl);
     } catch (error: any) {
       if (error?.message && !String(error.message).toLowerCase().includes('cancel')) {
         Alert.alert('Share failed', error.message);
       }
     }
-  }, []);
+  }, [shop, profileId]);
 
   const handleShareDesign = useCallback((design: any) => {
     shareResource(
@@ -1668,12 +1649,12 @@ export default function MyShopScreen() {
     />
 
       <CollectionDetailScreen
-        visible={showCollectionDetail}
+        visible={showCollectionDetail || Boolean(linkedCollection)}
         theme={theme}
-        collection={collectionDetail}
+        collection={showCollectionDetail ? collectionDetail : linkedCollection}
         username={profile?.fullName || profile?.username || 'designer'}
         readOnly={readOnly}
-        onClose={() => setShowCollectionDetail(false)}
+        onClose={() => { setShowCollectionDetail(false); setDismissedCollectionLink(collectionLinkKey); }}
         onRefresh={() => loadShop()}
         onShareDesign={handleShareDesign}
       />

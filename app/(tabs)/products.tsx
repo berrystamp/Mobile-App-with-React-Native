@@ -2,6 +2,8 @@ import { useAppAlert } from "@/components/common/AppAlert";
 import PrintPreferencesModal, { type PrintPreferencesResult } from "@/components/PrintPreferencesModal";
 import { useCustomDesignStore } from "@/context/CustomDesignContext"; // Import your shared state hook
 import { formatNaira } from "@/lib/currency";
+import { useShareAfterDismiss } from '@/hooks/use-share-after-dismiss';
+import { resourceShareUrl, shareResourceLink } from "@/lib/sharing";
 import { normalizeDesign, normalizeDesignListResponse } from "@/lib/designs";
 import { SearchFilters, addSearchHistory, getSearchFilters } from "@/lib/localStorage";
 import ApiService from "@/services/apiClient";
@@ -9,7 +11,7 @@ import { Design, Mock } from "@/types";
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Dimensions, FlatList, Image, Linking, Modal, Pressable, ScrollView, Share, Text, TextInput, TouchableOpacity, View, useColorScheme } from "react-native";
+import { ActivityIndicator, Dimensions, FlatList, Image, Linking, Modal, Pressable, ScrollView, Text, TextInput, TouchableOpacity, View, useColorScheme } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BlurView } from "expo-blur";
 
@@ -115,15 +117,15 @@ function ShareSheet({
   design: Design | null;
   onClose: () => void;
 }) {
+  const sharing = useShareAfterDismiss(visible);
   if (!design) return null;
 
   const handleSocialShare = async (platform: string) => {
-    const message = `Discover "${design.title}" on Berrystamp. ${design.description || ''}`;
+    const url = resourceShareUrl('design', design.id);
+    const message = `Discover "${design.title}" on Berrystamp. ${design.description || ''}\n${url}`;
     const encodedMessage = encodeURIComponent(message);
     
-    // Facebook and LinkedIn require a URL to share properly via web intents.
-    // Replace this with your actual dynamic product URL if you have one.
-    const productUrl = encodeURIComponent('https://berrystamp.com'); 
+    const productUrl = encodeURIComponent(url);
     
     let appUrl = '';
     let webUrl = '';
@@ -139,18 +141,16 @@ function ShareSheet({
         webUrl = `https://twitter.com/intent/tweet?text=${encodedMessage}`;
         break;
       case 'Facebook':
-        appUrl = `fb://`; // Opens the app
         webUrl = `https://www.facebook.com/sharer/sharer.php?u=${productUrl}&quote=${encodedMessage}`;
         break;
       case 'LinkedIn':
-        appUrl = `linkedin://`; // Opens the app
         webUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${productUrl}`;
         break;
     }
 
     try {
       // Try to open the native app first
-      const canOpenApp = await Linking.canOpenURL(appUrl);
+      const canOpenApp = appUrl ? await Linking.canOpenURL(appUrl) : false;
       if (canOpenApp) {
         await Linking.openURL(appUrl);
       } else if (webUrl) {
@@ -165,20 +165,14 @@ function ShareSheet({
   };
 
   const handleCopy = async () => {
-    // If you want this to strictly "Copy Link" without the share sheet, 
-    // you should use expo-clipboard (e.g., Clipboard.setStringAsync(url)).
-    // Leaving this as Share.share for now unless you want it changed too.
     try {
-      await Share.share({
-        message: `Discover "${design.title}" on Berrystamp. ${design.description || ''}`,
-        title: design.title,
-      });
+      await shareResourceLink(`Discover "${design.title}" on Berrystamp.`, resourceShareUrl('design', design.id));
     } catch { }
     onClose();
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} onDismiss={sharing.onDismiss}>
       <Pressable className="flex-1 justify-end bg-black/50" onPress={onClose}>
         <Pressable onPress={(e) => e.stopPropagation()} className="rounded-t-[24px] bg-white p-6 pb-10 dark:bg-[#1C1C1E]">
           <View className="mb-6 flex-row items-center justify-between">
@@ -211,8 +205,8 @@ function ShareSheet({
                 Berrystamp Exclusives
               </Text>
             </View>
-            <TouchableOpacity onPress={handleCopy} className="ml-3 rounded-xl bg-[#4A3298] px-4 py-2.5">
-              <Text className="text-[14px] font-semibold text-white">Copy Link</Text>
+            <TouchableOpacity onPress={() => sharing.share(handleCopy, onClose)} className="ml-3 rounded-xl bg-[#4A3298] px-4 py-2.5">
+              <Text className="text-[14px] font-semibold text-white">Share Link</Text>
             </TouchableOpacity>
           </View>
         </Pressable>
