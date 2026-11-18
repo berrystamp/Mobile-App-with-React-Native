@@ -1,5 +1,5 @@
 import { defaultSearchFilters, getSearchFilters, setSearchFilters } from '@/lib/localStorage';
-import { normalizeDesignListResponse } from '@/lib/designs';
+import { normalizeDesignListResponse, STANDARD_PRODUCT_CATEGORIES } from '@/lib/designs';
 import ApiService from '@/services/apiClient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -10,7 +10,7 @@ export default function FilterProductCategoryScreen() {
   const router = useRouter();
   const isDark = useColorScheme() === 'dark';
   const [query, setQuery] = useState('');
-  const [items, setItems] = useState<string[]>([]);
+  const [items, setItems] = useState<string[]>(STANDARD_PRODUCT_CATEGORIES);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
 
   const theme = useMemo(
@@ -39,7 +39,10 @@ export default function FilterProductCategoryScreen() {
         .filter(Boolean);
       const designValues = designs.flatMap((design) => design.mocks.map((mock) => mock.category || mock.name)).filter(Boolean);
       setSelectedItems(filters.productCategories || []);
-      setItems(Array.from(new Set([...taxonomyValues, ...designValues])).sort((a, b) => String(a).localeCompare(String(b))));
+      const extraValues = Array.from(new Set([...taxonomyValues, ...designValues]))
+        .filter((val) => !STANDARD_PRODUCT_CATEGORIES.some((std) => std.toLowerCase() === String(val).toLowerCase()))
+        .sort((a, b) => String(a).localeCompare(String(b)));
+      setItems([...STANDARD_PRODUCT_CATEGORIES, ...extraValues]);
     };
 
     loadState().catch((error) => console.error('Failed to load product categories', error));

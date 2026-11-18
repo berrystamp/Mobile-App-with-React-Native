@@ -58,9 +58,9 @@ export default function ProductDetailsModal({
           {/* Design Preview */}
           <View style={styles.imgWrap}>
             <Image
-              source={{ uri: offer.designImage }}
+              source={offer.designImage ? { uri: offer.designImage } : require("@/assets/logo01.png")}
               style={styles.img}
-              resizeMode="cover"
+              resizeMode={offer.designImage ? "cover" : "contain"}
             />
           </View>
           <Text style={styles.imgTitle}>{offer.title}</Text>

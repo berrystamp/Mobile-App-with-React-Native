@@ -11,6 +11,7 @@ const state = { role: 'printer', setAccountType(role) { this.role = role; }, log
 const storage = new Map();
 const requests = [];
 const mocks = {
+  'react-native': { Platform: { OS: 'ios' } },
   '@/store/authStore': { useAuthStore: { getState: () => state }, toAccountType: (role) => role.toLowerCase() },
   '@react-native-async-storage/async-storage': {
     getItem: async (key) => storage.get(key) ?? null,
@@ -29,7 +30,10 @@ function load(file) {
   const localRequire = (name) => {
     if (mocks[name]) return mocks[name];
     if (name === './api') return {
-      get: async (url, config) => { requests.push({ url, config }); return { data: { responseBody: [] } }; },
+      get: async (url, config) => { requests.push({ method: 'GET', url, config }); return { data: { responseBody: [] } }; },
+      patch: async (url, data, config) => { requests.push({ method: 'PATCH', url, data, config }); return { data: { requestSuccessful: true } }; },
+      put: async (url, data, config) => { requests.push({ method: 'PUT', url, data, config }); return { data: { requestSuccessful: true, responseBody: data } }; },
+      post: async (url, data, config) => { requests.push({ method: 'POST', url, data, config }); return { data: { requestSuccessful: true } }; },
     };
     if (name.startsWith('@/')) return load(name.slice(2) + '.ts');
     if (name.startsWith('.')) return load(path.resolve(path.dirname(absolute), name + '.ts'));
@@ -40,10 +44,16 @@ function load(file) {
 }
 
 const { getAccountProfile } = load('lib/accountProfile.ts');
-const { normalizeConversationsResponse } = load('lib/messages.ts');
+const { normalizeConversationsResponse, markConversationReadLocally } = load('lib/messages.ts');
 const { transactionDirection, transactionAmount } = load('lib/wallet.ts');
 const { nextShopLocationUpdate } = load('lib/shopLocation.ts');
-const { normalizeManageOrder } = load('lib/orders.ts');
+const { normalizeManageOrder, normalizeManageOrderListResponse } = load('lib/orders.ts');
+const {
+  normalizeDesign,
+  STANDARD_PRODUCT_CATEGORIES,
+  STANDARD_SIZES,
+  matchesProductCategory,
+} = load('lib/designs.ts');
 
 test('printer account selects printer profile when the same user also has a designer profile', () => {
   const user = { id: 1, designerProfile: { id: 20 }, printerProfile: { id: 30 } };
@@ -97,3 +107,67 @@ test('API honors an explicit order profile and updates both persisted and in-mem
   assert.equal(storage.has('profileType'), false);
   assert.equal(state.role, 'customer');
 });
+
+test('markMessageAsRead hits PATCH /messages/send/{id}/read and local read state clears unread count', async () => {
+  state.role = 'customer';
+  const api = load('services/apiClient.ts').default;
+  await api.markMessageAsRead('42');
+  assert.equal(requests.at(-1).method, 'PATCH');
+  assert.equal(requests.at(-1).url, '/messages/send/42/read');
+
+  markConversationReadLocally('99', '42', '2026-07-17T10:00:00Z');
+  const convos = normalizeConversationsResponse([
+    {
+      id: 99,
+      hasUnreadMessages: true,
+      unreadMessageCount: 3,
+      lastMessageTimestamp: '2026-07-17T10:00:00Z',
+      lastMessage: { id: 42, content: 'Hello', read: false },
+      participants: [{ id: 1, profileType: 'CUSTOMER' }, { id: 4, profileType: 'DESIGNER' }],
+    },
+  ], 1);
+  assert.equal(convos[0].hasUnreadMessages, false);
+  assert.equal(convos[0].unreadCount, 0);
+});
+
+test('normalizeDesign populates standard sizes, locked status, influencer flag, and product categories', () => {
+  assert.equal(STANDARD_PRODUCT_CATEGORIES.length, 9);
+  assert.deepEqual(STANDARD_SIZES, ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL']);
+
+  const regularDesign = normalizeDesign({
+    id: 28,
+    name: 'Pumpkin Nightmare',
+    amount: 2700,
+    openForCustomization: true,
+    mocks: [{ id: 101, name: 'Sweat Shirt', category: 'Others', limitedStatus: true, availableQty: 15, colours: ['black'] }],
+  });
+  assert.equal(regularDesign.locked, false);
+  assert.equal(regularDesign.influencerMerch, false);
+  assert.deepEqual(regularDesign.mocks[0].sizes, ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL']);
+  assert.equal(matchesProductCategory(regularDesign, ['Clothing/Apparel']), true);
+  assert.equal(matchesProductCategory(regularDesign, ['Phone Case']), false);
+
+  const lockedAndInfluencerDesign = normalizeDesign({
+    id: 18,
+    name: 'napybara fleece',
+    amount: 1500,
+    openForCustomization: false,
+    printer: { id: 7, name: 'Berrystamp Print' },
+    influencerMerch: true,
+    mocks: [{ id: 102, name: 'Hoodie', category: 'Clothing', availableQty: 10, colours: ['black'] }],
+  });
+  assert.equal(lockedAndInfluencerDesign.locked, true);
+  assert.equal(lockedAndInfluencerDesign.influencerMerch, true);
+});
+
+test('normalizeManageOrderListResponse isolates printer and designer orders by role', () => {
+  const rawOrders = [
+    { id: 1, title: 'Print Job', orderRequest: { orderType: 'PRINT', providerProfile: { id: 7, profileType: 'PRINTER' } } },
+    { id: 2, title: 'Custom Logo', orderRequest: { orderType: 'DESIGN', providerProfile: { id: 4, profileType: 'DESIGNER' } } },
+  ];
+  const printerOrders = normalizeManageOrderListResponse(rawOrders, 'PRINTER', 7);
+  const designerOrders = normalizeManageOrderListResponse(rawOrders, 'DESIGNER', 4);
+  assert.deepEqual(printerOrders.map((o) => o.id), ['1']);
+  assert.deepEqual(designerOrders.map((o) => o.id), ['2']);
+});
+

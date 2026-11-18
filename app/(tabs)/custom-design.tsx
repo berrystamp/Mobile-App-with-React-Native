@@ -102,7 +102,15 @@ export default function CustomDesignHubScreen() {
             </View>
           }
           renderItem={({ item }) => {
-            const imageUrl = toImageUrl(item?.frontImageUrl || item?.imagePath || item?.imageUrl);
+            const imageUrl = toImageUrl(
+              item?.imageUrlFront ||
+                item?.coverImage?.url ||
+                item?.coverImage?.originalUrl ||
+                item?.designs?.[0]?.url ||
+                item?.frontImageUrl ||
+                item?.imagePath ||
+                item?.imageUrl,
+            );
             const price = Number(item?.amount || item?.price || 0);
             return (
               <TouchableOpacity

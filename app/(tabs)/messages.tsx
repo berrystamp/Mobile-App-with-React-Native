@@ -6,7 +6,7 @@ import { ActivityIndicator, FlatList, Modal, Pressable, SafeAreaView, Text, Text
 import { ConversationRow } from '@/components/messages/ConversationRow';
 import { MessageEmptyState } from '@/components/messages/MessageEmptyState';
 import type { ConversationSummaryDto } from '@/lib/messages';
-import { getMergedConversations } from '@/lib/messages';
+import { getBackendMessageId, getMergedConversations, markConversationReadLocally } from '@/lib/messages';
 import ApiService from '@/services/apiClient';
 import { getAccountProfile } from '@/lib/accountProfile';
 import { useAuthStore } from '@/store/authStore';
@@ -28,6 +28,7 @@ export default function MessagesScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+  const role = useAuthStore((state) => state.role);
   const refreshedResponse = useConversationStore((state) => state.response);
   const [selectedConversation, setSelectedConversation] = useState<ConversationSummaryDto | null>(null);
   const [showActions, setShowActions] = useState(false);
@@ -42,7 +43,7 @@ export default function MessagesScreen() {
       if (!cancelled) setThreads(all.filter((thread) => Number(thread.participantId) !== currentUserId));
     });
     return () => { cancelled = true; };
-  }, [refreshedResponse, currentUserId]);
+  }, [refreshedResponse, currentUserId, role]);
 
   const fetchConversations = useCallback(async () => {
     try {
@@ -55,11 +56,6 @@ export default function MessagesScreen() {
       const all = await getMergedConversations(response, myId || undefined);
       // Filter out self-conversations (user chatting with their own other account)
       const filtered = myId ? all.filter((t) => Number(t.participantId) !== myId) : all;
-      console.log('[ChatRead] Messages screen backend unread status', filtered.map((thread) => ({
-        conversationId: thread.id,
-        hasUnreadMessages: thread.raw?.hasUnreadMessages,
-        unreadMessageCount: thread.raw?.unreadMessageCount,
-      })));
       setThreads(filtered);
     } catch {
       setThreads(await getMergedConversations([]));
@@ -67,7 +63,7 @@ export default function MessagesScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [role]);
 
   // Re-fetch whenever the screen comes back into focus so the last message
   // sent in a chat is reflected immediately without a manual pull-to-refresh.
@@ -88,6 +84,18 @@ export default function MessagesScreen() {
   }, [query, threads]);
 
   const openConversation = (conversation: ConversationSummaryDto) => {
+    const lastMsgId = getBackendMessageId(conversation.lastMessageDetail);
+    markConversationReadLocally(conversation.id, lastMsgId, conversation.timestamp);
+    if (lastMsgId && conversation.hasUnreadMessages) {
+      ApiService.markMessageAsRead(lastMsgId).catch(() => {});
+    }
+    setThreads((prev) =>
+      prev.map((item) =>
+        item.id === conversation.id
+          ? { ...item, hasUnreadMessages: false, unreadCount: 0 }
+          : item,
+      ),
+    );
     router.push({
       pathname: '/chat',
       params: {

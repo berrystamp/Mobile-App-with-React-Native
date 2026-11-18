@@ -11,6 +11,7 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { COLORS, RADIUS, SHADOW, SPACING } from "../../utils/theme";
 
 type Props = NativeStackScreenProps<RootStackParamList, "OrderDetails">;
@@ -30,8 +31,10 @@ const DetailRow = ({ label, value }: RowProps) => (
 
 export default function OrderDetailsScreen({ navigation, route }: Props) {
   const { offer, designer } = route.params;
+  const insets = useSafeAreaInsets();
+  const isDesignOrder = Boolean(designer && !offer.printingAmount);
 
-  const formatCurrency = (n: number) => `₦${n.toLocaleString()}`;
+  const formatCurrency = (n: number) => `₦${Number(n || 0).toLocaleString()}`;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -43,7 +46,7 @@ export default function OrderDetailsScreen({ navigation, route }: Props) {
       />
 
       {/* Sheet */}
-      <View style={styles.sheet}>
+      <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 16) }]}>
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.title}>Order details</Text>
@@ -60,8 +63,8 @@ export default function OrderDetailsScreen({ navigation, route }: Props) {
           showsVerticalScrollIndicator={false}
         >
           <Text style={styles.reviewNote}>
-            Review information to ensure details is exactly as agreed with
-            printer before accepting
+            Review information to ensure details is exactly as agreed before
+            accepting
           </Text>
 
           <DetailRow
@@ -76,19 +79,25 @@ export default function OrderDetailsScreen({ navigation, route }: Props) {
             label="Design amount"
             value={formatCurrency(offer.designAmount)}
           />
-          <DetailRow
-            label="Printing amount"
-            value={formatCurrency(offer.printingAmount)}
-          />
-          <DetailRow
-            label="Delivery amount"
-            value={formatCurrency(offer.deliveryAmount)}
-          />
+          {!isDesignOrder && (
+            <>
+              <DetailRow
+                label="Printing amount"
+                value={formatCurrency(offer.printingAmount)}
+              />
+              <DetailRow
+                label="Delivery fee"
+                value={formatCurrency(offer.deliveryAmount)}
+              />
+            </>
+          )}
           <DetailRow label="Agreed date of delivery" value={offer.dueDate} />
-          <DetailRow
-            label="Need pickup logistics"
-            value={offer.needPickupLogistics ? "Yes" : "No"}
-          />
+          {!isDesignOrder && (
+            <DetailRow
+              label="Need pickup logistics"
+              value={offer.needPickupLogistics ? "Yes" : "No"}
+            />
+          )}
         </ScrollView>
 
         {/* Actions */}

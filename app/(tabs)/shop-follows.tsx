@@ -47,7 +47,7 @@ export default function ShopFollowsScreen() {
     const search = query.trim().toLowerCase();
     return source.filter((item) => {
       if (!search) return true;
-      const text = `${toDisplayName(item?.profile || item)} ${item?.username || ''}`.toLowerCase();
+      const text = `${toDisplayName(item?.profile || item)} ${item?.userName || item?.username || ''}`.toLowerCase();
       return text.includes(search);
     });
   }, [activeTab, followers, following, query]);
@@ -95,7 +95,14 @@ export default function ShopFollowsScreen() {
         <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}>
           {items.map((item, index) => {
             const id = Number(item?.id || item?.profileId || item?.profile?.id || index);
-            const avatar = toAbsoluteImage(item?.profilePicturePath || item?.profile?.profilePicturePath || item?.profilePic);
+            const avatar = toAbsoluteImage(
+              item?.profileImage?.url ||
+                item?.profilePic ||
+                item?.profilePicturePath ||
+                item?.profile?.profileImage?.url ||
+                item?.profile?.profilePic ||
+                item?.profile?.profilePicturePath,
+            );
             return (
               <View key={`${id}-${index}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 14 }}>
                 <Image source={{ uri: avatar || FALLBACK_AVATAR }} style={{ width: 48, height: 48, borderRadius: 24 }} />

@@ -501,7 +501,12 @@ function ChangeEmailScreen({
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { Alert.alert("Error", "Please enter a valid new email address."); return; }
     try {
       setLoading(true);
-      await ApiService.requestEmailChange(email.trim());
+      const res: any = await ApiService.requestEmailChange(email.trim());
+      if (res?.completedImmediately) {
+        await refreshUser();
+        setSuccess(true);
+        return;
+      }
       setOtp("");
       setStep("otp");
       startCountdown();

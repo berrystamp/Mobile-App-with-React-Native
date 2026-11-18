@@ -76,26 +76,33 @@ export async function fetchShopData(
   const collectionsId = targetProfileId ?? profileId;
 
   const currentUser = (await ApiService.getCurrentUser()) as User | null;
+  const isOwnerDesigner = !targetProfileId && activeRole === "DESIGNER";
   const [designsResponse, collectionsResponse, paymentResponse] =
     await Promise.all([
-      ApiService.getDesigns({ page: 0, size: 40, designer: profileId || undefined }),
-      ApiService.getCollections(collectionsId, 0, 40).catch(() => ({
-        responseBody: { content: [] },
+      isOwnerDesigner
+        ? ApiService.getDesignerDesigns(0, 40).catch(() =>
+            ApiService.getDesigns({ page: 0, size: 40, designer: profileId || undefined }),
+          )
+        : ApiService.getDesigns({ page: 0, size: 40, designer: profileId || undefined }),
+      (targetProfileId
+        ? ApiService.getCollections(targetProfileId, 0, 40)
+        : ApiService.getMyCollections(0, 40)
+      ).catch(() => ({
+        content: [],
       })),
       ApiService.getPaymentDetails().catch(() => null),
     ]);
 
-  const [followerResponse, followingResponse, reviewResponse] =
+  const [followerResponse, followingResponse, reviewResponse, connectionResponse] =
     await Promise.all([
-      ApiService.getFollowers(profileId || undefined, 0, 100).catch(() => ({
-        responseBody: { content: [] },
-      })),
-      ApiService.getFollowing(profileId || undefined, 0, 100).catch(() => ({
-        responseBody: { content: [] },
-      })),
+      ApiService.getFollowers(profileId || undefined, 0, 100).catch(() => []),
+      ApiService.getFollowing(profileId || undefined, 0, 100).catch(() => []),
       ApiService.getShopReviews(profileId || undefined, 0, 50).catch(() => ({
-        responseBody: { content: [] },
+        content: [],
       })),
+      targetProfileId
+        ? ApiService.getFollowConnection(targetProfileId).catch(() => null)
+        : Promise.resolve(null),
     ]);
 
   const designs = normalizeDesignListResponse(designsResponse);
@@ -104,11 +111,20 @@ export async function fetchShopData(
       id: item?.id || String(Math.random()),
       name: String(item?.name || item?.title || "Untitled collection"),
       imagePath: toAbsoluteImage(
-        item?.picture || item?.imagePath || item?.coverPath || "",
+        item?.coverImage?.url ||
+          item?.coverImage?.originalUrl ||
+          item?.picture ||
+          item?.imagePath ||
+          item?.coverPath ||
+          item?.designs?.[0]?.imageUrlFront ||
+          item?.designs?.[0]?.coverImage?.url ||
+          "",
       ),
       description: item.description,
       designCount: Number(
-        item?.designCount || item?.designsCount || item?.designs?.length || 0,
+        Array.isArray(item?.designs)
+          ? item.designs.length
+          : item?.designCount || item?.designsCount || 0,
       ),
     }),
   );
@@ -118,9 +134,11 @@ export async function fetchShopData(
       (item: any, index: number): ReviewItem => ({
         id: item?.id || `review-${index}`,
         author: toDisplayName(
-          item?.profile || item?.user || item?.author || {},
+          item?.ratingUser || item?.profile || item?.user || item?.author || {},
         ),
         avatar: toAbsoluteImage(
+          item?.ratingUser?.profileImage?.url ||
+          item?.ratingUser?.profilePic ||
           item?.profile?.profilePicturePath ||
           item?.user?.profilePicturePath ||
           item?.avatar,
@@ -135,12 +153,12 @@ export async function fetchShopData(
   const followers = unwrapList(followerResponse);
   const following = unwrapList(followingResponse);
   const payment = normalizePaymentDetails(paymentResponse || {});
+  const connectionBody = connectionResponse?.responseBody || connectionResponse;
   const isFollowing = Boolean(
     targetProfileId &&
-    followers.some(
-      (item: any) =>
-        item?.userId === currentUser?.id,
-    ),
+    (typeof connectionBody?.following === "boolean"
+      ? connectionBody.following
+      : followers.some((item: any) => item?.userId === currentUser?.id)),
   );
 
   const shopName =

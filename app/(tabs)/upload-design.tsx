@@ -101,8 +101,20 @@ export default function UploadDesignScreen() {
     const loadDesign = async () => {
       try {
         setLoading(true);
-        const response = await ApiService.fetchDesignById(Number(designId));
+        const [response, uploadsResponse] = await Promise.all([
+          ApiService.fetchDesignerDesignById(Number(designId)).catch(() =>
+            ApiService.fetchDesignById(Number(designId)),
+          ),
+          ApiService.getDesignUploads(designId).catch(() => []),
+        ]);
         const design = unwrapBody(response);
+        const uploadsList = Array.isArray(uploadsResponse)
+          ? uploadsResponse
+          : Array.isArray(uploadsResponse?.responseBody)
+            ? uploadsResponse.responseBody
+            : Array.isArray(design?.designUploads)
+              ? design.designUploads
+              : [];
         const loadedMocks = Array.isArray(design?.mocks) && design.mocks.length
           ? design.mocks.map((item: any) => ({
               id: item?.id,
@@ -127,7 +139,21 @@ export default function UploadDesignScreen() {
         setAutographMessage(String(design?.autographMessage || ''));
         setFrontImageUri(String(design?.imageUrlFront || design?.previewUrlFront || design?.thumbnailUrlFront || design?.coverImage?.url || ''));
         setFrontImagePath(String(design?.imageUrlFront || design?.coverImage?.path || ''));
-        setExistingDesignUploads(Array.isArray(design?.designUploads) ? design.designUploads.map((item: any) => toAbsoluteImage(String(item?.fileUpload?.url || item?.fileUpload?.path || ''))).filter(Boolean) : []);
+        setExistingDesignUploads(
+          uploadsList
+            .map((item: any) =>
+              toAbsoluteImage(
+                String(
+                  item?.fileUpload?.url ||
+                    item?.fileUpload?.path ||
+                    item?.url ||
+                    item?.path ||
+                    '',
+                ),
+              ),
+            )
+            .filter(Boolean),
+        );
         setMocks(loadedMocks);
       } catch (error: any) {
         Alert.alert('Unable to load design', error?.response?.data?.responseMessage || error?.message || 'Please try again.');
@@ -265,13 +291,18 @@ export default function UploadDesignScreen() {
 
       const [primaryMock, ...additionalMocks] = normalizedMocks;
 
+      const parsedTags = splitCsv(tags);
+      if (influencerMerch && !parsedTags.some((t) => t.toLowerCase() === 'influencer')) {
+        parsedTags.push('influencer');
+      }
+
       const sharedFields = {
         name: name.trim(),
         frontImageUrl: nextFrontImagePath,
         description: description.trim(),
         openForCustomization,
         amount: Number(amount),
-        tags: splitCsv(tags),
+        tags: parsedTags,
         categories: splitCsv(categories),
         mocks: normalizedMocks.map((m) => m.payload),
         ...(printerId.trim() ? { printerId: Number(printerId) } : {}),
@@ -302,10 +333,12 @@ export default function UploadDesignScreen() {
       const savedDesign = unwrapBody(response);
       const savedDesignId = String(savedDesign?.id || designId || '');
 
-      // For create: any additional mocks beyond the first are posted separately
-      if (!isEditing) {
-        for (const item of additionalMocks) {
-          if (savedDesignId) {
+      // For edit: update existing mocks or add new mocks via their dedicated endpoints
+      if (isEditing && savedDesignId) {
+        for (const item of normalizedMocks) {
+          if (item.source.id) {
+            await ApiService.updateDesignMock(savedDesignId, item.source.id, item.payload);
+          } else {
             await ApiService.addDesignMock(savedDesignId, item.payload);
           }
         }

@@ -6,6 +6,7 @@ import { useFileUpload } from "@/hooks/useFileUpload";
 import { ENV } from "@/lib/config/env";
 import {
     getBackendMessageId,
+    markConversationReadLocally,
     normalizeConversationsResponse,
     normalizeMessagesResponse,
     type ChatMessageDto,
@@ -66,9 +67,13 @@ const formatDateLabel = (value?: string) => {
 
 const formatDateForApi = (date: Date) => date.toISOString().slice(0, 10);
 
-const formatCurrency = (value?: string | number) => {
-  const numeric = Number(value || 0);
-  if (!numeric) return "N/A";
+const formatCurrency = (value?: string | number, showZero: boolean = false) => {
+  if (value === undefined || value === null || value === "") {
+    return showZero ? "\u20a60" : "N/A";
+  }
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return "N/A";
+  if (!numeric && !showZero) return "N/A";
   return `\u20a6${numeric.toLocaleString()}`;
 };
 
@@ -208,7 +213,17 @@ const normalizeOrderDetail = (raw: any) => {
     colour: printReq?.colour || "",
     size: printReq?.size || "",
     sourceOfItem: printReq?.sourceOfItem || "",
+    deliveryAddress:
+      printReq?.deliveryAddress?.address ||
+      printReq?.deliveryAddress?.name ||
+      (typeof printReq?.deliveryAddress === "string" ? printReq.deliveryAddress : ""),
     mockItemUrl: resolveImageUri(printReq?.mockItemUrl || ""),
+    designFrontImageUrl: resolveImageUri(
+      printReq?.designFrontImageUrl ||
+        printReq?.designCoverImage?.url ||
+        printReq?.designCoverImage?.previewUrl ||
+        "",
+    ),
 
     coverImageUrl: resolveImageUri(coverImageUrl),
     customerProfile: req?.customerProfile || null,
@@ -324,10 +339,14 @@ export default function ChatScreen() {
   const [orderTitle, setOrderTitle] = useState("");
   const [orderDescription, setOrderDescription] = useState("");
   const [orderAmount, setOrderAmount] = useState("");
+  const [orderDeliveryAmount, setOrderDeliveryAmount] = useState("");
+  const [orderPickupAmount, setOrderPickupAmount] = useState("");
+  const [itemProvidedByCustomer, setItemProvidedByCustomer] = useState(false);
   const [orderDeliveryDate, setOrderDeliveryDate] = useState("");
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [creatingOrder, setCreatingOrder] = useState(false);
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
+  const [failedOrderImages, setFailedOrderImages] = useState<Record<string, boolean>>({});
 
   const normalizeChatMessages = useCallback(
     (
@@ -362,65 +381,62 @@ export default function ChatScreen() {
 
   const lastReadMessage = useRef<string | null>(null);
   const markUnreadAsRead = useCallback(
-    async (items: (ChatMessageDto & { imageUrl?: string })[]) => {
+    async (items: (ChatMessageDto & { imageUrl?: string })[], myProfileId?: number) => {
       if (!conversationId || !items.length) {
-        console.log('[ChatRead] Skipped: no conversation or loaded messages', { conversationId, messageCount: items.length });
         return items;
       }
+      const fallbackLatest = items[items.length - 1];
+      const fallbackId = getBackendMessageId(fallbackLatest?.raw) || fallbackLatest?.id;
+      const fallbackTimestamp =
+        fallbackLatest?.raw?.createdAt ||
+        fallbackLatest?.raw?.timestamp ||
+        fallbackLatest?.readDateTime;
+      markConversationReadLocally(conversationId, fallbackId, fallbackTimestamp);
+
       try {
         // Fetch the newest page so chats with over 100 messages use the actual last message.
         const latestResponse = await ApiService.getConversationMessages(String(conversationId), 0, 1, 'createdAt,desc');
-        const latest = normalizeMessagesResponse(latestResponse)[0];
+        const latest = normalizeMessagesResponse(latestResponse, myProfileId)[0] || fallbackLatest;
         if (!latest) {
-          console.log('[ChatRead] Skipped: latest-message query returned no messages', { conversationId });
-          return items;
+          return items.map((m) => ({ ...m, status: "seen" as const }));
         }
-        const messageId = getBackendMessageId(latest.raw);
-        console.log('[ChatRead] Latest message before read', {
-          conversationId, messageId,
-          id: latest.raw?.id,
-          backendMessageId: latest.raw?.messageId,
-          messageIdentifier: latest.raw?.messageIdentifier,
-          read: latest.raw?.read,
-          readDateTime: latest.raw?.readDateTime,
-        });
-        if (!messageId) {
-          throw new Error('The latest message has no id, messageId, or messageIdentifier.');
+        const messageId = getBackendMessageId(latest.raw) || fallbackId;
+        const latestTimestamp =
+          latest.raw?.createdAt ||
+          latest.raw?.timestamp ||
+          latest.readDateTime ||
+          fallbackTimestamp;
+        markConversationReadLocally(conversationId, messageId, latestTimestamp);
+
+        if (messageId) {
+          const key = `${conversationId}:${messageId}`;
+          if (lastReadMessage.current !== key) {
+            await ApiService.markMessageAsRead(String(messageId)).catch(() => {});
+            const unreadIncomingIds = items
+              .filter((m) => m.author === "other" && m.status !== "seen")
+              .map((m) => getBackendMessageId(m.raw) || m.id)
+              .filter((id): id is string => Boolean(id && String(id) !== String(messageId)));
+            await Promise.allSettled(
+              unreadIncomingIds.slice(-5).map((id) => ApiService.markMessageAsRead(String(id))),
+            );
+            lastReadMessage.current = key;
+          }
         }
-        const key = `${conversationId}:${messageId}`;
-        if (lastReadMessage.current === key) {
-          console.log('[ChatRead] Skipped: already marked and confirmed clear', { conversationId, messageId });
-          return items;
-        }
-        await ApiService.markMessageAsRead(String(messageId));
+
         const response = await ApiService.getConversations(0, 80);
         useConversationStore.getState().setResponse(response);
-        const refreshed = normalizeConversationsResponse(response).find((item) => item.id === String(conversationId));
-        console.log('[ChatRead] Conversation after read and refresh', {
-          conversationId, messageId,
-          conversationFound: Boolean(refreshed),
-          hasUnreadMessages: refreshed?.raw?.hasUnreadMessages,
-          unreadMessageCount: refreshed?.raw?.unreadMessageCount,
-        });
-        // Retry on the next poll if the backend still reports unread messages.
-        if (refreshed && !refreshed.hasUnreadMessages && refreshed.unreadCount === 0) {
-          lastReadMessage.current = key;
-        } else {
-          console.warn('[ChatRead] Conversation still unread after read request', {
-            conversationId, messageId,
-            hasUnreadMessages: refreshed?.hasUnreadMessages,
-            unreadMessageCount: refreshed?.unreadCount,
-          });
-        }
+        normalizeConversationsResponse(response, myProfileId);
       } catch (error) {
         const failure = error as { message?: string; response?: { status?: number; data?: { responseMessage?: string } } };
-        console.warn('[ChatRead] Failed to mark conversation as read or refresh badges', {
-          conversationId,
-          status: failure.response?.status,
-          message: failure.response?.data?.responseMessage || failure.message,
-        });
+        if (__DEV__) {
+          console.warn('[ChatRead] Failed to mark conversation as read or refresh badges', {
+            conversationId,
+            status: failure.response?.status,
+            message: failure.response?.data?.responseMessage || failure.message,
+          });
+        }
       }
-      return items;
+      return items.map((m) => ({ ...m, status: "seen" as const }));
     },
     [conversationId],
   );
@@ -472,7 +488,7 @@ export default function ChatScreen() {
 
           const myId = getAccountProfile(me, useAuthStore.getState().role)?.id;
           const normalized = normalizeChatMessages(messagesRes, myId, selected);
-          const readMessages = await markUnreadAsRead(normalized);
+          const readMessages = await markUnreadAsRead(normalized, myId);
 
           const orderMessages = readMessages.filter(
             (m) => m.chatType === "ORDER" || m.chatType === "ORDER_REQUEST"
@@ -518,7 +534,7 @@ export default function ChatScreen() {
           setMessages(readMessages);
           
           if (orderId) {
-             const req = await ApiService.getOrderById(String(orderId)).catch(()=> ApiService.getOrderRequestById(String(orderId)));
+             const req = await ApiService.getOrderRequestById(String(orderId)).catch(() => ApiService.getOrderById(String(orderId)));
              setOrderRequestDetail(normalizeOrderDetail(req));
           }
         }
@@ -576,7 +592,7 @@ export default function ChatScreen() {
                 return next;
             });
         }
-        const readMessages = await markUnreadAsRead(normalized);
+        const readMessages = await markUnreadAsRead(normalized, myId);
         if (!cancelled) setMessages(readMessages);
       } catch {
         // Silently fail on background refresh
@@ -709,7 +725,17 @@ export default function ChatScreen() {
     }
   };
 
+  const openCreateOrderModal = (orderReq: any) => {
+    setSelectedOrderRequest(orderReq);
+    const sourceFromCustomer = String(orderReq?.sourceOfItem || "")
+      .toLowerCase()
+      .includes("customer");
+    setItemProvidedByCustomer(sourceFromCustomer);
+    setShowCreateOrder(true);
+  };
+
   const handleCreateOrder = async () => {
+    const isPrintReq = isPrintDetail(selectedOrderRequest) || isPrinter;
     if (!orderTitle.trim() || !orderAmount.trim() || !orderDeliveryDate.trim()) {
       showAlert({ type: "warning", title: "Missing fields", message: "Please fill in title, amount, and delivery date." });
       return;
@@ -717,12 +743,18 @@ export default function ChatScreen() {
     if (!selectedOrderRequest?.id) return;
     setCreatingOrder(true);
     try {
+      const deliveryFeeNumeric = isPrintReq ? Number(orderDeliveryAmount || 0) : 0;
+      const pickupFeeNumeric =
+        isPrintReq && itemProvidedByCustomer ? Number(orderPickupAmount || 0) : 0;
       const res = await ApiService.createOrder({
         orderRequestId: Number(selectedOrderRequest.id),
         title: orderTitle.trim(),
         description: orderDescription.trim(),
         amount: Number(orderAmount),
         deliveryDate: orderDeliveryDate.trim(),
+        deliveryAmount: Number.isFinite(deliveryFeeNumeric) ? deliveryFeeNumeric : 0,
+        itemPickupAmount: Number.isFinite(pickupFeeNumeric) ? pickupFeeNumeric : 0,
+        itemProvidedByCustomer: isPrintReq ? itemProvidedByCustomer : false,
       });
       const created = normalizeOrderDetail(res);
       setOrderRequestDetail({ ...(created || orderRequestDetail), hasOffer: true });
@@ -741,6 +773,9 @@ export default function ChatScreen() {
       setOrderTitle("");
       setOrderDescription("");
       setOrderAmount("");
+      setOrderDeliveryAmount("");
+      setOrderPickupAmount("");
+      setItemProvidedByCustomer(false);
       setOrderDeliveryDate("");
       setShowCreateOrder(false);
       setShowOrderSuccess(true);
@@ -857,8 +892,20 @@ export default function ChatScreen() {
   // This renders an ORDER_REQUEST card inside the chat thread
   const renderOrderCard = (orderDetail: any) => {
     if (!orderDetail) return null;
-    const imageUrl = orderDetail.coverImageUrl || orderDetail.companyLogoUrl || orderDetail.companyLogo || orderDetail.businessLogoUrl || orderDetail.logoUrl || conversation.avatarImageUrl || conversation.avatarThumbnailUrl;
     const isPrintOrder = isPrintDetail(orderDetail);
+    const rawImageUrl = isPrintOrder
+      ? orderDetail.designFrontImageUrl ||
+        orderDetail.coverImageUrl ||
+        orderDetail.mockItemUrl ||
+        ""
+      : orderDetail.coverImageUrl ||
+        orderDetail.companyLogoUrl ||
+        orderDetail.companyLogo ||
+        orderDetail.businessLogoUrl ||
+        orderDetail.logoUrl ||
+        "";
+    const cardKey = String(orderDetail.id || orderDetail.orderRequestId || orderDetail.title || "card");
+    const imageUrl = !failedOrderImages[cardKey] ? rawImageUrl : "";
     const labelText = isPrintOrder ? "Print order request" : "Custom order request";
     const fallbackTitle = isPrintOrder ? (orderDetail.mockName || "Print Order") : "Custom Order";
 
@@ -868,10 +915,15 @@ export default function ChatScreen() {
         <View style={{ width: 128 }}>
           {imageUrl ? (
             <TouchableOpacity onPress={() => setSelectedImage(imageUrl)} activeOpacity={0.85}>
-              <Image source={{ uri: imageUrl }} style={{ width: 112, height: 124, borderRadius: 8 }} contentFit="cover" />
+              <Image
+                source={{ uri: imageUrl }}
+                style={{ width: 112, height: 124, borderRadius: 8 }}
+                contentFit="cover"
+                onError={() => setFailedOrderImages((prev) => ({ ...prev, [cardKey]: true }))}
+              />
             </TouchableOpacity>
           ) : (
-            <View className="items-center justify-center bg-slate-100 dark:bg-slate-800 rounded-lg" style={{ width: 112, height: 124 }}>
+            <View className="items-center justify-center bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700" style={{ width: 112, height: 124 }}>
               <Image source={require('@/assets/logo01.png')} style={{ width: 76, height: 76 }} contentFit="contain" />
             </View>
           )}
@@ -894,10 +946,7 @@ export default function ChatScreen() {
             <TouchableOpacity
               className="mt-2 items-center rounded border border-[#4A3298] bg-transparent py-2"
               style={{ width: 112 }}
-              onPress={() => {
-                setSelectedOrderRequest(orderDetail);
-                setShowCreateOrder(true);
-              }}
+              onPress={() => openCreateOrderModal(orderDetail)}
             >
               <Text className="text-[11px] font-semibold text-[#4A3298]">Create Offer</Text>
             </TouchableOpacity>
@@ -1211,9 +1260,13 @@ export default function ChatScreen() {
       </Modal>
 
       {/* Product Details modal (Viewing Request Info) */}
-      <Modal transparent visible={showProductDetails} animationType="slide" onRequestClose={() => setShowProductDetails(false)}>
+      <Modal transparent statusBarTranslucent visible={showProductDetails} animationType="slide" onRequestClose={() => setShowProductDetails(false)}>
         <Pressable className="flex-1 bg-black/40 justify-end" onPress={() => setShowProductDetails(false)}>
-          <Pressable className="bg-white dark:bg-slate-900 rounded-t-3xl px-5 pt-4 pb-8" onPress={(e) => e.stopPropagation()}>
+          <Pressable
+            className="bg-white dark:bg-slate-900 rounded-t-3xl px-5 pt-4"
+            style={{ paddingBottom: Math.max(insets.bottom, 16) + 16 }}
+            onPress={(e) => e.stopPropagation()}
+          >
             <View className="flex-row justify-between items-center mb-5">
               <View className="w-6" />
               <Text className="text-[17px] font-semibold text-slate-900 dark:text-slate-100">Product details and specifications</Text>
@@ -1222,13 +1275,24 @@ export default function ChatScreen() {
               </TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 480 }}>
-              {selectedOrderRequest?.coverImageUrl && (
-                <View className="items-center mb-5">
-                  <Image source={{ uri: selectedOrderRequest.coverImageUrl }} style={{ width: 140, height: 140, borderRadius: 8 }} contentFit="cover" />
-                  <Text className="text-[13px] text-slate-500 dark:text-slate-400 mt-2">Item preview</Text>
-                </View>
-              )}
+            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 460 }}>
+              <View className="items-center mb-5">
+                {selectedOrderRequest?.coverImageUrl && !failedOrderImages[`modal-${selectedOrderRequest?.id}`] ? (
+                  <Image
+                    source={{ uri: selectedOrderRequest.coverImageUrl }}
+                    style={{ width: 140, height: 140, borderRadius: 8 }}
+                    contentFit="cover"
+                    onError={() =>
+                      setFailedOrderImages((prev) => ({ ...prev, [`modal-${selectedOrderRequest?.id}`]: true }))
+                    }
+                  />
+                ) : (
+                  <View className="items-center justify-center bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700" style={{ width: 140, height: 140 }}>
+                    <Image source={require('@/assets/logo01.png')} style={{ width: 92, height: 92 }} contentFit="contain" />
+                  </View>
+                )}
+                <Text className="text-[13px] text-slate-500 dark:text-slate-400 mt-2">Item preview</Text>
+              </View>
               
               {isPrintDetail(selectedOrderRequest) ? (
                 <>
@@ -1262,6 +1326,24 @@ export default function ChatScreen() {
                       <Text className="text-[15px] font-semibold text-slate-900 dark:text-slate-100">{selectedOrderRequest.sourceOfItem}</Text>
                     </View>
                   )}
+                  {selectedOrderRequest?.budgetAmount > 0 && (
+                    <View className="mb-4">
+                      <Text className="text-[13px] text-slate-400 dark:text-slate-500 mb-1">Budget Estimate</Text>
+                      <Text className="text-[15px] font-semibold text-slate-900 dark:text-slate-100">{formatCurrency(selectedOrderRequest.budgetAmount)}</Text>
+                    </View>
+                  )}
+                  {selectedOrderRequest?.dateOfDelivery ? (
+                    <View className="mb-4">
+                      <Text className="text-[13px] text-slate-400 dark:text-slate-500 mb-1">Preferred date of delivery</Text>
+                      <Text className="text-[15px] font-semibold text-slate-900 dark:text-slate-100">{formatDateLabel(selectedOrderRequest.dateOfDelivery)}</Text>
+                    </View>
+                  ) : null}
+                  {selectedOrderRequest?.deliveryAddress ? (
+                    <View className="mb-4">
+                      <Text className="text-[13px] text-slate-400 dark:text-slate-500 mb-1">Delivery Address</Text>
+                      <Text className="text-[15px] font-semibold text-slate-900 dark:text-slate-100">{selectedOrderRequest.deliveryAddress}</Text>
+                    </View>
+                  ) : null}
                 </>
               ) : (
                 <>
@@ -1283,13 +1365,31 @@ export default function ChatScreen() {
                       <Text className="text-[15px] font-semibold text-slate-900 dark:text-slate-100">{selectedOrderRequest.mockTypes.join(", ")}</Text>
                     </View>
                   ) : null}
+                  {selectedOrderRequest?.budgetAmount > 0 && (
+                    <View className="mb-4">
+                      <Text className="text-[13px] text-slate-400 dark:text-slate-500 mb-1">Budget Estimate</Text>
+                      <Text className="text-[15px] font-semibold text-slate-900 dark:text-slate-100">{formatCurrency(selectedOrderRequest.budgetAmount)}</Text>
+                    </View>
+                  )}
+                  {selectedOrderRequest?.dateOfDelivery ? (
+                    <View className="mb-4">
+                      <Text className="text-[13px] text-slate-400 dark:text-slate-500 mb-1">Preferred date of delivery</Text>
+                      <Text className="text-[15px] font-semibold text-slate-900 dark:text-slate-100">{formatDateLabel(selectedOrderRequest.dateOfDelivery)}</Text>
+                    </View>
+                  ) : null}
                 </>
               )}
             </ScrollView>
 
             {/* View Details also retains the Create Offer for Providers */}
             {isProvider && isReviewStatus(selectedOrderRequest?.orderStatus) && !selectedOrderRequest?.hasOffer && (
-              <TouchableOpacity className="bg-[#4A3298] rounded-full py-4 items-center mt-4" onPress={() => { setShowProductDetails(false); setShowCreateOrder(true); }}>
+              <TouchableOpacity
+                className="bg-[#4A3298] rounded-full py-4 items-center mt-4"
+                onPress={() => {
+                  setShowProductDetails(false);
+                  openCreateOrderModal(selectedOrderRequest);
+                }}
+              >
                 <Text className="text-white text-[16px] font-bold">Create Offer</Text>
               </TouchableOpacity>
             )}
@@ -1298,42 +1398,117 @@ export default function ChatScreen() {
       </Modal>
 
       {/* Create Order modal */}
-      <Modal transparent visible={showCreateOrder} animationType="slide" onRequestClose={() => setShowCreateOrder(false)}>
-        <Pressable className="flex-1 bg-black/40 justify-end" onPress={() => setShowCreateOrder(false)}>
-          <Pressable className="bg-white dark:bg-slate-900 rounded-t-3xl px-5 pt-4 pb-8" onPress={(e) => e.stopPropagation()}>
-            <View className="flex-row items-center mb-1">
-              <TouchableOpacity onPress={() => setShowCreateOrder(false)} className="mr-3">
-                <Ionicons name="arrow-back" size={22} color={themeIconColor} />
-              </TouchableOpacity>
-              <Text className="text-[18px] font-bold text-slate-900 dark:text-slate-100">Create New Order</Text>
-            </View>
-            <Text className="text-[13px] text-slate-500 dark:text-slate-400 mb-5">Enter details agreed with clients for their acceptance and order generation</Text>
+      <Modal transparent statusBarTranslucent visible={showCreateOrder} animationType="slide" onRequestClose={() => setShowCreateOrder(false)}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={{ flex: 1 }}
+        >
+          <Pressable className="flex-1 bg-black/40 justify-end" onPress={() => setShowCreateOrder(false)}>
+            <Pressable
+              className="bg-white dark:bg-slate-900 rounded-t-3xl px-5 pt-4"
+              style={{
+                paddingBottom: Math.max(insets.bottom, 16) + 16,
+                maxHeight: "90%",
+              }}
+              onPress={(e) => e.stopPropagation()}
+            >
+              <View className="flex-row items-center mb-1">
+                <TouchableOpacity onPress={() => setShowCreateOrder(false)} className="mr-3">
+                  <Ionicons name="arrow-back" size={22} color={themeIconColor} />
+                </TouchableOpacity>
+                <Text className="text-[18px] font-bold text-slate-900 dark:text-slate-100">Create New Order</Text>
+              </View>
+              <Text className="text-[13px] text-slate-500 dark:text-slate-400 mb-4">Enter details agreed with clients for their acceptance and order generation</Text>
 
-            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 460 }}>
-              <Text className="text-[13px] font-semibold text-slate-800 dark:text-slate-200 mb-1">Order title</Text>
-              <TextInput value={orderTitle} onChangeText={setOrderTitle} placeholder="Write title" placeholderTextColor="#94a3b8" className="border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-[15px] text-slate-900 dark:text-slate-100 mb-4 bg-white dark:bg-slate-800" />
-              <Text className="text-[13px] font-semibold text-slate-800 dark:text-slate-200 mb-1">Brief description of order agreed specifications</Text>
-              <TextInput value={orderDescription} onChangeText={setOrderDescription} placeholder="Write description" placeholderTextColor="#94a3b8" multiline numberOfLines={3} className="border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-[15px] text-slate-900 dark:text-slate-100 mb-4 bg-white dark:bg-slate-800" textAlignVertical="top" style={{ minHeight: 80 }} />
-              <Text className="text-[13px] font-semibold text-slate-800 dark:text-slate-200 mb-1">Agreed amount (u20a6)</Text>
-              <TextInput value={orderAmount} onChangeText={setOrderAmount} placeholder="Enter amount" placeholderTextColor="#94a3b8" keyboardType="numeric" className="border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-[15px] text-slate-900 dark:text-slate-100 mb-4 bg-white dark:bg-slate-800" />
-              <Text className="text-[13px] font-semibold text-slate-800 dark:text-slate-200 mb-1">Agreed date of delivery</Text>
-              <TouchableOpacity className="flex-row items-center border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 mb-3 bg-white dark:bg-slate-800" onPress={() => setShowDatePicker(true)}>
-                <Text className={`flex-1 text-[15px] ${orderDeliveryDate ? "text-slate-900 dark:text-slate-100" : "text-slate-400"}`}>{orderDeliveryDate ? formatDateLabel(orderDeliveryDate) : "Select date"}</Text>
-                <Ionicons name="calendar-outline" size={20} color={themeSecondaryIconColor} />
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={{ paddingBottom: 16 }}
+              >
+                <Text className="text-[13px] font-semibold text-slate-800 dark:text-slate-200 mb-1">Order title</Text>
+                <TextInput value={orderTitle} onChangeText={setOrderTitle} placeholder="Write title" placeholderTextColor="#94a3b8" className="border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-[15px] text-slate-900 dark:text-slate-100 mb-4 bg-white dark:bg-slate-800" />
+                <Text className="text-[13px] font-semibold text-slate-800 dark:text-slate-200 mb-1">Brief description of order agreed specifications</Text>
+                <TextInput value={orderDescription} onChangeText={setOrderDescription} placeholder="Write description" placeholderTextColor="#94a3b8" multiline numberOfLines={3} className="border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-[15px] text-slate-900 dark:text-slate-100 mb-4 bg-white dark:bg-slate-800" textAlignVertical="top" style={{ minHeight: 80 }} />
+                <Text className="text-[13px] font-semibold text-slate-800 dark:text-slate-200 mb-1">Agreed amount ({"\u20a6"})</Text>
+                <TextInput value={orderAmount} onChangeText={setOrderAmount} placeholder="Enter amount" placeholderTextColor="#94a3b8" keyboardType="numeric" className="border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-[15px] text-slate-900 dark:text-slate-100 mb-4 bg-white dark:bg-slate-800" />
+
+                {(isPrintDetail(selectedOrderRequest) || isPrinter) && (
+                  <>
+                    <Text className="text-[13px] font-semibold text-slate-800 dark:text-slate-200 mb-1">Delivery fee ({"\u20a6"})</Text>
+                    <TextInput
+                      value={orderDeliveryAmount}
+                      onChangeText={setOrderDeliveryAmount}
+                      placeholder="Enter delivery fee"
+                      placeholderTextColor="#94a3b8"
+                      keyboardType="numeric"
+                      className="border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-[15px] text-slate-900 dark:text-slate-100 mb-4 bg-white dark:bg-slate-800"
+                    />
+                    <Text className="text-[13px] font-semibold text-slate-800 dark:text-slate-200 mb-2">Select agreed Item source</Text>
+                    <View className="flex-row gap-3 mb-4">
+                      <TouchableOpacity
+                        className={`flex-1 rounded-xl border py-3 items-center ${
+                          !itemProvidedByCustomer
+                            ? "border-[#4A3298] bg-[#4A3298]/10"
+                            : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
+                        }`}
+                        onPress={() => setItemProvidedByCustomer(false)}
+                      >
+                        <Text className={`text-[13px] font-semibold ${!itemProvidedByCustomer ? "text-[#4A3298]" : "text-slate-600 dark:text-slate-300"}`}>
+                          From Printer
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        className={`flex-1 rounded-xl border py-3 items-center ${
+                          itemProvidedByCustomer
+                            ? "border-[#4A3298] bg-[#4A3298]/10"
+                            : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
+                        }`}
+                        onPress={() => setItemProvidedByCustomer(true)}
+                      >
+                        <Text className={`text-[13px] font-semibold ${itemProvidedByCustomer ? "text-[#4A3298]" : "text-slate-600 dark:text-slate-300"}`}>
+                          From Customer
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                    {itemProvidedByCustomer && (
+                      <>
+                        <Text className="text-[13px] font-semibold text-slate-800 dark:text-slate-200 mb-1">Pickup fee ({"\u20a6"})</Text>
+                        <TextInput
+                          value={orderPickupAmount}
+                          onChangeText={setOrderPickupAmount}
+                          placeholder="Enter pickup fee"
+                          placeholderTextColor="#94a3b8"
+                          keyboardType="numeric"
+                          className="border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-[15px] text-slate-900 dark:text-slate-100 mb-4 bg-white dark:bg-slate-800"
+                        />
+                      </>
+                    )}
+                  </>
+                )}
+
+                <Text className="text-[13px] font-semibold text-slate-800 dark:text-slate-200 mb-1">Agreed date of delivery</Text>
+                <TouchableOpacity className="flex-row items-center border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 mb-3 bg-white dark:bg-slate-800" onPress={() => setShowDatePicker(true)}>
+                  <Text className={`flex-1 text-[15px] ${orderDeliveryDate ? "text-slate-900 dark:text-slate-100" : "text-slate-400"}`}>{orderDeliveryDate ? formatDateLabel(orderDeliveryDate) : "Select date"}</Text>
+                  <Ionicons name="calendar-outline" size={20} color={themeSecondaryIconColor} />
+                </TouchableOpacity>
+                {showDatePicker && <DateTimePicker value={orderDeliveryDate ? new Date(orderDeliveryDate) : new Date()} mode="date" display={Platform.OS === "ios" ? "inline" : "default"} minimumDate={new Date()} onChange={handleDeliveryDateChange} />}
+              </ScrollView>
+              <TouchableOpacity className={`rounded-full py-4 items-center mt-2 ${creatingOrder ? "bg-slate-400" : "bg-[#4A3298]"}`} onPress={handleCreateOrder} disabled={creatingOrder}>
+                {creatingOrder ? <ActivityIndicator size="small" color="#fff" /> : <Text className="text-white text-[16px] font-bold">Create Order</Text>}
               </TouchableOpacity>
-              {showDatePicker && <DateTimePicker value={orderDeliveryDate ? new Date(orderDeliveryDate) : new Date()} mode="date" display={Platform.OS === "ios" ? "inline" : "default"} minimumDate={new Date()} onChange={handleDeliveryDateChange} />}
-            </ScrollView>
-            <TouchableOpacity className={`rounded-full py-4 items-center ${creatingOrder ? "bg-slate-400" : "bg-[#4A3298]"}`} onPress={handleCreateOrder} disabled={creatingOrder}>
-              {creatingOrder ? <ActivityIndicator size="small" color="#fff" /> : <Text className="text-white text-[16px] font-bold">Create Order</Text>}
-            </TouchableOpacity>
+            </Pressable>
           </Pressable>
-        </Pressable>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Order Details modal (Viewing Created Order) */}
-      <Modal transparent visible={showOrderDetails} animationType="slide" onRequestClose={() => setShowOrderDetails(false)}>
+      <Modal transparent statusBarTranslucent visible={showOrderDetails} animationType="slide" onRequestClose={() => setShowOrderDetails(false)}>
         <Pressable className="flex-1 bg-black/40 justify-end" onPress={() => setShowOrderDetails(false)}>
-          <Pressable className="bg-white dark:bg-slate-900 rounded-t-3xl px-5 pt-4 pb-8" onPress={(e) => e.stopPropagation()}>
+          <Pressable
+            className="bg-white dark:bg-slate-900 rounded-t-3xl px-5 pt-4"
+            style={{ paddingBottom: Math.max(insets.bottom, 16) + 16 }}
+            onPress={(e) => e.stopPropagation()}
+          >
             <View className="flex-row justify-between items-center mb-2">
               <View className="w-6" />
               <Text className="text-[17px] font-semibold text-slate-900 dark:text-slate-100">Order details</Text>
@@ -1343,7 +1518,7 @@ export default function ChatScreen() {
             </View>
             <Text className="text-[13px] text-slate-500 dark:text-slate-400 mb-5">Review information to ensure details is exactly as agreed before processing</Text>
 
-            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 480 }}>
+            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 460 }}>
               {selectedOrderDetail && (
                 <>
                   <View className="mb-4">
@@ -1356,28 +1531,55 @@ export default function ChatScreen() {
                   </View>
                   <View className="mb-4">
                     <Text className="text-[13px] font-bold text-slate-900 dark:text-slate-100 mb-1">Design amount</Text>
-                    <Text className="text-[14px] text-slate-600 dark:text-slate-300">{formatCurrency(selectedOrderDetail.designAmount)}</Text>
+                    <Text className="text-[14px] text-slate-600 dark:text-slate-300">
+                      {formatCurrency(
+                        selectedOrderDetail.designAmount ||
+                          (!isPrintDetail(selectedOrderDetail) ? selectedOrderDetail.totalAmount : 0),
+                        true,
+                      )}
+                    </Text>
                   </View>
-                  <View className="mb-4">
-                    <Text className="text-[13px] font-bold text-slate-900 dark:text-slate-100 mb-1">Printing amount</Text>
-                    <Text className="text-[14px] text-slate-600 dark:text-slate-300">{formatCurrency(selectedOrderDetail.printingAmount)}</Text>
-                  </View>
-                  <View className="mb-4">
-                    <Text className="text-[13px] font-bold text-slate-900 dark:text-slate-100 mb-1">Delivery amount</Text>
-                    <Text className="text-[14px] text-slate-600 dark:text-slate-300">{formatCurrency(selectedOrderDetail.deliveryAmount)}</Text>
-                  </View>
-                  <View className="mb-4">
-                    <Text className="text-[13px] font-bold text-slate-900 dark:text-slate-100 mb-1">Pickup amount</Text>
-                    <Text className="text-[14px] text-slate-600 dark:text-slate-300">{formatCurrency(selectedOrderDetail.pickupAmount)}</Text>
-                  </View>
+                  {isPrintDetail(selectedOrderDetail) && !isDesigner && (
+                    <>
+                      <View className="mb-4">
+                        <Text className="text-[13px] font-bold text-slate-900 dark:text-slate-100 mb-1">Printing amount</Text>
+                        <Text className="text-[14px] text-slate-600 dark:text-slate-300">{formatCurrency(selectedOrderDetail.printingAmount, true)}</Text>
+                      </View>
+                      <View className="mb-4">
+                        <Text className="text-[13px] font-bold text-slate-900 dark:text-slate-100 mb-1">Delivery fee</Text>
+                        <Text className="text-[14px] text-slate-600 dark:text-slate-300">{formatCurrency(selectedOrderDetail.deliveryAmount, true)}</Text>
+                      </View>
+                      {(selectedOrderDetail.itemProvidedByCustomer || Number(selectedOrderDetail.pickupAmount || 0) > 0) && (
+                        <View className="mb-4">
+                          <Text className="text-[13px] font-bold text-slate-900 dark:text-slate-100 mb-1">Pickup amount</Text>
+                          <Text className="text-[14px] text-slate-600 dark:text-slate-300">{formatCurrency(selectedOrderDetail.pickupAmount, true)}</Text>
+                        </View>
+                      )}
+                      <View className="mb-4">
+                        <Text className="text-[13px] font-bold text-slate-900 dark:text-slate-100 mb-1">Total amount</Text>
+                        <Text className="text-[14px] font-bold text-slate-900 dark:text-slate-100">
+                          {formatCurrency(
+                            selectedOrderDetail.totalAmount ||
+                              Number(selectedOrderDetail.designAmount || 0) +
+                                Number(selectedOrderDetail.printingAmount || 0) +
+                                Number(selectedOrderDetail.deliveryAmount || 0) +
+                                Number(selectedOrderDetail.pickupAmount || 0),
+                            true,
+                          )}
+                        </Text>
+                      </View>
+                    </>
+                  )}
                   <View className="mb-4">
                     <Text className="text-[13px] font-bold text-slate-900 dark:text-slate-100 mb-1">Agreed date of delivery</Text>
                     <Text className="text-[14px] text-slate-600 dark:text-slate-300">{selectedOrderDetail.deliveryDate || "N/A"}</Text>
                   </View>
-                  <View className="mb-4">
-                    <Text className="text-[13px] font-bold text-slate-900 dark:text-slate-100 mb-1">Need pickup logistics</Text>
-                    <Text className="text-[14px] text-slate-600 dark:text-slate-300">{selectedOrderDetail.itemProvidedByCustomer ? "Yes" : "No"}</Text>
-                  </View>
+                  {isPrintDetail(selectedOrderDetail) && !isDesigner && (
+                    <View className="mb-4">
+                      <Text className="text-[13px] font-bold text-slate-900 dark:text-slate-100 mb-1">Need pickup logistics</Text>
+                      <Text className="text-[14px] text-slate-600 dark:text-slate-300">{selectedOrderDetail.itemProvidedByCustomer ? "Yes" : "No"}</Text>
+                    </View>
+                  )}
                 </>
               )}
             </ScrollView>

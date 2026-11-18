@@ -1,5 +1,5 @@
 import { defaultSearchFilters, getSearchFilters, setSearchFilters } from '@/lib/localStorage';
-import { normalizeDesignListResponse } from '@/lib/designs';
+import { normalizeDesignListResponse, STANDARD_DESIGN_CATEGORIES } from '@/lib/designs';
 import ApiService from '@/services/apiClient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -10,7 +10,7 @@ export default function FilterProductCategoryScreen() {
   const router = useRouter();
   const isDark = useColorScheme() === 'dark';
   const [query, setQuery] = useState('');
-  const [items, setItems] = useState<string[]>([]);
+  const [items, setItems] = useState<string[]>(STANDARD_DESIGN_CATEGORIES);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
 
   const theme = useMemo(
@@ -26,10 +26,15 @@ export default function FilterProductCategoryScreen() {
 
   useEffect(() => {
     const loadState = async () => {
-      const [filters, designResponse] = await Promise.all([getSearchFilters(), ApiService.getDesigns({ size: 40 })]);
+      const [filters, designResponse] = await Promise.all([
+        getSearchFilters(),
+        ApiService.getDesigns({ size: 40 }).catch(() => null),
+      ]);
       const designs = normalizeDesignListResponse(designResponse);
-      setSelectedItems(filters.designCategories);
-      setItems(Array.from(new Set(designs.flatMap((design) => design.categories || []).filter(Boolean))));
+      setSelectedItems(filters.designCategories || []);
+      const extra = Array.from(new Set(designs.flatMap((design) => design.categories || []).filter(Boolean)))
+        .filter((val) => !STANDARD_DESIGN_CATEGORIES.some((std) => std.toLowerCase() === String(val).toLowerCase()));
+      setItems([...STANDARD_DESIGN_CATEGORIES, ...extra]);
     };
 
     loadState().catch((error) => console.error('Failed to load design categories', error));

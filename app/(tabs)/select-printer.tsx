@@ -330,22 +330,24 @@ export default function SelectPrinterScreen() {
         mockItemId: Number(item.mockId),
         customDesign: false,
         sourceOfItem: hasOwnItem ? "From Customer" : "From Printer",
-        estimatedAmount: estimatedAmount || "",
+        estimatedAmount: estimatedAmount ? Number(estimatedAmount) || estimatedAmount : "",
         dateOfDelivery: dateOfDelivery || "",
         deliveryAddress: {
           name: deliveryAddress.name,
+          address: deliveryAddress.name,
           latitude: deliveryAddress.latitude,
           longitude: deliveryAddress.longitude,
+          country: "Nigeria",
         },
-        printerId: printer.id,
+        printerId: Number(printer.id),
       }));
-      console.log(payload);
       const res = await ApiService.createPrintOrders(payload);
       const responseBody: any[] = res?.responseBody ?? res ?? [];
       const firstOrder = Array.isArray(responseBody)
         ? responseBody[0]
         : responseBody;
       const conversationId = firstOrder?.conversationId;
+      const createdOrderRequestId = firstOrder?.id;
 
       if (!conversationId) {
         throw new Error("No conversation ID returned from the server.");
@@ -378,9 +380,10 @@ export default function SelectPrinterScreen() {
         pathname: "/(tabs)/chat",
         params: {
           conversationId: String(conversationId),
-          participantId: String(printer.userId ?? printer.id),
+          participantId: String(printer.id),
           participantName: printer.name,
           participantRole: "Printers",
+          ...(createdOrderRequestId ? { orderId: String(createdOrderRequestId) } : {}),
         },
       });
     } catch (err: any) {

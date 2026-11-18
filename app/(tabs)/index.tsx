@@ -5,11 +5,12 @@ import { SectionHeader } from "@/components/SectionHeader";
 import { useHomeData } from "@/hooks/useHomeData";
 import { formatNaira } from "@/lib/currency";
 import { addRecentDesign } from "@/lib/localStorage";
+import { normalizeManageOrderListResponse } from "@/lib/orders";
 import { mergeUserAndProfile, normalizeProfileResponse } from "@/lib/profile";
 import ApiService from "@/services/apiClient";
 import { toProfileType, useAuthStore } from "@/store/authStore";
 import type { Design, TProfileType, User } from "@/types";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
@@ -58,6 +59,16 @@ function HomeDesignCard({
     .filter((price) => price > 0);
   const lowestPrice =
     mockPrices.length > 0 ? Math.min(...mockPrices) : design.amount || 0;
+  const isLocked = Boolean(
+    design.locked ||
+      design.printerId ||
+      design.openForCustomization === false,
+  );
+  const isInfluencer = Boolean(
+    design.influencerMerch ||
+      design.influencerDesign ||
+      design.autographMessage,
+  );
 
   return (
     <TouchableOpacity
@@ -94,6 +105,46 @@ function HomeDesignCard({
               size={24}
               color={isDark ? "#9A9A9A" : "#B9B9B9"}
             />
+          </View>
+        )}
+        {isLocked && (
+          <View
+            style={[
+              styles.favoriteButton,
+              {
+                left: 8,
+                right: undefined,
+                backgroundColor: isDark
+                  ? "rgba(0,0,0,0.45)"
+                  : "rgba(255,255,255,0.92)",
+              },
+            ]}
+          >
+            <Ionicons
+              name="lock-closed"
+              size={13}
+              color={isDark ? "#A993FF" : "#3E2F8A"}
+            />
+          </View>
+        )}
+        {isInfluencer && (
+          <View
+            style={{
+              position: "absolute",
+              bottom: 6,
+              left: 6,
+              flexDirection: "row",
+              alignItems: "center",
+              backgroundColor: "rgba(0,80,186,0.92)",
+              borderRadius: 999,
+              paddingHorizontal: 7,
+              paddingVertical: 2,
+            }}
+          >
+            <MaterialCommunityIcons name="crown" size={10} color="#F9A70D" />
+            <Text style={{ color: "#FFFFFF", fontSize: 8, fontWeight: "700", marginLeft: 3 }}>
+              INFLUENCER
+            </Text>
           </View>
         )}
         <TouchableOpacity
@@ -133,14 +184,24 @@ function HomeDesignCard({
         >
           By {artistName}
         </Text>
-        <Text
-          style={[
-            styles.designPrice,
-            { color: isDark ? "#FFFFFF" : "#252525" },
-          ]}
-        >
-          {formatNaira(lowestPrice)}
-        </Text>
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+          <Text
+            style={[
+              styles.designPrice,
+              { color: isDark ? "#FFFFFF" : "#252525" },
+            ]}
+          >
+            {formatNaira(lowestPrice)}
+          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+            {isInfluencer && (
+              <MaterialCommunityIcons name="crown" size={13} color="#F9A70D" />
+            )}
+            {isLocked && (
+              <Ionicons name="lock-closed" size={13} color={isDark ? "#A993FF" : "#3E2F8A"} />
+            )}
+          </View>
+        </View>
       </View>
     </TouchableOpacity>
   );
@@ -165,6 +226,7 @@ export default function HomeScreen() {
 
   // ── Real insight state ──────────────────────────────────────────────────────
   const [profileInsight, setProfileInsight] = useState<any>(null);
+  const [roleOrdersCount, setRoleOrdersCount] = useState<number>(0);
   const [barInterval, setBarInterval] = useState<"DAILY" | "WEEKLY" | "MONTHLY">("MONTHLY");
   const [barData, setBarData] = useState<{ key: string; data: { type: string; count: number }[] }[]>([]);
   const [pieData, setPieData] = useState<{ type: string; count: number }[]>([]);
@@ -186,6 +248,10 @@ export default function HomeScreen() {
   const loadProfileDashboard = useCallback(async () => {
     try {
       setProfileLoading(true);
+      setProfileInsight(null);
+      setRoleOrdersCount(0);
+      setPieData([]);
+      setBarData([]);
       const [profileResponse, walletResponse, walletHistoryResponse] =
         await Promise.all([
           ApiService.getMyProfile(),
@@ -226,12 +292,17 @@ export default function HomeScreen() {
       const profileId = roleProfile?.id;
 
       if (profileId) {
-        const [insightRes, pieRes, barRes] = await Promise.all([
+        const [insightRes, pieRes, barRes, ordersRes] = await Promise.all([
           ApiService.getProfileInsights(profileId).catch(() => null),
           ApiService.getActivityPieChart().catch(() => null),
           ApiService.getActivityBarGraph(barInterval).catch(() => null),
+          ApiService.getManageOrders({ profileType: activeRole, page: 0, size: 100 }).catch(() => null),
         ]);
         setProfileInsight(insightRes?.responseBody || insightRes || null);
+        if (ordersRes) {
+          const filteredOrders = normalizeManageOrderListResponse(ordersRes, activeRole, Number(profileId));
+          setRoleOrdersCount(filteredOrders.length);
+        }
         const pieBody = pieRes?.responseBody?.data || pieRes?.responseBody?.content || pieRes?.data || pieRes?.responseBody || pieRes;
         const barBody = barRes?.responseBody?.content || barRes?.responseBody?.data || barRes?.data || barRes?.responseBody || barRes;
 
@@ -308,16 +379,20 @@ export default function HomeScreen() {
   // ── Insight values — prefer real API data, fall back to profile nested data ─
   const insight = profileInsight || activeProfile?.insight || {};
   const walletBalance = Number(wallet?.balance ?? wallet?.amount ?? 0);
-  const totalEarnings = Number(insight.totalEarnings ?? activeProfile?.insight?.totalEarnings ?? 0);
-  const rating = insight.rating?.avgStars ?? insight.avgRating ?? 0;
-  const followers = insight.totalFollowers ?? 0;
-  const following = insight.totalFollowing ?? 0;
-  const completedOrders = insight.totalCompletedOrders ?? 0;
-  const cancelledOrders = insight.totalCancelledOrders ?? 0;
-  const totalOrders = Number(insight.totalOrders ?? (completedOrders + cancelledOrders));
-  const jobSuccess = insight.jobSuccessPercentage ?? 0;
-  const totalUploads = insight.totalUploads ?? 0;
-  const totalReviews = insight.totalReviews ?? 0;
+  const totalEarnings = Number(insight.totalEarnings ?? activeProfile?.insight?.totalEarnings ?? walletBalance ?? 0);
+  const rating = Number(insight.rating?.avgStars ?? insight.avgRating ?? 0);
+  const followers = Number(insight.totalFollowers ?? 0);
+  const following = Number(insight.totalFollowing ?? 0);
+  const completedOrders = Number(insight.totalCompletedOrders ?? 0);
+  const cancelledOrders = Number(insight.totalCancelledOrders ?? 0);
+  const totalOrders = Math.max(
+    Number(insight.totalOrders || 0),
+    completedOrders + cancelledOrders,
+    roleOrdersCount,
+  );
+  const jobSuccess = Number(insight.jobSuccessPercentage ?? 0);
+  const totalUploads = Number(insight.totalUploads ?? 0);
+  const totalReviews = Number(insight.totalReviews ?? 0);
   const activeName =
     activeProfile?.name ||
     activeProfile?.userName ||
@@ -358,7 +433,7 @@ export default function HomeScreen() {
     paymentSegments.reduce((sum, item) => sum + item.value, 0) || 1;
   const paymentArcs = useMemo(() => {
     return paymentSegments.map((segment, index) => {
-      const circumference = 2 * Math.PI * 45;
+      const circumference = 2 * Math.PI * 55;
       const length = (segment.value / totalSegmentValue) * circumference;
       const rotation =
         -90 +
@@ -631,7 +706,7 @@ export default function HomeScreen() {
           <View style={styles.profileStatsRow}>
             <View style={styles.profileStatItem}>
               <Text style={styles.profileStatValue}>
-                {showBalance ? formatNaira(walletBalance) : "****"}
+                {showBalance ? formatNaira(totalEarnings || walletBalance) : "****"}
               </Text>
               <Text style={styles.profileStatLabel}>Earnings</Text>
             </View>
@@ -648,7 +723,7 @@ export default function HomeScreen() {
           </View>
         </LinearGradient>
 
-        {/* Designer's Statistics Card */}
+        {/* Designer's / Printer's Statistics Card */}
         <View
           style={[
             styles.dashboardCard,
@@ -656,7 +731,7 @@ export default function HomeScreen() {
           ]}
         >
           <Text style={[styles.cardTitle, { color: theme.text }]}>
-            Designer&apos;s statistics
+            {activeRole === "PRINTER" ? "Printer's statistics" : "Designer's statistics"}
           </Text>
           <View style={{ alignItems: "center", paddingVertical: 10 }}>
             <View

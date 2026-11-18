@@ -23,9 +23,9 @@ const countdownLabels = ['Days', 'Hours', 'Mins', 'Secs'];
 
 const DISPUTE_TYPES = [
   { value: 'PAYMENT_ISSUES', label: 'Payment issues' },
-  { value: 'QUALITY_ISSUES', label: 'Quality issues' },
-  { value: 'DELIVERY_ISSUES', label: 'Delivery issues' },
-  { value: 'OTHER', label: 'Other' },
+  { value: 'UNRESPONSIVE_VENDOR', label: 'Unresponsive vendor' },
+  { value: 'FRAUDULENT_ACT', label: 'Fraudulent act' },
+  { value: 'VIOLATION_OF_TERMS', label: 'Violation of terms' },
 ] as const;
 
 function getCountdownParts(dueDate?: string): string[] {
@@ -156,14 +156,20 @@ export default function OrderDetailScreen() {
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Deliver',
+          text: isCustomer ? 'Confirm' : 'Deliver',
           onPress: async () => {
             try {
-              await ApiService.deliverOrder(order.id);
+              if (isCustomer) {
+                await ApiService.confirmOrder(order.id);
+              } else {
+                await ApiService.deliverOrder(order.id);
+              }
               showAlert({
                 type: 'success',
                 title: 'Success',
-                message: 'Order marked as delivered.',
+                message: isCustomer
+                  ? 'Order confirmed successfully.'
+                  : 'Order marked as delivered.',
               });
               router.back();
             } catch (e: any) {
@@ -719,9 +725,73 @@ export default function OrderDetailScreen() {
                   textAlign: 'right',
                 }}
               >
-                {formatNaira(order.designAmount || 0)}
+                {formatNaira(order.designAmount || (!order.printingAmount ? order.totalAmount : 0) || 0)}
               </Text>
             </View>
+
+            {toProfileType(role) !== 'DESIGNER' &&
+              (String(order?.orderRequest?.orderType || order?.orderType || '')
+                .toUpperCase()
+                .includes('PRINT') ||
+                Boolean(order?.orderRequest?.printRequest) ||
+                toProfileType(role) === 'PRINTER' ||
+                Number(order?.printingAmount || 0) > 0 ||
+                Number(order?.deliveryAmount || 0) > 0) && (
+                <>
+                  <View style={detailRowStyle}>
+                    <Text style={{ fontSize: 12, fontWeight: '500', color: theme.subtext, flex: 0.42 }}>
+                      Printing amount
+                    </Text>
+                    <Text
+                      style={{
+                        fontSize: 13,
+                        fontWeight: '600',
+                        color: theme.text,
+                        flex: 0.58,
+                        textAlign: 'right',
+                      }}
+                    >
+                      {formatNaira(order.printingAmount || 0)}
+                    </Text>
+                  </View>
+
+                  <View style={detailRowStyle}>
+                    <Text style={{ fontSize: 12, fontWeight: '500', color: theme.subtext, flex: 0.42 }}>
+                      Delivery fee
+                    </Text>
+                    <Text
+                      style={{
+                        fontSize: 13,
+                        fontWeight: '600',
+                        color: theme.text,
+                        flex: 0.58,
+                        textAlign: 'right',
+                      }}
+                    >
+                      {formatNaira(order.deliveryAmount || 0)}
+                    </Text>
+                  </View>
+
+                  {(order.itemProvidedByCustomer || Number(order.pickupAmount || 0) > 0) && (
+                    <View style={detailRowStyle}>
+                      <Text style={{ fontSize: 12, fontWeight: '500', color: theme.subtext, flex: 0.42 }}>
+                        Pickup amount
+                      </Text>
+                      <Text
+                        style={{
+                          fontSize: 13,
+                          fontWeight: '600',
+                          color: theme.text,
+                          flex: 0.58,
+                          textAlign: 'right',
+                        }}
+                      >
+                        {formatNaira(order.pickupAmount || 0)}
+                      </Text>
+                    </View>
+                  )}
+                </>
+              )}
           </View>
 
           {/* --- TOTAL BLOCK --- */}

@@ -57,7 +57,7 @@ export default function CustomDesignScreen() {
         mockTypes: items,
         purpose: designFor,
         theme: theme,
-        dateOfDelivery: new Date().toISOString(),
+        dateOfDelivery: new Date().toISOString().split('T')[0],
         estimatedAmount: 0,
       });
 

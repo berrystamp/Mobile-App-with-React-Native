@@ -39,8 +39,8 @@ export default function FavoritesScreen() {
       }
 
       const favoriteRes = await ApiService.getFavoriteDesigns(100, 0);
-      const favoriteDesigns = normalizeDesignListResponse(favoriteRes).filter(
-        (design) => design.liked,
+      const favoriteDesigns = normalizeDesignListResponse(favoriteRes).map(
+        (design) => ({ ...design, liked: true }),
       );
       setDesigns(favoriteDesigns);
     } catch (error: any) {
