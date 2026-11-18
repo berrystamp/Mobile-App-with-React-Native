@@ -4,11 +4,11 @@ import { matchesProductCategory, normalizeDesignListResponse } from '@/lib/desig
 import ApiService from '@/services/apiClient';
 import { Design } from '@/types';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -74,7 +74,16 @@ function SearchDesignCard({ design, onPress }: { design: Design; onPress: () => 
       onPress={onPress}
       activeOpacity={0.9}>
       <View style={[styles.cardImageWrap, { backgroundColor: isDark ? '#232323' : '#F8F8FA' }]}>
-        {imageUrl ? <Image source={{ uri: imageUrl }} style={styles.cardImage} resizeMode="cover" /> : null}
+        {imageUrl ? (
+          <Image
+            source={{ uri: imageUrl }}
+            style={styles.cardImage}
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            transition={120}
+            recyclingKey={String(design.id)}
+          />
+        ) : null}
         {isLocked && (
           <View style={[styles.cardHeart, { left: 10, right: undefined, backgroundColor: isDark ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.95)' }]}>
             <Ionicons name="lock-closed" size={14} color={isDark ? '#A993FF' : '#3E2F8A'} />

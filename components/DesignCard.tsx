@@ -1,10 +1,10 @@
 import { formatNaira } from "@/lib/currency";
 import { Design } from "@/types";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import React, { useEffect, useState } from "react";
 import {
   Dimensions,
-  Image,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -96,7 +96,10 @@ export const DesignCard: React.FC<DesignCardProps> = ({
           <Image
             source={{ uri: imageUrl }}
             style={styles.image}
-            resizeMode="cover"
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            transition={150}
+            recyclingKey={String(design.id)}
           />
         ) : (
           <View style={[styles.image, { backgroundColor: theme.border }]}>

@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { Image as ExpoImage } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Modal, Pressable, SafeAreaView, Text, TextInput, TouchableOpacity, View, useColorScheme } from 'react-native';
@@ -6,7 +7,19 @@ import { ActivityIndicator, FlatList, Modal, Pressable, SafeAreaView, Text, Text
 import { ConversationRow } from '@/components/messages/ConversationRow';
 import { MessageEmptyState } from '@/components/messages/MessageEmptyState';
 import type { ConversationSummaryDto } from '@/lib/messages';
-import { getBackendMessageId, getMergedConversations, markConversationReadLocally } from '@/lib/messages';
+import {
+  getBackendMessageId,
+  getCachedConversations,
+  getMemoryConversations,
+  getMemoryConversationMessages,
+  getMemoryMyProfileId,
+  getMergedConversations,
+  markConversationReadLocally,
+  normalizeMessagesResponse,
+  setCachedConversationMessages,
+  setCachedConversations,
+  setMemoryMyProfileId,
+} from '@/lib/messages';
 import ApiService from '@/services/apiClient';
 import { getAccountProfile } from '@/lib/accountProfile';
 import { useAuthStore } from '@/store/authStore';
@@ -23,12 +36,13 @@ const reportReasons = [
 export default function MessagesScreen() {
   const router = useRouter();
   const isDark = useColorScheme() === 'dark';
-  const [query, setQuery] = useState('');
-  const [threads, setThreads] = useState<ConversationSummaryDto[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const role = useAuthStore((state) => state.role);
+  const initialCached = useMemo(() => getMemoryConversations(role), [role]);
+  const [query, setQuery] = useState('');
+  const [threads, setThreads] = useState<ConversationSummaryDto[]>(initialCached || []);
+  const [loading, setLoading] = useState(!initialCached || initialCached.length === 0);
+  const [refreshing, setRefreshing] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<number | null>(() => getMemoryMyProfileId(role) || null);
   const refreshedResponse = useConversationStore((state) => state.response);
   const [selectedConversation, setSelectedConversation] = useState<ConversationSummaryDto | null>(null);
   const [showActions, setShowActions] = useState(false);
@@ -40,25 +54,85 @@ export default function MessagesScreen() {
     if (!refreshedResponse || !currentUserId) return;
     let cancelled = false;
     getMergedConversations(refreshedResponse, currentUserId).then((all) => {
-      if (!cancelled) setThreads(all.filter((thread) => Number(thread.participantId) !== currentUserId));
+      if (cancelled) return;
+      const filtered = all.filter((thread) => Number(thread.participantId) !== currentUserId);
+      setThreads(filtered);
+      setCachedConversations(filtered, role);
     });
     return () => { cancelled = true; };
   }, [refreshedResponse, currentUserId, role]);
 
-  const fetchConversations = useCallback(async () => {
+  const fetchConversations = useCallback(async (isPullToRefresh = false) => {
+    const activeRole = useAuthStore.getState().role;
     try {
-      setLoading(true);
-      const profileResponse = await ApiService.getMyProfile();
-      const currentUser = profileResponse?.responseBody || profileResponse;
-      const myId = Number(getAccountProfile(currentUser, useAuthStore.getState().role)?.id || 0);
-      setCurrentUserId(myId);
-      const response = await ApiService.getConversations(0, 60);
-      const all = await getMergedConversations(response, myId || undefined);
-      // Filter out self-conversations (user chatting with their own other account)
+      // 1. Hydrate immediately from memory / AsyncStorage cache if we don't have threads yet
+      const memThreads = getMemoryConversations(activeRole);
+      if (memThreads && memThreads.length > 0) {
+        setThreads(memThreads);
+        setLoading(false);
+      } else {
+        const storedThreads = await getCachedConversations(activeRole);
+        if (storedThreads && storedThreads.length > 0) {
+          setThreads(storedThreads);
+          setLoading(false);
+        } else if (!isPullToRefresh) {
+          setLoading(true);
+        }
+      }
+
+      // 2. Resolve myId fast from memory or local userData while firing getConversations in parallel
+      let myId = getMemoryMyProfileId(activeRole) || 0;
+      const [cachedUser, conversationsResponse] = await Promise.all([
+        myId ? Promise.resolve(null) : ApiService.getCurrentUser().catch(() => null),
+        ApiService.getConversations(0, 60),
+      ]);
+
+      if (!myId && cachedUser) {
+        const userObj = cachedUser?.responseBody || cachedUser;
+        myId = Number(getAccountProfile(userObj, activeRole)?.id || 0);
+        if (myId) setMemoryMyProfileId(myId, activeRole);
+      }
+
+      // If still not in local cache, fetch profile once in background
+      if (!myId) {
+        const profileResponse = await ApiService.getMyProfile().catch(() => null);
+        const currentUser = profileResponse?.responseBody || profileResponse;
+        myId = Number(getAccountProfile(currentUser, activeRole)?.id || 0);
+        if (myId) setMemoryMyProfileId(myId, activeRole);
+      }
+
+      if (myId) setCurrentUserId(myId);
+
+      const all = await getMergedConversations(conversationsResponse, myId || undefined);
       const filtered = myId ? all.filter((t) => Number(t.participantId) !== myId) : all;
       setThreads(filtered);
+      setCachedConversations(filtered, activeRole);
+
+      // 3. Background prefetch avatar images & top 6 conversation message threads
+      const avatarUrls = filtered
+        .map((t) => t.avatarThumbnailUrl || t.avatarPreviewUrl || t.avatarImageUrl)
+        .filter((u): u is string => Boolean(u && u.startsWith('http')));
+      if (avatarUrls.length > 0) {
+        ExpoImage.prefetch(avatarUrls.slice(0, 20), 'memory-disk').catch(() => {});
+      }
+
+      filtered.slice(0, 6).forEach((thread) => {
+        if (!getMemoryConversationMessages(thread.id)) {
+          ApiService.getConversationMessages(String(thread.id), 0, 50)
+            .then((res) => {
+              const normalized = normalizeMessagesResponse(res, myId || undefined);
+              if (normalized.length > 0) {
+                setCachedConversationMessages(thread.id, normalized);
+              }
+            })
+            .catch(() => {});
+        }
+      });
     } catch {
-      setThreads(await getMergedConversations([]));
+      const fallback = await getCachedConversations(activeRole);
+      if (fallback && fallback.length > 0) {
+        setThreads(fallback);
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -188,7 +262,7 @@ export default function MessagesScreen() {
             showsVerticalScrollIndicator={false}
             onRefresh={() => {
               setRefreshing(true);
-              fetchConversations();
+              fetchConversations(true);
             }}
             refreshing={refreshing}
           />

@@ -3,8 +3,131 @@ import { useAuthStore } from '@/store/authStore';
 import type { Message } from '@/types';
 
 const READ_CONVERSATIONS_STORAGE_KEY = 'berrystamp_read_conversations_v1';
+const CONVERSATIONS_CACHE_PREFIX = 'berrystamp_conversations_cache_v1_';
+const MESSAGES_CACHE_PREFIX = 'berrystamp_messages_cache_v1_';
+const ORDER_DETAIL_CACHE_KEY = 'berrystamp_order_detail_cache_v1';
+
 const localReadMap = new Map<string, { timestampMs: number; lastMessageId?: string }>();
+const memoryConversationsCache = new Map<string, ConversationSummaryDto[]>();
+const memoryMessagesCache = new Map<string, (ChatMessageDto & { imageUrl?: string })[]>();
+const memoryOrderDetailCache = new Map<string, any>();
+let memoryMyProfileIdByRole: Record<string, number> = {};
 let readMapHydrated = false;
+let orderCacheHydrated = false;
+
+const ensureOrderCacheHydrated = () => {
+  if (orderCacheHydrated) return;
+  orderCacheHydrated = true;
+  AsyncStorage.getItem(ORDER_DETAIL_CACHE_KEY)
+    .then((raw) => {
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        Object.entries(parsed).forEach(([k, v]) => {
+          if (v) memoryOrderDetailCache.set(k, v);
+        });
+      }
+    })
+    .catch(() => {});
+};
+
+export function getMemoryConversations(role?: string): ConversationSummaryDto[] | null {
+  const key = (role || useAuthStore.getState().role || 'CUSTOMER').toUpperCase();
+  return memoryConversationsCache.get(key) || null;
+}
+
+export async function getCachedConversations(role?: string): Promise<ConversationSummaryDto[] | null> {
+  const key = (role || useAuthStore.getState().role || 'CUSTOMER').toUpperCase();
+  const inMem = memoryConversationsCache.get(key);
+  if (inMem && inMem.length > 0) return inMem;
+  try {
+    const raw = await AsyncStorage.getItem(`${CONVERSATIONS_CACHE_PREFIX}${key}`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      memoryConversationsCache.set(key, parsed);
+      return parsed;
+    }
+  } catch {
+    // ignore cache read errors
+  }
+  return null;
+}
+
+export function setCachedConversations(threads: ConversationSummaryDto[], role?: string) {
+  const key = (role || useAuthStore.getState().role || 'CUSTOMER').toUpperCase();
+  memoryConversationsCache.set(key, threads);
+  AsyncStorage.setItem(`${CONVERSATIONS_CACHE_PREFIX}${key}`, JSON.stringify(threads)).catch(() => {});
+}
+
+export function getMemoryConversationMessages(
+  conversationId?: string | number,
+): (ChatMessageDto & { imageUrl?: string })[] | null {
+  if (!conversationId) return null;
+  return memoryMessagesCache.get(String(conversationId)) || null;
+}
+
+export async function getCachedConversationMessages(
+  conversationId?: string | number,
+): Promise<(ChatMessageDto & { imageUrl?: string })[] | null> {
+  if (!conversationId) return null;
+  const key = String(conversationId);
+  const inMem = memoryMessagesCache.get(key);
+  if (inMem && inMem.length > 0) return inMem;
+  try {
+    const raw = await AsyncStorage.getItem(`${MESSAGES_CACHE_PREFIX}${key}`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      memoryMessagesCache.set(key, parsed);
+      return parsed;
+    }
+  } catch {
+    // ignore cache read errors
+  }
+  return null;
+}
+
+export function setCachedConversationMessages(
+  conversationId: string | number,
+  messages: (ChatMessageDto & { imageUrl?: string })[],
+) {
+  if (!conversationId) return;
+  const key = String(conversationId);
+  memoryMessagesCache.set(key, messages);
+  AsyncStorage.setItem(`${MESSAGES_CACHE_PREFIX}${key}`, JSON.stringify(messages.slice(-100))).catch(() => {});
+}
+
+export function getCachedOrderDetail(cacheKey: string): any | null {
+  ensureOrderCacheHydrated();
+  return memoryOrderDetailCache.get(cacheKey) || null;
+}
+
+export function setCachedOrderDetail(cacheKey: string, detail: any) {
+  if (!cacheKey || !detail) return;
+  ensureOrderDetailSaved(cacheKey, detail);
+}
+
+function ensureOrderDetailSaved(cacheKey: string, detail: any) {
+  ensureOrderCacheHydrated();
+  memoryOrderDetailCache.set(cacheKey, detail);
+  const serialized: Record<string, any> = {};
+  memoryOrderDetailCache.forEach((v, k) => {
+    serialized[k] = v;
+  });
+  AsyncStorage.setItem(ORDER_DETAIL_CACHE_KEY, JSON.stringify(serialized)).catch(() => {});
+}
+
+export function getMemoryMyProfileId(role?: string): number | undefined {
+  const key = (role || useAuthStore.getState().role || 'CUSTOMER').toUpperCase();
+  return memoryMyProfileIdByRole[key];
+}
+
+export function setMemoryMyProfileId(profileId: number, role?: string) {
+  if (!profileId || !Number.isFinite(profileId)) return;
+  const key = (role || useAuthStore.getState().role || 'CUSTOMER').toUpperCase();
+  memoryMyProfileIdByRole[key] = Number(profileId);
+}
 
 const ensureReadMapHydrated = () => {
   if (readMapHydrated) return;

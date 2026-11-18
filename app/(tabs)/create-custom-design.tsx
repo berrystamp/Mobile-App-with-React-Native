@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useState, useEffect } from 'react'; // <-- 1. Add useEffect here
+import React, { useState } from 'react';
 import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View, useColorScheme } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -24,18 +24,6 @@ export default function CustomDesignScreen() {
     clearDraft 
   } = useCustomDesignStore();
 
-  // ---------------------------------------------------------
-  // 2. ADD THIS: Automatic Cleanup on Back Button
-  // ---------------------------------------------------------
-  useEffect(() => {
-    return () => {
-      // This cleanup function ONLY runs when this screen is closed/popped.
-      // It wipes the global state automatically so it's fresh next time.
-      clearDraft();
-    };
-  }, []); 
-  // ---------------------------------------------------------
-
   const canContinue = Boolean(designFor && theme && items.length);
   const isProductCustomization = Boolean(productContext?.sourceDesignId);
 
@@ -45,7 +33,14 @@ export default function CustomDesignScreen() {
     if (!canContinue || submitting) return;
     
     if (!isProductCustomization) {
-      router.push({ pathname: '/(tabs)/select-designer' });
+      router.push({
+        pathname: '/(tabs)/select-designer',
+        params: {
+          designFor,
+          theme,
+          items: JSON.stringify(items),
+        },
+      });
       return;
     }
     
@@ -65,7 +60,7 @@ export default function CustomDesignScreen() {
       const conversationId = body?.conversationId || body?.conversation?.id || body?.orderRequest?.conversationId;
       const orderId = body?.orderId || body?.order?.id || body?.id;
 
-      // We still explicitly clear here just to be safe before routing to chat
+      // Clear draft after request succeeds before routing to chat
       clearDraft();
 
       router.replace({
@@ -97,7 +92,13 @@ export default function CustomDesignScreen() {
         contentContainerStyle={{ paddingBottom: bottomBarHeight + 16 }}>
         <View className="px-4 pb-10 pt-10">
           <View className="mb-5 flex-row items-center justify-between">
-            <TouchableOpacity onPress={() => router.back()} className="h-8 w-8 items-start justify-center">
+            <TouchableOpacity
+              onPress={() => {
+                clearDraft();
+                router.back();
+              }}
+              className="h-8 w-8 items-start justify-center"
+            >
               <Ionicons name="arrow-back" size={20} color={isDark ? '#FFFFFF' : '#2D273A'} />
             </TouchableOpacity>
             <Text className="text-[17px] font-medium text-[#2D273A] dark:text-white">Custom Design</Text>

@@ -12,13 +12,13 @@ import { SearchFilters, addSearchHistory, getSearchFilters } from "@/lib/localSt
 import ApiService from "@/services/apiClient";
 import { Design, Mock } from "@/types";
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Dimensions,
   FlatList,
-  Image,
   Linking,
   Modal,
   Pressable,
@@ -80,7 +80,14 @@ function ProductCard({
     <TouchableOpacity onPress={onPress} activeOpacity={0.8} style={{ width: CARD_WIDTH }} className="mb-6 bg-transparent">
       <View style={{ height: CARD_WIDTH * 1.3 }} className="mb-3 overflow-hidden rounded-2xl bg-[#F5F5F7] dark:bg-[#1C1C1E]">
         {imageUrl ? (
-          <Image source={{ uri: imageUrl }} className="h-full w-full" resizeMode="cover" />
+          <Image
+            source={{ uri: imageUrl }}
+            style={{ width: "100%", height: "100%" }}
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            transition={120}
+            recyclingKey={String(design.id)}
+          />
         ) : (
           <View className="flex-1 items-center justify-center">
             <Ionicons name="image-outline" size={28} color={isDark ? '#555' : '#CCC'} />
@@ -228,7 +235,7 @@ function ShareSheet({
 
           <View className="flex-row items-center rounded-2xl bg-[#F5F5F7] p-3 dark:bg-[#2C2C2E]">
             <View className="mr-3 h-14 w-14 overflow-hidden rounded-xl bg-[#E0E0E0]">
-              {design.imagePath ? <Image source={{ uri: design.imagePath }} className="h-full w-full" /> : null}
+              {design.imagePath ? <Image source={{ uri: design.imagePath }} style={{ width: "100%", height: "100%" }} contentFit="cover" cachePolicy="memory-disk" /> : null}
             </View>
             <View className="flex-1">
               <Text numberOfLines={1} className="text-[16px] font-bold text-[#1C1C1E] dark:text-white">
@@ -325,6 +332,8 @@ function ProductDetailScreen({
           name: design.title, imageUrl: selectedMock?.imagePath || design.imagePath || '', price: selectedMock?.price || design.amount || 0,
           quantity, colour: selectedColour || '', size: selectedSize || '', variantText: [selectedColour, selectedSize].filter(Boolean).join(' / '),
           designerName: artistName,
+          printerId: design.printerId,
+          printerName: design.printerName,
         }]);
         setShowPrintModal(true);
         return;
@@ -339,8 +348,58 @@ function ProductDetailScreen({
     }
   };
 
-  const handlePrintPreferencesContinue = (result: PrintPreferencesResult) => {
+  const handlePrintPreferencesContinue = async (result: PrintPreferencesResult) => {
     setShowPrintModal(false);
+    if (design.printerId && pendingPrintCartItems.length > 0) {
+      try {
+        setAddingToCart(true);
+        const payload = pendingPrintCartItems.map((item) => ({
+          designId: Number(item.designId),
+          colour: item.colour || '',
+          quantity: Number(item.quantity) || 1,
+          size: item.size || '',
+          mockItemId: Number(item.mockId),
+          customDesign: false,
+          sourceOfItem: result.hasOwnItem ? 'From Customer' : 'From Printer',
+          estimatedAmount: Number(item.price || 0) * (Number(item.quantity) || 1),
+          dateOfDelivery: result.dateOfDelivery || '',
+          deliveryAddress: {
+            name: result.deliveryAddress.name,
+            address: result.deliveryAddress.name,
+            latitude: result.deliveryAddress.latitude,
+            longitude: result.deliveryAddress.longitude,
+            country: 'Nigeria',
+          },
+          printerId: Number(design.printerId),
+        }));
+        const res = await ApiService.createPrintOrders(payload);
+        const responseBody: any[] = res?.responseBody ?? res ?? [];
+        const firstOrder = Array.isArray(responseBody) ? responseBody[0] : responseBody;
+        const conversationId = firstOrder?.conversationId;
+        const createdOrderRequestId = firstOrder?.id;
+        onClose();
+        router.push({
+          pathname: '/(tabs)/chat',
+          params: {
+            ...(conversationId ? { conversationId: String(conversationId) } : {}),
+            participantId: String(design.printerId),
+            participantName: design.printerName || 'Assigned Printer',
+            participantRole: 'Printers',
+            ...(createdOrderRequestId ? { orderId: String(createdOrderRequestId) } : {}),
+          },
+        });
+        return;
+      } catch (err: any) {
+        showAlert({
+          type: 'error',
+          title: 'Order Failed',
+          message: err?.response?.data?.responseMessage || err?.message || 'Unable to send print order.',
+        });
+        return;
+      } finally {
+        setAddingToCart(false);
+      }
+    }
     onClose();
     router.push({
       pathname: '/(tabs)/select-printer',
@@ -373,7 +432,13 @@ function ProductDetailScreen({
             {gallery.map((item) => (
               <View key={item.id} style={{ width: SCREEN_WIDTH, height: GALLERY_HEIGHT }}>
                 {item.uri ? (
-                  <Image source={{ uri: item.uri }} className="h-full w-full" resizeMode="cover" />
+                  <Image
+                    source={{ uri: item.uri }}
+                    style={{ width: "100%", height: "100%" }}
+                    contentFit="cover"
+                    cachePolicy="memory-disk"
+                    transition={120}
+                  />
                 ) : (
                   <View className="flex-1 items-center justify-center">
                     <Ionicons name="image-outline" size={64} className="text-[#D1D1D6] dark:text-[#3A3A3C]" />
@@ -490,7 +555,13 @@ function ProductDetailScreen({
                     className={`mr-4 overflow-hidden rounded-2xl border-2 ${isActive ? 'border-[#3E2F8A]' : 'border-transparent bg-[#F5F5F7] dark:bg-[#1C1C1E]'}`}
                   >
                     {mock.imagePath ? (
-                      <Image source={{ uri: mock.imagePath }} className="h-full w-full" />
+                      <Image
+                        source={{ uri: mock.imagePath }}
+                        style={{ width: '100%', height: '100%' }}
+                        contentFit="cover"
+                        cachePolicy="memory-disk"
+                        transition={120}
+                      />
                     ) : (
                       <View className="flex-1 items-center justify-center">
                         <Ionicons name="shirt-outline" size={32} className="text-[#CCC] dark:text-[#555]" />

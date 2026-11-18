@@ -11,13 +11,13 @@ import { useAppAlert } from "@/components/common/AppAlert";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import ApiService, { type PrintOrderPayloadItem } from "@/services/apiClient";
 import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
     Dimensions,
     FlatList,
-    Image,
     Text,
     TouchableOpacity,
     View,
@@ -116,8 +116,10 @@ function PrinterCardItem({
         {printer.cover ? (
           <Image
             source={{ uri: printer.cover }}
-            className="h-full w-full"
-            resizeMode="cover"
+            style={{ width: "100%", height: "100%" }}
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            transition={120}
           />
         ) : null}
         {/* Avatar */}
@@ -129,7 +131,10 @@ function PrinterCardItem({
             {printer.avatar ? (
               <Image
                 source={{ uri: printer.avatar }}
-                className="h-full w-full"
+                style={{ width: "100%", height: "100%" }}
+                contentFit="cover"
+                cachePolicy="memory-disk"
+                transition={120}
               />
             ) : (
               <View className="flex-1 items-center justify-center">

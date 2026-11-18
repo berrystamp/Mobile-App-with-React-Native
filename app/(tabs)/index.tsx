@@ -11,11 +11,11 @@ import ApiService from "@/services/apiClient";
 import { toProfileType, useAuthStore } from "@/store/authStore";
 import type { Design, TProfileType, User } from "@/types";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Image as ExpoImage } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
 import {
-  Image,
   Modal,
   RefreshControl,
   ScrollView,
@@ -93,10 +93,13 @@ function HomeDesignCard({
         ]}
       >
         {imageUrl ? (
-          <Image
+          <ExpoImage
             source={{ uri: imageUrl }}
             style={styles.designImage}
-            resizeMode="cover"
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            transition={120}
+            recyclingKey={String(design.id)}
           />
         ) : (
           <View style={[styles.designImage, styles.imagePlaceholder]}>

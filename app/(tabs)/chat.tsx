@@ -6,9 +6,17 @@ import { useFileUpload } from "@/hooks/useFileUpload";
 import { ENV } from "@/lib/config/env";
 import {
     getBackendMessageId,
+    getCachedConversationMessages,
+    getCachedOrderDetail,
+    getMemoryConversationMessages,
+    getMemoryConversations,
+    getMemoryMyProfileId,
     markConversationReadLocally,
     normalizeConversationsResponse,
     normalizeMessagesResponse,
+    setCachedConversationMessages,
+    setCachedOrderDetail,
+    setMemoryMyProfileId,
     type ChatMessageDto,
     type ConversationSummaryDto,
 } from "@/lib/messages";
@@ -110,21 +118,26 @@ const getMessageOrderId = (
   message?: Partial<ChatMessageDto & { raw?: any }>,
 ) => {
   const raw = message?.raw || {};
-  const candidates = [
+  const idList = [
+    raw?.messageIdentifier,
+    message?.messageIdentifier,
     raw?.orderId,
     raw?.order?.id,
+    raw?.orderRequest?.order?.id,
+    raw?.orderRequest?.id,
     raw?.content,
     message?.text,
-    raw?.id,
-    raw?.orderRequest?.order?.id,
   ];
 
-  const value = candidates.find((candidate) => {
-    const numeric = Number(candidate);
+  const value = idList.find((item) => {
+    if (item === undefined || item === null) return false;
+    const trimmed = String(item).trim();
+    if (!/^\d+$/.test(trimmed)) return false;
+    const numeric = Number(trimmed);
     return Number.isFinite(numeric) && numeric > 0;
   });
 
-  return value ? String(value) : "";
+  return value ? String(value).trim() : "";
 };
 
 const getMessageKey = (
@@ -308,11 +321,20 @@ export default function ChatScreen() {
     participants: [],
   });
 
-  const [isLoading, setIsLoading] = useState(true);
+  const initialCachedMessages = useMemo(
+    () => getMemoryConversationMessages(conversationId),
+    [conversationId],
+  );
+
+  const [isLoading, setIsLoading] = useState(
+    !initialCachedMessages || initialCachedMessages.length === 0,
+  );
   const [isInitialLoad, setIsInitialLoad] = useState(true); 
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   
-  const [messages, setMessages] = useState<(ChatMessageDto & { imageUrl?: string })[]>([]);
+  const [messages, setMessages] = useState<(ChatMessageDto & { imageUrl?: string })[]>(
+    initialCachedMessages || [],
+  );
   const [draft, setDraft] = useState("");
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [showActions, setShowActions] = useState(false);
@@ -320,9 +342,31 @@ export default function ChatScreen() {
   const [showReportReasons, setShowReportReasons] = useState(false);
   const [showReportSuccess, setShowReportSuccess] = useState(false);
 
-  const [orderRequestDetail, setOrderRequestDetail] = useState<any>(null);
-  const [orderDetailsByMessageId, setOrderDetailsByMessageId] = useState<Record<string, any>>({});
-  const [orderRequestDetailsByMessageId, setOrderRequestDetailsByMessageId] = useState<Record<string, any>>({});
+  const [orderRequestDetail, setOrderRequestDetail] = useState<any>(() =>
+    orderId ? getCachedOrderDetail(`REQ_${orderId}`) || getCachedOrderDetail(`ORD_${orderId}`) : null,
+  );
+  const [orderDetailsByMessageId, setOrderDetailsByMessageId] = useState<Record<string, any>>(() => {
+    const map: Record<string, any> = {};
+    (initialCachedMessages || []).forEach((m) => {
+      if (m.chatType === "ORDER") {
+        const oid = getMessageOrderId(m);
+        const cached = oid ? getCachedOrderDetail(`ORD_${oid}`) : null;
+        if (cached) map[m.id] = cached;
+      }
+    });
+    return map;
+  });
+  const [orderRequestDetailsByMessageId, setOrderRequestDetailsByMessageId] = useState<Record<string, any>>(() => {
+    const map: Record<string, any> = {};
+    (initialCachedMessages || []).forEach((m) => {
+      if (m.chatType === "ORDER_REQUEST") {
+        const oid = getMessageOrderId(m);
+        const cached = oid ? getCachedOrderDetail(`REQ_${oid}`) : null;
+        if (cached) map[m.id] = cached;
+      }
+    });
+    return map;
+  });
 
   const [showProductDetails, setShowProductDetails] = useState(false);
   const [showCreateOrder, setShowCreateOrder] = useState(false);
@@ -385,55 +429,37 @@ export default function ChatScreen() {
       if (!conversationId || !items.length) {
         return items;
       }
-      const fallbackLatest = items[items.length - 1];
-      const fallbackId = getBackendMessageId(fallbackLatest?.raw) || fallbackLatest?.id;
-      const fallbackTimestamp =
-        fallbackLatest?.raw?.createdAt ||
-        fallbackLatest?.raw?.timestamp ||
-        fallbackLatest?.readDateTime;
-      markConversationReadLocally(conversationId, fallbackId, fallbackTimestamp);
+      const latest = items[items.length - 1];
+      const messageId = getBackendMessageId(latest?.raw) || latest?.id;
+      const latestTimestamp =
+        latest?.raw?.createdAt ||
+        latest?.raw?.timestamp ||
+        latest?.readDateTime;
+      markConversationReadLocally(conversationId, messageId, latestTimestamp);
 
-      try {
-        // Fetch the newest page so chats with over 100 messages use the actual last message.
-        const latestResponse = await ApiService.getConversationMessages(String(conversationId), 0, 1, 'createdAt,desc');
-        const latest = normalizeMessagesResponse(latestResponse, myProfileId)[0] || fallbackLatest;
-        if (!latest) {
-          return items.map((m) => ({ ...m, status: "seen" as const }));
-        }
-        const messageId = getBackendMessageId(latest.raw) || fallbackId;
-        const latestTimestamp =
-          latest.raw?.createdAt ||
-          latest.raw?.timestamp ||
-          latest.readDateTime ||
-          fallbackTimestamp;
-        markConversationReadLocally(conversationId, messageId, latestTimestamp);
-
-        if (messageId) {
-          const key = `${conversationId}:${messageId}`;
-          if (lastReadMessage.current !== key) {
-            await ApiService.markMessageAsRead(String(messageId)).catch(() => {});
-            const unreadIncomingIds = items
-              .filter((m) => m.author === "other" && m.status !== "seen")
-              .map((m) => getBackendMessageId(m.raw) || m.id)
-              .filter((id): id is string => Boolean(id && String(id) !== String(messageId)));
-            await Promise.allSettled(
-              unreadIncomingIds.slice(-5).map((id) => ApiService.markMessageAsRead(String(id))),
-            );
-            lastReadMessage.current = key;
-          }
-        }
-
-        const response = await ApiService.getConversations(0, 80);
-        useConversationStore.getState().setResponse(response);
-        normalizeConversationsResponse(response, myProfileId);
-      } catch (error) {
-        const failure = error as { message?: string; response?: { status?: number; data?: { responseMessage?: string } } };
-        if (__DEV__) {
-          console.warn('[ChatRead] Failed to mark conversation as read or refresh badges', {
-            conversationId,
-            status: failure.response?.status,
-            message: failure.response?.data?.responseMessage || failure.message,
-          });
+      if (messageId) {
+        const key = `${conversationId}:${messageId}`;
+        if (lastReadMessage.current !== key) {
+          lastReadMessage.current = key;
+          void (async () => {
+            try {
+              await ApiService.markMessageAsRead(String(messageId)).catch(() => {});
+              const unreadIncomingIds = items
+                .filter((m) => m.author === "other" && m.status !== "seen")
+                .map((m) => getBackendMessageId(m.raw) || m.id)
+                .filter((id): id is string => Boolean(id && String(id) !== String(messageId)));
+              if (unreadIncomingIds.length > 0) {
+                await Promise.allSettled(
+                  unreadIncomingIds.slice(-5).map((id) => ApiService.markMessageAsRead(String(id))),
+                );
+              }
+              const response = await ApiService.getConversations(0, 80);
+              useConversationStore.getState().setResponse(response);
+              normalizeConversationsResponse(response, myProfileId);
+            } catch {
+              // Non-blocking background read sync
+            }
+          })();
         }
       }
       return items.map((m) => ({ ...m, status: "seen" as const }));
@@ -466,102 +492,188 @@ export default function ChatScreen() {
     });
   }, [messages]);
 
-  // Load Initial Details
+  // Load Initial Details (Cache-first + Background Revalidation)
   useEffect(() => {
+    let cancelled = false;
+
+    const hydrateOrdersForMessages = async (
+      msgList: (ChatMessageDto & { imageUrl?: string })[],
+    ) => {
+      const orderMessages = msgList.filter(
+        (m) => m.chatType === "ORDER" || m.chatType === "ORDER_REQUEST",
+      );
+      if (!orderMessages.length) return;
+
+      const results = await Promise.allSettled(
+        orderMessages.map(async (m) => {
+          const oid = getMessageOrderId(m);
+          if (!oid || !Number.isFinite(Number(oid))) return null;
+          const cachePrefix = m.chatType === "ORDER_REQUEST" ? "REQ_" : "ORD_";
+          const cached = getCachedOrderDetail(`${cachePrefix}${oid}`);
+          if (cached) {
+            if (m.chatType === "ORDER") {
+              setOrderDetailsByMessageId((prev) => ({ ...prev, [m.id]: cached }));
+            } else {
+              setOrderRequestDetailsByMessageId((prev) => ({ ...prev, [m.id]: cached }));
+            }
+          }
+          const res =
+            m.chatType === "ORDER_REQUEST"
+              ? await ApiService.getOrderRequestById(oid).catch(() => ApiService.getOrderById(oid))
+              : await ApiService.getOrderById(oid).catch(() => ApiService.getOrderRequestById(oid));
+          const detail = normalizeOrderDetail(res);
+          if (detail) {
+            setCachedOrderDetail(`${cachePrefix}${oid}`, detail);
+          }
+          return {
+            messageId: m.id,
+            data: detail,
+            type: m.chatType,
+          };
+        }),
+      );
+
+      if (cancelled) return;
+      const nextOrders: Record<string, any> = {};
+      const nextRequests: Record<string, any> = {};
+
+      results.forEach((r) => {
+        if (r.status === "fulfilled" && r.value?.data) {
+          if (r.value.type === "ORDER") {
+            nextOrders[r.value.messageId] = r.value.data;
+          } else if (r.value.type === "ORDER_REQUEST") {
+            nextRequests[r.value.messageId] = r.value.data;
+          }
+        }
+      });
+
+      if (Object.keys(nextOrders).length > 0) {
+        setOrderDetailsByMessageId((prev) => ({ ...prev, ...nextOrders }));
+      }
+      if (Object.keys(nextRequests).length > 0) {
+        setOrderRequestDetailsByMessageId((prev) => ({ ...prev, ...nextRequests }));
+      }
+    };
+
     const load = async () => {
+      const activeRole = useAuthStore.getState().role;
       try {
-        setIsLoading(true);
-        const profileResponse = await ApiService.getMyProfile();
-        const me = profileResponse?.responseBody || profileResponse;
+        // 1. Show cached conversation metadata & messages immediately if available
+        const cachedConvos = getMemoryConversations(activeRole);
+        const cachedSelected = cachedConvos?.find(
+          (item) =>
+            (conversationId && item.id === String(conversationId)) ||
+            (participantId && Number(item.participantId) === Number(participantId)),
+        );
+        if (cachedSelected) {
+          setConversation((c) => ({ ...c, ...cachedSelected }));
+        }
 
         if (conversationId) {
-          const [convoRes, messagesRes] = await Promise.all([
-            ApiService.getConversations(0, 80),
-            ApiService.getConversationMessages(String(conversationId), 0, 100),
-          ]);
-
-          const allConversations = normalizeConversationsResponse(convoRes, getAccountProfile(me, useAuthStore.getState().role)?.id);
-          const selected = allConversations.find(
-            (item) => item.id === String(conversationId),
-          );
-          if (selected) setConversation((c) => ({ ...c, ...selected }));
-
-          const myId = getAccountProfile(me, useAuthStore.getState().role)?.id;
-          const normalized = normalizeChatMessages(messagesRes, myId, selected);
-          const readMessages = await markUnreadAsRead(normalized, myId);
-
-          const orderMessages = readMessages.filter(
-            (m) => m.chatType === "ORDER" || m.chatType === "ORDER_REQUEST"
-          );
-
-          if (orderMessages.length > 0) {
-            const results = await Promise.allSettled(
-              orderMessages.map(async (m) => {
-                const oid = getMessageOrderId(m);
-                if (!oid || !Number.isFinite(Number(oid))) return null;
-                const res =
-                  m.chatType === "ORDER_REQUEST"
-                    ? await ApiService.getOrderRequestById(oid)
-                    : await ApiService.getOrderById(oid);
-                return {
-                  messageId: m.id,
-                  data: normalizeOrderDetail(res),
-                  type: m.chatType,
-                };
-              })
-            );
-
-            const nextOrders: Record<string, any> = {};
-            const nextRequests: Record<string, any> = {};
-
-            results.forEach((r) => {
-              if (r.status === "fulfilled" && r.value?.data) {
-                if (r.value.type === "ORDER") {
-                  nextOrders[r.value.messageId] = r.value.data;
-                } else if (r.value.type === "ORDER_REQUEST") {
-                  nextRequests[r.value.messageId] = r.value.data;
-                }
-              }
-            });
-
-            setOrderDetailsByMessageId((prev) => ({ ...prev, ...nextOrders }));
-            setOrderRequestDetailsByMessageId((prev) => ({
-              ...prev,
-              ...nextRequests,
-            }));
+          const storedMsgs = await getCachedConversationMessages(conversationId);
+          if (!cancelled && storedMsgs && storedMsgs.length > 0) {
+            setMessages(storedMsgs);
+            setIsLoading(false);
           }
+        }
 
+        // 2. Resolve myId from memory/storage while fetching messages in parallel
+        let myId = getMemoryMyProfileId(activeRole);
+        const messagesPromise = conversationId
+          ? ApiService.getConversationMessages(String(conversationId), 0, 100)
+          : participantId
+            ? ApiService.getConversationMessagesByProfile(String(participantId), 0, 100)
+            : Promise.resolve([]);
+
+        const [cachedUser, messagesRes] = await Promise.all([
+          myId ? Promise.resolve(null) : ApiService.getCurrentUser().catch(() => null),
+          messagesPromise,
+        ]);
+
+        if (cancelled) return;
+
+        if (!myId && cachedUser) {
+          const meObj = cachedUser?.responseBody || cachedUser;
+          myId = getAccountProfile(meObj, activeRole)?.id;
+          if (myId) setMemoryMyProfileId(myId, activeRole);
+        }
+        if (!myId) {
+          const profileResponse = await ApiService.getMyProfile().catch(() => null);
+          const me = profileResponse?.responseBody || profileResponse;
+          myId = getAccountProfile(me, activeRole)?.id;
+          if (myId) setMemoryMyProfileId(myId, activeRole);
+        }
+
+        if (cancelled) return;
+
+        // 3. Render fresh messages immediately and update cache
+        const normalized = normalizeChatMessages(messagesRes, myId, cachedSelected || conversation);
+        const readMessages = await markUnreadAsRead(normalized, myId);
+        if (!cancelled) {
           setMessages(readMessages);
-          
-          if (orderId) {
-             const req = await ApiService.getOrderRequestById(String(orderId)).catch(() => ApiService.getOrderById(String(orderId)));
-             setOrderRequestDetail(normalizeOrderDetail(req));
+          setIsLoading(false);
+          const resolvedConvId = conversationId || readMessages[0]?.conversationId;
+          if (resolvedConvId) {
+            setCachedConversationMessages(resolvedConvId, readMessages);
           }
+        }
+
+        // 4. Hydrate order/request cards & conversation header in the background (non-blocking)
+        void hydrateOrdersForMessages(readMessages);
+
+        if (orderId) {
+          void ApiService.getOrderRequestById(String(orderId))
+            .catch(() => ApiService.getOrderById(String(orderId)))
+            .then((req) => {
+              if (cancelled) return;
+              const detail = normalizeOrderDetail(req);
+              if (detail) {
+                setOrderRequestDetail(detail);
+                setCachedOrderDetail(`REQ_${orderId}`, detail);
+              }
+            })
+            .catch(() => {});
+        }
+
+        if (!cachedSelected && (conversationId || participantId)) {
+          void (conversationId
+            ? ApiService.getConversationById(conversationId)
+            : ApiService.getConversationByProfileId(String(participantId))
+          )
+            .then((convRes) => {
+              if (cancelled || !convRes) return;
+              const normalizedConv = normalizeConversationsResponse([convRes], myId)[0];
+              if (normalizedConv) {
+                setConversation((c) => ({ ...c, ...normalizedConv }));
+              }
+            })
+            .catch(() => {});
         }
       } catch (err) {
         console.error("Failed to load chat", err);
-        setMessages([]);
       } finally {
-        setIsLoading(false);
+        if (!cancelled) setIsLoading(false);
       }
     };
     load();
+    return () => {
+      cancelled = true;
+    };
   }, [conversationId, markUnreadAsRead, normalizeChatMessages, participantId, orderId]);
 
   // Background polling for new messages
   useEffect(() => {
-    if (!conversationId || isLoading) return;
+    if ((!conversationId && !participantId) || isLoading) return;
 
     let cancelled = false;
     const refreshMessages = async () => {
       try {
-        const [profileResponse, messagesRes] = await Promise.all([
-          ApiService.getMyProfile(),
-          ApiService.getConversationMessages(String(conversationId), 0, 100),
-        ]);
+        const activeRole = useAuthStore.getState().role;
+        const myId = getMemoryMyProfileId(activeRole);
+        const messagesRes = conversationId
+          ? await ApiService.getConversationMessages(String(conversationId), 0, 100)
+          : await ApiService.getConversationMessagesByProfile(String(participantId), 0, 100);
         if (cancelled) return;
-        const me = profileResponse?.responseBody || profileResponse;
-        const myId = getAccountProfile(me, useAuthStore.getState().role)?.id;
         const normalized = normalizeChatMessages(messagesRes, myId, conversation);
         
         const missingOrders = normalized.filter((m) => {
@@ -576,8 +688,14 @@ export default function ChatScreen() {
             const results = await Promise.allSettled(
                 missingOrders.map(async (m) => {
                   const oid = getMessageOrderId(m);
-                  const res = m.chatType === "ORDER_REQUEST" ? await ApiService.getOrderRequestById(oid) : await ApiService.getOrderById(oid);
-                  return { messageId: m.id, data: normalizeOrderDetail(res), type: m.chatType };
+                  const cachePrefix = m.chatType === "ORDER_REQUEST" ? "REQ_" : "ORD_";
+                  const res =
+                    m.chatType === "ORDER_REQUEST"
+                      ? await ApiService.getOrderRequestById(oid).catch(() => ApiService.getOrderById(oid))
+                      : await ApiService.getOrderById(oid).catch(() => ApiService.getOrderRequestById(oid));
+                  const detail = normalizeOrderDetail(res);
+                  if (detail) setCachedOrderDetail(`${cachePrefix}${oid}`, detail);
+                  return { messageId: m.id, data: detail, type: m.chatType };
                 })
             );
             
@@ -593,7 +711,10 @@ export default function ChatScreen() {
             });
         }
         const readMessages = await markUnreadAsRead(normalized, myId);
-        if (!cancelled) setMessages(readMessages);
+        if (!cancelled) {
+          setMessages(readMessages);
+          if (conversationId) setCachedConversationMessages(conversationId, readMessages);
+        }
       } catch {
         // Silently fail on background refresh
       }
@@ -604,7 +725,7 @@ export default function ChatScreen() {
       cancelled = true;
       clearInterval(timer);
     };
-  }, [conversation, conversationId, isLoading, markUnreadAsRead, normalizeChatMessages, orderDetailsByMessageId, orderRequestDetailsByMessageId]);
+  }, [conversation, conversationId, isLoading, markUnreadAsRead, normalizeChatMessages, orderDetailsByMessageId, orderRequestDetailsByMessageId, participantId]);
 
   const handleScroll = (event: any) => {
     const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
@@ -646,10 +767,16 @@ export default function ChatScreen() {
 
   type ChatType = "ORDER" | "ORDER_REQUEST" | "DIRECT" | "FILE";
   const resolvePayloadChatType = (isFile = false): ChatType =>
-    isFile ? "FILE" : (orderId ? "ORDER" : "DIRECT");
+    isFile ? "FILE" : "DIRECT";
 
   const buildPayload = (content: string, caption: string, isFile = false) => {
-    const recipientProfileId = Number(conversation.participantId || participantId || 0);
+    const recipientProfileId = Number(
+      conversation.participantId ||
+        participantId ||
+        orderRequestDetail?.providerProfile?.id ||
+        orderRequestDetail?.customerProfile?.id ||
+        0,
+    );
     if (!recipientProfileId) {
       throw new Error("This conversation has no valid recipient profile.");
     }
@@ -663,11 +790,19 @@ export default function ChatScreen() {
   };
 
   const dispatchMessage = async (payload: ReturnType<typeof buildPayload>) => {
-    if (orderId) {
-      await ApiService.sendOrderMessage(String(orderId), payload);
-    } else {
-      await ApiService.sendMessage(payload);
+    const activeOrderId = Object.values(orderDetailsByMessageId)[0]?.id;
+    if (activeOrderId) {
+      try {
+        await ApiService.sendOrderMessage(String(activeOrderId), {
+          ...payload,
+          chatType: payload.chatType === "FILE" ? "FILE" : "ORDER",
+        });
+        return;
+      } catch {
+        // Fall through to standard direct message send if order message route rejects
+      }
     }
+    await ApiService.sendMessage(payload);
   };
 
   const handleSend = async () => {
@@ -683,7 +818,11 @@ export default function ChatScreen() {
       status: "sent",
     };
 
-    setMessages((c) => [...c, newMessage]);
+    setMessages((c) => {
+      const next = [...c, newMessage];
+      if (conversationId) setCachedConversationMessages(conversationId, next);
+      return next;
+    });
     setDraft("");
 
     try {
@@ -1139,11 +1278,22 @@ export default function ChatScreen() {
               {isLoading ? (
                 <ChatSkeleton />
               ) : (
-                displayMessages.map((message, index) => (
-                  <React.Fragment key={getMessageKey(message, index)}>
-                    {renderMessage(message)}
-                  </React.Fragment>
-                ))
+                <>
+                  {orderRequestDetail &&
+                    !displayMessages.some(
+                      (m) =>
+                        String(orderRequestDetailsByMessageId[m.id]?.id || orderDetailsByMessageId[m.id]?.id || "") ===
+                        String(orderRequestDetail.id),
+                    ) &&
+                    (orderRequestDetail.hasOffer
+                      ? renderOrderRequestCard(orderRequestDetail)
+                      : renderOrderCard(orderRequestDetail))}
+                  {displayMessages.map((message, index) => (
+                    <React.Fragment key={getMessageKey(message, index)}>
+                      {renderMessage(message)}
+                    </React.Fragment>
+                  ))}
+                </>
               )}
             </ScrollView>
 
