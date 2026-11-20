@@ -10,6 +10,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.berrystamp.berrystamp",
+      "buildNumber": "1",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSUserNotificationsUsageDescription": "Berrystamp uses notifications to keep you updated on orders, messages, and promotions."
@@ -22,7 +23,8 @@
         "backgroundColor": "#3D2DB5"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.berrystamp.app"
+      "package": "com.berrystamp.app",
+      "versionCode": 1
     },
     "web": {
       "output": "single",

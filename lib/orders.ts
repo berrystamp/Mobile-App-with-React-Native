@@ -89,13 +89,30 @@ export const normalizeManageOrder = (input: any, index = 0): ManageOrderItem => 
     ...toList(printRequest.mockTypes),
   ];
 
+  const rawOrderType = String(
+    request.orderType ||
+      item.orderType ||
+      (request.printRequest || item.printer ? 'PRINT' : request.customDesignRequest || item.designer ? 'DESIGN' : ''),
+  ).toUpperCase();
+  const providerRole = String(
+    provider.profileType ||
+      (item.printer || request.printRequest
+        ? 'PRINTER'
+        : item.designer || request.customDesignRequest
+          ? 'DESIGNER'
+          : ''),
+  ).toUpperCase() || undefined;
+
   return {
     id: String(item.id || orderNumber || index + 1),
     code: String(orderNumber || item.id || `ORDER-${index + 1}`).toUpperCase(),
     title,
     shopName: providerName || designerName,
+    orderType: rawOrderType || undefined,
+    providerId: provider.id ? Number(provider.id) : undefined,
     providerName,
-    providerRole: provider.profileType || (item.printer ? 'PRINTER' : undefined),
+    providerRole,
+    customerId: customer.id ? Number(customer.id) : undefined,
     customerName: customer.name || customer.userName || item.customerName,
     amount: Number(item.totalAmount ?? item.orderAmount ?? item.amountPaid ?? item.amount ?? item.price ?? item.total ?? item.grandTotal ?? 0),
     status: normalizeManageOrderStatus(orderStatus),
@@ -116,26 +133,56 @@ export const normalizeManageOrder = (input: any, index = 0): ManageOrderItem => 
   };
 };
 
-export const normalizeManageOrderListResponse = (input: any): ManageOrderItem[] => {
+export const normalizeManageOrderListResponse = (
+  input: any,
+  activeRole?: string,
+  activeProfileId?: number,
+): ManageOrderItem[] => {
   // APIs may wrap a pageable list several levels deep (responseBody/data/content).
   // Walk known envelope keys instead of silently rendering an empty list.
   const queue: any[] = [input];
   const seen = new Set<any>();
+  let normalizedList: ManageOrderItem[] = [];
   while (queue.length) {
     const body = queue.shift();
     if (!body || typeof body !== 'object' || seen.has(body)) continue;
     seen.add(body);
     if (Array.isArray(body)) {
-      if (body.length === 0) return [];
+      if (body.length === 0) {
+        normalizedList = [];
+        break;
+      }
       if (body.some((item) => item && typeof item === 'object')) {
-        return body.map((item: unknown, index: number) => normalizeManageOrder(item, index));
+        normalizedList = body.map((item: unknown, index: number) => normalizeManageOrder(item, index));
+        break;
       }
     }
     for (const key of ['content', 'orders', 'items', 'results', 'records', 'responseBody', 'data', 'orderList']) {
       if (body[key] !== undefined && body[key] !== null) queue.push(body[key]);
     }
   }
-  return [];
+
+  const normalizedRole = String(activeRole || '').toUpperCase();
+  if (!normalizedRole || normalizedRole === 'CUSTOMER') {
+    return normalizedList;
+  }
+
+  return normalizedList.filter((order) => {
+    if (activeProfileId && order.providerId && Number(order.providerId) !== Number(activeProfileId)) {
+      return false;
+    }
+    if (normalizedRole === 'PRINTER') {
+      if (order.providerRole && order.providerRole !== 'PRINTER') return false;
+      if (order.orderType && !order.orderType.includes('PRINT')) return false;
+      return true;
+    }
+    if (normalizedRole === 'DESIGNER') {
+      if (order.providerRole && order.providerRole !== 'DESIGNER') return false;
+      if (order.orderType && order.orderType.includes('PRINT')) return false;
+      return true;
+    }
+    return true;
+  });
 };
 
 // ─── Influencer Merch (printer flow) ───────────────────────────────────────

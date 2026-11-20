@@ -4,7 +4,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
 import {
     ActivityIndicator, Alert, Modal, SafeAreaView,
-    ScrollView, Text, TouchableOpacity, View, useColorScheme,
+    ScrollView, StatusBar, Text, TouchableOpacity, View, useColorScheme,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
@@ -44,8 +44,17 @@ function InAppBrowser({
   const isDark = useColorScheme() === "dark";
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="fullScreen">
-      <SafeAreaView style={{ flex: 1, backgroundColor: isDark ? "#121212" : "#FFFFFF" }}>
+    <Modal
+      visible={visible}
+      animationType="slide"
+      presentationStyle="fullScreen"
+      statusBarTranslucent
+      onRequestClose={onClose}
+    >
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
+      <SafeAreaView
+        style={{ flex: 1, backgroundColor: isDark ? "#121212" : "#FFFFFF" }}
+      >
         <View
           style={{
             flexDirection: "row",

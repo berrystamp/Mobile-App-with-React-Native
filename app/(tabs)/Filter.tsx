@@ -1,4 +1,8 @@
-import { normalizeDesignListResponse } from "@/lib/designs";
+import {
+    normalizeDesignListResponse,
+    STANDARD_DESIGN_CATEGORIES,
+    STANDARD_PRODUCT_CATEGORIES,
+} from "@/lib/designs";
 import {
     defaultSearchFilters,
     getSearchFilters,
@@ -7,8 +11,8 @@ import {
 import ApiService from "@/services/apiClient";
 import { Ionicons } from "@expo/vector-icons";
 import Slider from "@react-native-community/slider";
-import { useRouter } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
     ScrollView,
     StyleSheet,
@@ -32,8 +36,8 @@ const FilterScreen = () => {
   const [selectedDesignCategories, setSelectedDesignCategories] = useState<
     string[]
   >([]);
-  const [productCategories, setProductCategories] = useState<string[]>([]);
-  const [designCategories, setDesignCategories] = useState<string[]>([]);
+  const [productCategories, setProductCategories] = useState<string[]>(STANDARD_PRODUCT_CATEGORIES);
+  const [designCategories, setDesignCategories] = useState<string[]>(STANDARD_DESIGN_CATEGORIES);
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 9000]);
   const [sortBy, setSortBy] = useState("Recently added");
 
@@ -51,35 +55,46 @@ const FilterScreen = () => {
     [isDark],
   );
 
+  useFocusEffect(
+    useCallback(() => {
+      getSearchFilters()
+        .then((filters) => {
+          setSelectedProductCategories(filters.productCategories || []);
+          setSelectedDesignCategories(filters.designCategories || []);
+          setPriceRange(filters.priceRange || [0, 9000]);
+          setSortBy(filters.sortBy || "Recently added");
+        })
+        .catch(() => {});
+    }, []),
+  );
+
   // --- Data Loading ---
   useEffect(() => {
     const loadState = async () => {
       try {
         const [filters, designResponse] = await Promise.all([
           getSearchFilters(),
-          ApiService.getDesigns({ size: 40 }),
+          ApiService.getDesigns({ size: 40 }).catch(() => null),
         ]);
 
         const designs = normalizeDesignListResponse(designResponse);
 
-        // Extract unique categories from the designs array
-        const nextProductCategories = Array.from(
-          new Set(
-            designs
-              .flatMap((design) =>
-                design.mocks.map((mock) => mock.category || mock.name),
-              )
-              .filter(Boolean),
-          ),
-        ).slice(0, 12);
+        // Merge standard product categories with any dynamic categories from API
+        const dynamicProductCategories = designs
+          .flatMap((design) =>
+            design.mocks.map((mock) => mock.category || mock.name),
+          )
+          .filter(Boolean);
+        const mergedProductCategories = Array.from(
+          new Set([...STANDARD_PRODUCT_CATEGORIES, ...dynamicProductCategories]),
+        );
 
-        const nextDesignCategories = Array.from(
-          new Set(
-            designs
-              .flatMap((design) => design.categories || [])
-              .filter(Boolean),
-          ),
-        ).slice(0, 12);
+        const dynamicDesignCategories = designs
+          .flatMap((design) => design.categories || [])
+          .filter(Boolean);
+        const mergedDesignCategories = Array.from(
+          new Set([...STANDARD_DESIGN_CATEGORIES, ...dynamicDesignCategories]),
+        );
 
         // Set state from local storage filters
         setSelectedProductCategories(filters.productCategories || []);
@@ -87,9 +102,9 @@ const FilterScreen = () => {
         setPriceRange(filters.priceRange || [0, 9000]);
         setSortBy(filters.sortBy || "Recently added");
 
-        // Set dynamic categories from API
-        setProductCategories(nextProductCategories);
-        setDesignCategories(nextDesignCategories);
+        // Set categories
+        setProductCategories(mergedProductCategories);
+        setDesignCategories(mergedDesignCategories);
       } catch (error) {
         console.error("Failed to load filter options", error);
       }
@@ -197,13 +212,9 @@ const FilterScreen = () => {
               <Ionicons name="chevron-forward" size={16} color={theme.text} />
             </TouchableOpacity>
           </View>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.chipRow}
-          >
+          <View style={[styles.chipRow, { flexWrap: "wrap" }]}>
             {productCategories
-              .slice(0, 6)
+              .slice(0, 9)
               .map((item) =>
                 renderChip(item, selectedProductCategories.includes(item), () =>
                   toggleSelection(
@@ -213,7 +224,7 @@ const FilterScreen = () => {
                   ),
                 ),
               )}
-          </ScrollView>
+          </View>
         </View>
 
         {/* Design Categories */}
@@ -232,13 +243,9 @@ const FilterScreen = () => {
               <Ionicons name="chevron-forward" size={16} color={theme.text} />
             </TouchableOpacity>
           </View>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.chipRow}
-          >
+          <View style={[styles.chipRow, { flexWrap: "wrap" }]}>
             {designCategories
-              .slice(0, 6)
+              .slice(0, 9)
               .map((item) =>
                 renderChip(item, selectedDesignCategories.includes(item), () =>
                   toggleSelection(
@@ -248,7 +255,7 @@ const FilterScreen = () => {
                   ),
                 ),
               )}
-          </ScrollView>
+          </View>
         </View>
 
         {/* Price Range */}

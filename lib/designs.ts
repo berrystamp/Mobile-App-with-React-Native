@@ -2,6 +2,70 @@ import { Artist, Design, Mock } from "@/types";
 
 const API_BASE_URL = "https://berrystamp-backend-production.up.railway.app";
 
+export const STANDARD_PRODUCT_CATEGORIES = [
+  "Clothing/Apparel",
+  "Facemask",
+  "Sticker",
+  "Phone Case",
+  "Home/Living",
+  "Tote",
+  "Kids",
+  "Wall arts/Frames",
+  "Accessory/Mugs",
+];
+
+export const STANDARD_DESIGN_CATEGORIES = [
+  "Abstract",
+  "Minimalist",
+  "Conceptual",
+  "Fun and Casual",
+  "Typographic",
+  "Feminine",
+  "Masculine",
+  "Nature",
+  "Kiddies",
+];
+
+export const STANDARD_SIZES = ["XXS", "XS", "S", "M", "L", "XL", "XXL"];
+
+const PRODUCT_CATEGORY_KEYWORDS: Record<string, string[]> = {
+  "clothing/apparel": ["clothing", "apparel", "shirt", "t-shirt", "tshirt", "tee", "sweatshirt", "sweat shirt", "hoodie", "jersey", "top", "polo", "jacket", "wear"],
+  "facemask": ["facemask", "face mask", "mask"],
+  "sticker": ["sticker", "decal"],
+  "phone case": ["phone case", "phonecase", "case", "iphone", "samsung"],
+  "home/living": ["home", "living", "pillow", "cushion", "throw", "blanket", "decor"],
+  "tote": ["tote", "bag", "shopping bag"],
+  "kids": ["kids", "kid", "child", "children", "baby", "onesie"],
+  "wall arts/frames": ["wall art", "wall arts", "frame", "frames", "canvas", "poster", "art print"],
+  "accessory/mugs": ["accessory", "accessories", "mug", "mugs", "cup", "bottle", "mousepad", "mouse pad", "cap", "hat", "keychain", "wristband", "pen"],
+};
+
+export function matchesProductCategory(design: Design, selectedCategories: string[]): boolean {
+  if (!selectedCategories.length) return true;
+  const mockTokens = (design.mocks || [])
+    .flatMap((m) => [m.category, m.name])
+    .filter(Boolean)
+    .map((v) => String(v).trim().toLowerCase());
+  const designTokens = [
+    ...(design.categories || []),
+    ...(design.tags || []),
+    design.category,
+    design.title,
+  ]
+    .filter(Boolean)
+    .map((v) => String(v).trim().toLowerCase());
+  const allTokens = [...mockTokens, ...designTokens];
+
+  return selectedCategories.some((selected) => {
+    const normalizedSelected = selected.trim().toLowerCase();
+    if (!normalizedSelected) return true;
+    const keywords = PRODUCT_CATEGORY_KEYWORDS[normalizedSelected] || [normalizedSelected];
+    return allTokens.some((token) =>
+      keywords.some((kw) => token === kw || token.includes(kw) || kw.includes(token)),
+    );
+  });
+}
+
 interface BackendImage {
   url?: string;
   path?: string;
@@ -19,6 +83,7 @@ interface BackendMock {
   id: number;
   name?: string;
   category?: string;
+  limitedStatus?: boolean;
   image?: BackendImage | null;
   imageUrl?: string;
   availableQty?: number;
@@ -36,6 +101,13 @@ interface BackendDesign {
   coverImage?: BackendImage | null;
   imageUrlFront?: string;
   designer?: BackendDesigner | null;
+  printer?: BackendDesigner | null;
+  printerId?: number | null;
+  openForCustomization?: boolean;
+  influencerMerch?: boolean;
+  influencerDesign?: boolean;
+  autographMessage?: string;
+  locked?: boolean;
   profile?: {
     id?: number;
     firstName?: string;
@@ -104,6 +176,9 @@ export function normalizeArtist(input?: BackendDesigner | null): Artist {
 }
 
 export function normalizeMock(mock: BackendMock, amount = 0): Mock {
+  const rawSizes = Array.isArray(mock.sizes)
+    ? mock.sizes.map(String).filter(Boolean)
+    : [];
   return {
     id: mock.id,
     name: mock.name || "Mock",
@@ -114,8 +189,9 @@ export function normalizeMock(mock: BackendMock, amount = 0): Mock {
     price: amount,
     available: (mock.availableQty || 0) > 0,
     availableQty: mock.availableQty,
+    limitedStatus: Boolean(mock.limitedStatus),
     colours: mock.colours || [],
-    sizes: mock.sizes || [],
+    sizes: rawSizes.length > 0 ? rawSizes : STANDARD_SIZES,
   };
 }
 
@@ -153,6 +229,25 @@ export function normalizeDesign(input: BackendDesign): Design {
   );
   const title = input.title || input.name || "Untitled design";
   const amount = input.amount || 0;
+  const normalizedMocks = (input.mocks || []).map((mock) => normalizeMock(mock, amount));
+  const printerId = input.printer?.id ?? input.printerId ?? undefined;
+  const printerName = input.printer?.name || input.printer?.userName || undefined;
+  const openForCustomization = input.openForCustomization ?? true;
+  const hasInfluencerTag =
+    (input.tags || []).some((t) => String(t).toLowerCase().includes("influencer")) ||
+    (input.categories || []).some((c) => String(c).toLowerCase().includes("influencer"));
+
+  const locked = Boolean(
+    printerId ||
+      input.openForCustomization === false ||
+      input.locked,
+  );
+  const influencerMerch = Boolean(
+    input.influencerMerch ||
+      input.influencerDesign ||
+      input.autographMessage ||
+      hasInfluencerTag,
+  );
 
   return {
     id: input.id,
@@ -164,7 +259,7 @@ export function normalizeDesign(input: BackendDesign): Design {
     liked: input.designIsLiked ?? input.liked ?? false,
     likes: input.likes || 0,
     views: input.views || 0,
-    mocks: (input.mocks || []).map((mock) => normalizeMock(mock, amount)),
+    mocks: normalizedMocks,
     profile,
     createdAt: input.createdDate || input.createdAt || "",
     updatedAt: input.updatedAt || input.createdDate || input.createdAt || "",
@@ -177,6 +272,13 @@ export function normalizeDesign(input: BackendDesign): Design {
       input.designer?.userName ||
       `${profile.firstName} ${profile.lastName}`.trim(),
     designerShopName: input.designer?.name || input.designer?.userName,
+    printerId: printerId ? Number(printerId) : undefined,
+    printerName,
+    openForCustomization,
+    locked,
+    influencerMerch,
+    influencerDesign: influencerMerch,
+    autographMessage: input.autographMessage,
   };
 }
 

@@ -1,10 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Dimensions,
-  Image,
   Modal,
   Platform,
   SafeAreaView,
@@ -13,6 +12,7 @@ import {
   TouchableOpacity,
   View,
   useColorScheme,
+  useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -53,6 +53,8 @@ type CartItemType = {
   designerId?: number;
   designerName?: string;
   printerId?: number;
+  printerName?: string;
+  isLocked?: boolean;
   printingType?: string;
   budget?: string;
   deliveryDate?: string;
@@ -70,9 +72,6 @@ type PreferenceErrors = {
   pickupAddress?: string;
 };
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const CARD_WIDTH = (SCREEN_WIDTH - 48) / 2;
-
 export default function CartScreen() {
   const router = useRouter();
   const { openPrintPrefs } = useLocalSearchParams<{
@@ -82,6 +81,9 @@ export default function CartScreen() {
   const role = useAuthStore((state) => state.role);
   const { show: showAlert, element: alertElement } = useAppAlert();
   const insets = useSafeAreaInsets();
+  const { width: screenWidth } = useWindowDimensions();
+  const CARD_WIDTH = Math.max(136, (screenWidth - 48) / 2);
+  const bottomNavHeight = 60 + Math.max(insets.bottom, Platform.OS === "ios" ? 12 : 8);
 
   const [isLoading, setIsLoading] = useState(true);
   const [cartItems, setCartItems] = useState<CartItemType[]>([]);
@@ -99,132 +101,194 @@ export default function CartScreen() {
   const [prefErrors, setPrefErrors] = useState<PreferenceErrors>({});
   const [showPrintModal, setShowPrintModal] = useState(false);
 
-  useEffect(() => {
+  const isLockedItem = useCallback(
+    (item: CartItemType) => Boolean(item.isLocked || item.printerId),
+    [],
+  );
+
+  const fetchCartData = useCallback(async () => {
     if (!isCustomerRole(role)) {
       router.replace("/manage-order");
       return;
     }
 
-    const fetchCartData = async () => {
-      setIsLoading(true);
-      try {
-        const [response, recentIds, storedPreferences] = await Promise.all([
-          ApiService.getCartItems(),
-          getRecentDesignIds(),
-          getPrintPreferences(),
-        ]);
-
-        setEstimatedAmount(storedPreferences.estimatedAmount);
-        setDeliveryDate(storedPreferences.deliveryDate);
-        setDeliveryAddress(storedPreferences.deliveryAddress);
-        setPickupAddress(storedPreferences.pickupAddress);
-        setHasOwnItem(
-          typeof storedPreferences.hasOwnItem === "boolean"
-            ? storedPreferences.hasOwnItem
-            : null,
-        );
-
-        const data = response?.responseBody || response?.data || response || [];
-        const list = Array.isArray(data) ? data : [];
-
-        const formattedItems = await Promise.all(
-          list.map(async (item: any) => {
-            const variants = [];
-            if (item.size) variants.push(item.size);
-            if (item.colour) variants.push(item.colour);
-
-            let designerName = "Unknown artist";
-            try {
-              const designIdToFetch = item.designId || item.design?.id;
-              if (designIdToFetch) {
-                const designer = await ApiService.getDesigner(designIdToFetch);
-                designerName =
-                  designer?.responseBody?.designer.userName || designerName;
-              }
-            } catch (err) {
-              console.warn("Failed to fetch designer for item", item.id, err);
-            }
-
-            return {
-              id: String(item.id),
-              designId: String(item.designId || item.design?.id),
-              mockId: String(item.mock?.id || ""),
-              name:
-                item.design?.title ||
-                item.design?.name ||
-                item.mock?.name ||
-                "Custom Design",
-              price: Number(
-                item.amount || item.mock?.price || item.design?.amount || 0,
-              ),
-              quantity: Number(item.quantity || 1),
-              colour: item.colour || "",
-              size: item.size || "",
-              variantText: variants.join(", ") || "No specification",
-              imageSource: item.mock?.image?.url
-                ? { uri: item.mock.image.url }
-                : item.design?.imageUrlFront
-                  ? { uri: item.design.imageUrlFront }
-                  : require("@/assets/images/item1.png"),
-              imageUrl:
-                item.mock?.image?.url ||
-                item.design?.imageUrlFront ||
-                item.design?.imagePath ||
-                "",
-              checked: true,
-              designerId: item.design?.profile?.id || item.design?.designer?.id,
-              designerName: designerName,
-              printerId: item.printerId || item.printer?.id,
-              printingType: item.printingType || item.printType || "",
-              budget: item.budget || "",
-              deliveryDate: item.deliveryDate || "",
-              deliveryAddress: item.deliveryAddress || "",
-              pickupAddress: item.pickupAddress || "",
-              itemAvailability: item.itemAvailability || "",
-              hasOwnItem:
-                typeof item.hasOwnItem === "boolean"
-                  ? item.hasOwnItem
-                  : undefined,
-            } satisfies CartItemType;
-          }),
-        );
-
-        await saveCartItems(formattedItems);
-        setCartItems(formattedItems);
-
-        if (recentIds.length > 0) {
-          const recentResponses = await Promise.allSettled(
-            recentIds
-              .slice(0, 4)
-              .map((designId) => ApiService.fetchDesignById(designId)),
-          );
-          const nextRecentDesigns = recentResponses
-            .filter(
-              (result): result is PromiseFulfilledResult<any> =>
-                result.status === "fulfilled",
-            )
-            .map((result) =>
-              normalizeDesign(result.value?.responseBody || result.value),
-            )
-            .filter((design) => Boolean(design?.id));
-          setRecentDesigns(nextRecentDesigns);
-        } else {
-          const recentResponse = await ApiService.getRecentDesigns(4);
-          setRecentDesigns(
-            normalizeDesignListResponse(recentResponse).slice(0, 4),
-          );
-        }
-      } catch (error) {
-        console.error("Error fetching cart:", error);
-        const cachedItems = await getCartItems();
-        setCartItems(cachedItems.length > 0 ? cachedItems : []);
-      } finally {
+    try {
+      // 1. Hydrate cached cart items immediately so the UI renders without waiting
+      const cached = await getCartItems();
+      if (cached.length > 0) {
+        setCartItems(cached);
         setIsLoading(false);
       }
-    };
 
-    fetchCartData();
+      const [response, recentIds, storedPreferences] = await Promise.all([
+        ApiService.getCartItems(),
+        getRecentDesignIds(),
+        getPrintPreferences(),
+      ]);
+
+      setEstimatedAmount(storedPreferences.estimatedAmount);
+      setDeliveryDate(storedPreferences.deliveryDate);
+      setDeliveryAddress(storedPreferences.deliveryAddress);
+      setPickupAddress(storedPreferences.pickupAddress);
+      setHasOwnItem(
+        typeof storedPreferences.hasOwnItem === "boolean"
+          ? storedPreferences.hasOwnItem
+          : null,
+      );
+
+      const data = response?.responseBody || response?.data || response || [];
+      const list = Array.isArray(data) ? data : [];
+
+      const toAbsUrl = (rawPath?: string) => {
+        if (!rawPath) return "";
+        if (rawPath.startsWith("http")) return rawPath;
+        return `https://berrystamp-backend-production.up.railway.app/${rawPath.replace(/^\/+/, "")}`;
+      };
+
+      const formattedItems = await Promise.all(
+        list.map(async (item: any) => {
+          const variants = [];
+          if (item.size) variants.push(item.size);
+          if (item.colour) variants.push(item.colour);
+
+          let designObj: any = item.design || null;
+          const designIdToFetch = item.designId || item.design?.id;
+          if (designIdToFetch) {
+            try {
+              const fetched = await ApiService.getDesigner(designIdToFetch);
+              designObj = fetched?.responseBody || fetched?.data || fetched || designObj;
+            } catch (err) {
+              console.warn("Failed to fetch design for cart item", item.id, err);
+            }
+          }
+
+          const designerProfile = designObj?.designer || designObj?.profile || item.design?.designer || item.design?.profile;
+          const printerProfile = designObj?.printer || item.printer;
+          const resolvedDesignerId = Number(designerProfile?.id || 0) || undefined;
+          const resolvedDesignerName =
+            designerProfile?.name ||
+            designerProfile?.userName ||
+            designerProfile?.username ||
+            "Berrystamp Artist";
+          const resolvedPrinterId =
+            Number(
+              printerProfile?.id ||
+                designObj?.printerId ||
+                item.printerId ||
+                0,
+            ) || undefined;
+          const resolvedPrinterName =
+            printerProfile?.name ||
+            printerProfile?.userName ||
+            undefined;
+          const locked = Boolean(
+            resolvedPrinterId ||
+              designObj?.openForCustomization === false ||
+              designObj?.locked ||
+              designObj?.assignedPrinterOnly ||
+              item.isLocked,
+          );
+
+          const resolvedImageUrl = toAbsUrl(
+            item.mock?.image?.url ||
+              item.mock?.imageUrl ||
+              designObj?.imageUrlFront ||
+              designObj?.coverImage?.url ||
+              item.design?.imageUrlFront ||
+              item.design?.imagePath ||
+              "",
+          );
+
+          return {
+            id: String(item.id),
+            designId: String(designIdToFetch || ""),
+            mockId: String(item.mock?.id || ""),
+            name:
+              designObj?.name ||
+              designObj?.title ||
+              item.design?.title ||
+              item.design?.name ||
+              item.mock?.name ||
+              "Custom Design",
+            price: Number(
+              item.amount || item.mock?.price || designObj?.amount || item.design?.amount || 0,
+            ),
+            quantity: Number(item.quantity || 1),
+            colour: item.colour || "",
+            size: item.size || "",
+            variantText: variants.join(", ") || "No specification",
+            imageSource: resolvedImageUrl
+              ? { uri: resolvedImageUrl }
+              : require("@/assets/images/item1.png"),
+            imageUrl: resolvedImageUrl,
+            checked: true,
+            designerId: resolvedDesignerId,
+            designerName: resolvedDesignerName,
+            printerId: resolvedPrinterId,
+            printerName: resolvedPrinterName,
+            isLocked: locked,
+            printingType: item.printingType || item.printType || "",
+            budget: item.budget || "",
+            deliveryDate: item.deliveryDate || "",
+            deliveryAddress: item.deliveryAddress || "",
+            pickupAddress: item.pickupAddress || "",
+            itemAvailability: item.itemAvailability || "",
+            hasOwnItem:
+              typeof item.hasOwnItem === "boolean"
+                ? item.hasOwnItem
+                : undefined,
+          } satisfies CartItemType;
+        }),
+      );
+
+      await saveCartItems(formattedItems);
+      setCartItems(formattedItems);
+
+      // Auto-select tab that has items if the current tab is empty
+      const hasLocked = formattedItems.some((i) => Boolean(i.isLocked || i.printerId));
+      const hasOpen = formattedItems.some((i) => !i.isLocked && !i.printerId);
+      if (hasLocked) {
+        setCartTab("designated");
+      } else if (hasOpen) {
+        setCartTab("select");
+      }
+
+      if (recentIds.length > 0) {
+        const recentResponses = await Promise.allSettled(
+          recentIds
+            .slice(0, 4)
+            .map((designId) => ApiService.fetchDesignById(designId)),
+        );
+        const nextRecentDesigns = recentResponses
+          .filter(
+            (result): result is PromiseFulfilledResult<any> =>
+              result.status === "fulfilled",
+          )
+          .map((result) =>
+            normalizeDesign(result.value?.responseBody || result.value),
+          )
+          .filter((design) => Boolean(design?.id));
+        setRecentDesigns(nextRecentDesigns);
+      } else {
+        const recentResponse = await ApiService.getRecentDesigns(4);
+        setRecentDesigns(
+          normalizeDesignListResponse(recentResponse).slice(0, 4),
+        );
+      }
+    } catch (error) {
+      console.error("Error fetching cart:", error);
+      const cachedItems = await getCartItems();
+      setCartItems(cachedItems.length > 0 ? cachedItems : []);
+    } finally {
+      setIsLoading(false);
+    }
   }, [role, router]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void fetchCartData();
+    }, [fetchCartData]),
+  );
 
   useEffect(() => {
     if (!isLoading) void saveCartItems(cartItems);
@@ -244,12 +308,12 @@ export default function CartScreen() {
       cartItems.reduce(
         (sum, item) =>
           item.checked &&
-          (cartTab === "designated" ? Boolean(item.printerId) : !item.printerId)
+          (cartTab === "designated" ? isLockedItem(item) : !isLockedItem(item))
             ? sum + item.price * item.quantity
             : sum,
         0,
       ),
-    [cartItems, cartTab],
+    [cartItems, cartTab, isLockedItem],
   );
 
   const selectedItems = useMemo(
@@ -257,27 +321,27 @@ export default function CartScreen() {
       cartItems.filter(
         (item) =>
           item.checked &&
-          (cartTab === "designated" ? item.printerId : !item.printerId),
+          (cartTab === "designated" ? isLockedItem(item) : !isLockedItem(item)),
       ),
-    [cartItems, cartTab],
+    [cartItems, cartTab, isLockedItem],
   );
 
   const visibleCartItems = useMemo(
     () =>
       cartItems.filter((item) =>
-        cartTab === "designated" ? Boolean(item.printerId) : !item.printerId,
+        cartTab === "designated" ? isLockedItem(item) : !isLockedItem(item),
       ),
-    [cartItems, cartTab],
+    [cartItems, cartTab, isLockedItem],
   );
 
   // Counts per tab (for tab badges)
   const lockedCount = useMemo(
-    () => cartItems.filter((i) => Boolean(i.printerId)).length,
-    [cartItems],
+    () => cartItems.filter((i) => isLockedItem(i)).length,
+    [cartItems, isLockedItem],
   );
   const openCount = useMemo(
-    () => cartItems.filter((i) => !i.printerId).length,
-    [cartItems],
+    () => cartItems.filter((i) => !isLockedItem(i)).length,
+    [cartItems, isLockedItem],
   );
 
   const handleQuantityChange = (id: string, delta: number) => {
@@ -354,7 +418,7 @@ export default function CartScreen() {
     setShowPrintModal(true);
   };
 
-  const handlePrintPreferencesContinue = (result: PrintPreferencesResult) => {
+  const handlePrintPreferencesContinue = async (result: PrintPreferencesResult) => {
     setShowPrintModal(false);
     const printCartItems = selectedItems.map((item) => ({
       id: item.id,
@@ -368,7 +432,78 @@ export default function CartScreen() {
       imageUrl: item.imageUrl || "",
       variantText: item.variantText,
       designerName: item.designerName,
+      printerId: item.printerId,
+      printerName: item.printerName,
     }));
+
+    // If Locked Printing items already have an assigned printerId, send the print request directly to the locked printer
+    if (
+      cartTab === "designated" &&
+      selectedItems.length > 0 &&
+      selectedItems.every((item) => Boolean(item.printerId))
+    ) {
+      try {
+        setIsLoading(true);
+        const payload = selectedItems.map((item) => ({
+          designId: Number(item.designId),
+          colour: item.colour || "",
+          quantity: Number(item.quantity) || 1,
+          size: item.size || "",
+          mockItemId: Number(item.mockId),
+          customDesign: false,
+          sourceOfItem: result.hasOwnItem ? "From Customer" : "From Printer",
+          estimatedAmount: Number(item.price) * (Number(item.quantity) || 1),
+          dateOfDelivery: result.dateOfDelivery || "",
+          deliveryAddress: {
+            name: result.deliveryAddress.name,
+            address: result.deliveryAddress.name,
+            latitude: result.deliveryAddress.latitude,
+            longitude: result.deliveryAddress.longitude,
+            country: "Nigeria",
+          },
+          printerId: Number(item.printerId),
+        }));
+        const res = await ApiService.createPrintOrders(payload);
+        const responseBody: any[] = res?.responseBody ?? res ?? [];
+        const firstOrder = Array.isArray(responseBody) ? responseBody[0] : responseBody;
+        const conversationId = firstOrder?.conversationId;
+        const createdOrderRequestId = firstOrder?.id;
+
+        await Promise.allSettled(
+          selectedItems.map((item) => ApiService.deleteCartItem(String(item.id)).catch(() => {})),
+        );
+        const orderedIds = new Set(selectedItems.map((i) => String(i.id)));
+        const remaining = cartItems.filter((c) => !orderedIds.has(String(c.id)));
+        setCartItems(remaining);
+        await saveCartItems(remaining);
+
+        const primaryItem = selectedItems[0];
+        router.push({
+          pathname: "/(tabs)/chat",
+          params: {
+            ...(conversationId ? { conversationId: String(conversationId) } : {}),
+            participantId: String(primaryItem.printerId),
+            participantName: primaryItem.printerName || "Assigned Printer",
+            participantRole: "Printers",
+            ...(createdOrderRequestId ? { orderId: String(createdOrderRequestId) } : {}),
+          },
+        });
+        return;
+      } catch (err: any) {
+        showAlert({
+          type: "error",
+          title: "Order Failed",
+          message:
+            err?.response?.data?.responseMessage ||
+            err?.message ||
+            "Failed to submit locked print order. Please try again.",
+        });
+        return;
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
     router.push({
       pathname: "/(tabs)/select-printer",
       params: {
@@ -678,7 +813,7 @@ export default function CartScreen() {
         contentContainerStyle={{
           paddingHorizontal: 16,
           paddingTop: 16,
-          paddingBottom: cartItems.length > 0 ? 220 : 40,
+          paddingBottom: cartItems.length > 0 ? bottomNavHeight + 170 : bottomNavHeight + 36,
         }}
         showsVerticalScrollIndicator={false}
       >
@@ -886,19 +1021,43 @@ export default function CartScreen() {
                 borderRadius: 10,
                 backgroundColor: isDark ? "#2C2C2E" : "#F2F2F5",
               }}
+              contentFit="cover"
+              cachePolicy="memory-disk"
+              transition={150}
             />
 
             <View style={{ flex: 1, marginLeft: 12 }}>
-              <Text
-                numberOfLines={1}
-                style={{
-                  fontSize: 14,
-                  fontWeight: "700",
-                  color: isDark ? "#FFFFFF" : "#1C1C1E",
-                }}
-              >
-                {item.name}
-              </Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Text
+                  numberOfLines={1}
+                  style={{
+                    flex: 1,
+                    fontSize: 14,
+                    fontWeight: "700",
+                    color: isDark ? "#FFFFFF" : "#1C1C1E",
+                  }}
+                >
+                  {item.name}
+                </Text>
+                {isLockedItem(item) && (
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 3,
+                      backgroundColor: "#EFEAFC",
+                      paddingHorizontal: 6,
+                      paddingVertical: 2,
+                      borderRadius: 6,
+                    }}
+                  >
+                    <Ionicons name="lock-closed" size={10} color="#3B2D85" />
+                    <Text style={{ fontSize: 9, fontWeight: "700", color: "#3B2D85" }}>
+                      Locked
+                    </Text>
+                  </View>
+                )}
+              </View>
               <Text
                 numberOfLines={1}
                 style={{
@@ -908,6 +1067,7 @@ export default function CartScreen() {
                 }}
               >
                 {item.designerName}
+                {item.printerName ? ` · Printer: ${item.printerName}` : ""}
               </Text>
               {item.variantText && item.variantText !== "No specification" && (
                 <Text
@@ -1056,7 +1216,7 @@ export default function CartScreen() {
                 const imageUri = design.imagePath?.startsWith("http")
                   ? design.imagePath
                   : design.imagePath
-                    ? `https://backend-prod-api.berrystamp.com/${design.imagePath}`
+                    ? `https://berrystamp-backend-production.up.railway.app/${design.imagePath.replace(/^\/+/, "")}`
                     : "";
                 const artistName =
                   `${design.profile.firstName} ${design.profile.lastName}`.trim() ||
@@ -1099,7 +1259,9 @@ export default function CartScreen() {
                         <Image
                           source={{ uri: imageUri }}
                           style={{ width: "100%", height: "100%" }}
-                          resizeMode="cover"
+                          contentFit="cover"
+                          cachePolicy="memory-disk"
+                          transition={150}
                         />
                       ) : (
                         <View
@@ -1185,13 +1347,13 @@ export default function CartScreen() {
             position: "absolute",
             left: 0,
             right: 0,
-            bottom: 0,
+            bottom: bottomNavHeight,
             backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF",
             borderTopWidth: 1,
             borderTopColor: isDark ? "#2C2C2E" : "#E8E8EC",
             paddingHorizontal: 20,
-            paddingTop: 14,
-            paddingBottom: Math.max(insets.bottom, 16),
+            paddingTop: 12,
+            paddingBottom: 14,
           }}
         >
           <View

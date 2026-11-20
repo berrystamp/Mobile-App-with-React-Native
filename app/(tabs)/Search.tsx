@@ -1,14 +1,14 @@
 import { addRecentDesign, addSearchHistory, getSearchFilters, SearchFilters } from '@/lib/localStorage';
 import { formatNaira } from '@/lib/currency';
-import { normalizeDesignListResponse } from '@/lib/designs';
+import { matchesProductCategory, normalizeDesignListResponse } from '@/lib/designs';
 import ApiService from '@/services/apiClient';
 import { Design } from '@/types';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -39,13 +39,28 @@ const sortDesigns = (designs: Design[], sortBy: string) => {
   );
 };
 
-const applyStoredFilters = (designs: Design[], filters: SearchFilters) => sortDesigns(designs, filters.sortBy);
+const applyStoredFilters = (designs: Design[], filters: SearchFilters) => {
+  const filtered = filters.productCategories?.length
+    ? designs.filter((design) => matchesProductCategory(design, filters.productCategories))
+    : designs;
+  return sortDesigns(filtered, filters.sortBy);
+};
 
 function SearchDesignCard({ design, onPress }: { design: Design; onPress: () => void }) {
   const isDark = useColorScheme() === 'dark';
   const artistName = `${design.profile.firstName} ${design.profile.lastName}`.trim() || design.profile.username;
   const imageUrl = design.imagePath;
   const price = getLowestPrice(design);
+  const isLocked = Boolean(
+    design.locked ||
+      design.printerId ||
+      design.openForCustomization === false,
+  );
+  const isInfluencer = Boolean(
+    design.influencerMerch ||
+      design.influencerDesign ||
+      design.autographMessage,
+  );
 
   return (
     <TouchableOpacity
@@ -59,7 +74,27 @@ function SearchDesignCard({ design, onPress }: { design: Design; onPress: () => 
       onPress={onPress}
       activeOpacity={0.9}>
       <View style={[styles.cardImageWrap, { backgroundColor: isDark ? '#232323' : '#F8F8FA' }]}>
-        {imageUrl ? <Image source={{ uri: imageUrl }} style={styles.cardImage} resizeMode="cover" /> : null}
+        {imageUrl ? (
+          <Image
+            source={{ uri: imageUrl }}
+            style={styles.cardImage}
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            transition={120}
+            recyclingKey={String(design.id)}
+          />
+        ) : null}
+        {isLocked && (
+          <View style={[styles.cardHeart, { left: 10, right: undefined, backgroundColor: isDark ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.95)' }]}>
+            <Ionicons name="lock-closed" size={14} color={isDark ? '#A993FF' : '#3E2F8A'} />
+          </View>
+        )}
+        {isInfluencer && (
+          <View style={{ position: 'absolute', bottom: 8, left: 8, flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0,80,186,0.92)', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 }}>
+            <MaterialCommunityIcons name="crown" size={11} color="#F9A70D" />
+            <Text style={{ color: '#FFFFFF', fontSize: 9, fontWeight: '700', marginLeft: 4 }}>INFLUENCER</Text>
+          </View>
+        )}
         <View style={[styles.cardHeart, { backgroundColor: isDark ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.95)' }]}>
           <Ionicons name={design.liked ? 'heart' : 'heart-outline'} size={16} color={design.liked ? '#FF5C74' : '#8C8C8C'} />
         </View>
@@ -72,7 +107,13 @@ function SearchDesignCard({ design, onPress }: { design: Design; onPress: () => 
         <Text style={[styles.cardMeta, { color: isDark ? '#B0B0B0' : '#8A8A8A' }]} numberOfLines={1}>
           By {artistName}
         </Text>
-        <Text style={[styles.cardPrice, { color: isDark ? '#FFFFFF' : '#232323' }]}>{formatNaira(price)}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Text style={[styles.cardPrice, { color: isDark ? '#FFFFFF' : '#232323' }]}>{formatNaira(price)}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            {isInfluencer && <MaterialCommunityIcons name="crown" size={14} color="#F9A70D" />}
+            {isLocked && <Ionicons name="lock-closed" size={13} color={isDark ? '#A993FF' : '#3E2F8A'} />}
+          </View>
+        </View>
       </View>
     </TouchableOpacity>
   );
@@ -118,11 +159,9 @@ const SearchScreen = () => {
         const [minPrice, maxPrice] = filters.priceRange;
         const response = await ApiService.getDesigns({
           page: 0,
-          size: 20,
+          size: 40,
           searchField: query.trim() || undefined,
           designCategories: filters.designCategories.length ? filters.designCategories.join(',') : undefined,
-          mockName: filters.productCategories.length ? filters.productCategories.join(',') : undefined,
-          mockCategory: filters.productCategories.length ? filters.productCategories.join(',') : undefined,
           lowerPriceRange: minPrice,
           upperPriceRange: maxPrice,
         });

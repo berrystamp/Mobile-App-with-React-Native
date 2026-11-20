@@ -2,18 +2,23 @@ import { useAppAlert } from "@/components/common/AppAlert";
 import PrintPreferencesModal, { type PrintPreferencesResult } from "@/components/PrintPreferencesModal";
 import { useCustomDesignStore } from "@/context/CustomDesignContext";
 import { formatNaira } from "@/lib/currency";
-import { normalizeDesign, normalizeDesignListResponse } from "@/lib/designs";
+import {
+  matchesProductCategory,
+  normalizeDesign,
+  normalizeDesignListResponse,
+  STANDARD_SIZES,
+} from "@/lib/designs";
 import { SearchFilters, addSearchHistory, getSearchFilters } from "@/lib/localStorage";
 import ApiService from "@/services/apiClient";
 import { Design, Mock } from "@/types";
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Dimensions,
   FlatList,
-  Image,
   Linking,
   Modal,
   Pressable,
@@ -39,9 +44,10 @@ const getLowestPrice = (design: Design) => {
 };
 
 const getMockSizes = (mock?: Mock | null): string[] => {
-  if (!mock) return [];
+  if (!mock) return STANDARD_SIZES;
   const s = (mock as any).sizes || (mock as any).availableSizes || [];
-  return Array.isArray(s) ? s.map(String).filter(Boolean) : [];
+  const parsed = Array.isArray(s) ? s.map(String).filter(Boolean) : [];
+  return parsed.length ? parsed : STANDARD_SIZES;
 };
 
 // ─── Design Card Component ───────────────────────────────────────────────────
@@ -59,26 +65,51 @@ function ProductCard({
   const price = getLowestPrice(design);
   const artistName = `${design.profile.firstName} ${design.profile.lastName}`.trim() || design.profile.username;
   const imageUrl = design.imagePath?.startsWith('http') ? design.imagePath : design.imagePath ? `https://berrystamp-backend-production.up.railway.app/${design.imagePath}` : '';
-  console.log(JSON.stringify(design))
+  const isLocked = Boolean(
+    design.locked ||
+      design.printerId ||
+      design.openForCustomization === false,
+  );
+  const isInfluencer = Boolean(
+    design.influencerMerch ||
+      design.influencerDesign ||
+      design.autographMessage,
+  );
+
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.8} style={{ width: CARD_WIDTH }} className="mb-6 bg-transparent">
       <View style={{ height: CARD_WIDTH * 1.3 }} className="mb-3 overflow-hidden rounded-2xl bg-[#F5F5F7] dark:bg-[#1C1C1E]">
         {imageUrl ? (
-          <Image source={{ uri: imageUrl }} className="h-full w-full" resizeMode="cover" />
+          <Image
+            source={{ uri: imageUrl }}
+            style={{ width: "100%", height: "100%" }}
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            transition={120}
+            recyclingKey={String(design.id)}
+          />
         ) : (
           <View className="flex-1 items-center justify-center">
             <Ionicons name="image-outline" size={28} color={isDark ? '#555' : '#CCC'} />
           </View>
         )}
-        
-        {/* <View className="absolute bottom-2.5 left-2.5 overflow-hidden rounded-full bg-[#0050BA]/90">
-          <View className="flex-row items-center px-2 py-1">
-            <MaterialCommunityIcons name="crown" size={12} color="#FFFFFF" />
-            <Text className="ml-1 text-[9px] font-bold tracking-wide text-white uppercase">
-              Influencer
-            </Text>
+
+        {isLocked && (
+          <View className="absolute left-2.5 top-2.5 h-8 w-8 items-center justify-center rounded-full bg-white/90 shadow-sm dark:bg-black/70">
+            <Ionicons name="lock-closed" size={15} color={isDark ? '#A993FF' : '#3E2F8A'} />
           </View>
-        </View> */}
+        )}
+
+        {isInfluencer && (
+          <View className="absolute bottom-2.5 left-2.5 overflow-hidden rounded-full bg-[#0050BA]/95">
+            <View className="flex-row items-center px-2.5 py-1">
+              <MaterialCommunityIcons name="crown" size={12} color="#F9A70D" />
+              <Text className="ml-1 text-[9px] font-bold tracking-wide text-white uppercase">
+                Influencer
+              </Text>
+            </View>
+          </View>
+        )}
 
         <TouchableOpacity
           onPress={() => onFavorite(design.id)}
@@ -98,9 +129,19 @@ function ProductCard({
         <Text numberOfLines={1} className="mb-1.5 text-[12px] text-[#8E8E93]">
           by {artistName}
         </Text>
-        <Text className="text-[14px] font-extrabold text-[#3E2F8A] dark:text-[#A993FF]">
-          {formatNaira(price)}
-        </Text>
+        <View className="flex-row items-center justify-between">
+          <Text className="text-[14px] font-extrabold text-[#3E2F8A] dark:text-[#A993FF]">
+            {formatNaira(price)}
+          </Text>
+          <View className="flex-row items-center gap-1.5">
+            {isInfluencer && (
+              <MaterialCommunityIcons name="crown" size={15} color="#F9A70D" />
+            )}
+            {isLocked && (
+              <Ionicons name="lock-closed" size={14} color={isDark ? '#A993FF' : '#3E2F8A'} />
+            )}
+          </View>
+        </View>
       </View>
     </TouchableOpacity>
   );
@@ -194,7 +235,7 @@ function ShareSheet({
 
           <View className="flex-row items-center rounded-2xl bg-[#F5F5F7] p-3 dark:bg-[#2C2C2E]">
             <View className="mr-3 h-14 w-14 overflow-hidden rounded-xl bg-[#E0E0E0]">
-              {design.imagePath ? <Image source={{ uri: design.imagePath }} className="h-full w-full" /> : null}
+              {design.imagePath ? <Image source={{ uri: design.imagePath }} style={{ width: "100%", height: "100%" }} contentFit="cover" cachePolicy="memory-disk" /> : null}
             </View>
             <View className="flex-1">
               <Text numberOfLines={1} className="text-[16px] font-bold text-[#1C1C1E] dark:text-white">
@@ -234,7 +275,7 @@ function ProductDetailScreen({
   const [galleryIndex, setGalleryIndex] = useState(0);
   const [selectedMock, setSelectedMock] = useState<Mock | null>(design.mocks[0] || null);
   const [selectedColour, setSelectedColour] = useState<string>(design.mocks[0]?.colours?.[0] || '');
-  const [selectedSize, setSelectedSize] = useState<string>('');
+  const [selectedSize, setSelectedSize] = useState<string>(() => getMockSizes(design.mocks[0])[0] || 'M');
   const [quantity, setQuantity] = useState(1);
   const [isFavorite, setIsFavorite] = useState(design.liked);
   const [addingToCart, setAddingToCart] = useState(false);
@@ -291,6 +332,8 @@ function ProductDetailScreen({
           name: design.title, imageUrl: selectedMock?.imagePath || design.imagePath || '', price: selectedMock?.price || design.amount || 0,
           quantity, colour: selectedColour || '', size: selectedSize || '', variantText: [selectedColour, selectedSize].filter(Boolean).join(' / '),
           designerName: artistName,
+          printerId: design.printerId,
+          printerName: design.printerName,
         }]);
         setShowPrintModal(true);
         return;
@@ -305,8 +348,58 @@ function ProductDetailScreen({
     }
   };
 
-  const handlePrintPreferencesContinue = (result: PrintPreferencesResult) => {
+  const handlePrintPreferencesContinue = async (result: PrintPreferencesResult) => {
     setShowPrintModal(false);
+    if (design.printerId && pendingPrintCartItems.length > 0) {
+      try {
+        setAddingToCart(true);
+        const payload = pendingPrintCartItems.map((item) => ({
+          designId: Number(item.designId),
+          colour: item.colour || '',
+          quantity: Number(item.quantity) || 1,
+          size: item.size || '',
+          mockItemId: Number(item.mockId),
+          customDesign: false,
+          sourceOfItem: result.hasOwnItem ? 'From Customer' : 'From Printer',
+          estimatedAmount: Number(item.price || 0) * (Number(item.quantity) || 1),
+          dateOfDelivery: result.dateOfDelivery || '',
+          deliveryAddress: {
+            name: result.deliveryAddress.name,
+            address: result.deliveryAddress.name,
+            latitude: result.deliveryAddress.latitude,
+            longitude: result.deliveryAddress.longitude,
+            country: 'Nigeria',
+          },
+          printerId: Number(design.printerId),
+        }));
+        const res = await ApiService.createPrintOrders(payload);
+        const responseBody: any[] = res?.responseBody ?? res ?? [];
+        const firstOrder = Array.isArray(responseBody) ? responseBody[0] : responseBody;
+        const conversationId = firstOrder?.conversationId;
+        const createdOrderRequestId = firstOrder?.id;
+        onClose();
+        router.push({
+          pathname: '/(tabs)/chat',
+          params: {
+            ...(conversationId ? { conversationId: String(conversationId) } : {}),
+            participantId: String(design.printerId),
+            participantName: design.printerName || 'Assigned Printer',
+            participantRole: 'Printers',
+            ...(createdOrderRequestId ? { orderId: String(createdOrderRequestId) } : {}),
+          },
+        });
+        return;
+      } catch (err: any) {
+        showAlert({
+          type: 'error',
+          title: 'Order Failed',
+          message: err?.response?.data?.responseMessage || err?.message || 'Unable to send print order.',
+        });
+        return;
+      } finally {
+        setAddingToCart(false);
+      }
+    }
     onClose();
     router.push({
       pathname: '/(tabs)/select-printer',
@@ -339,7 +432,13 @@ function ProductDetailScreen({
             {gallery.map((item) => (
               <View key={item.id} style={{ width: SCREEN_WIDTH, height: GALLERY_HEIGHT }}>
                 {item.uri ? (
-                  <Image source={{ uri: item.uri }} className="h-full w-full" resizeMode="cover" />
+                  <Image
+                    source={{ uri: item.uri }}
+                    style={{ width: "100%", height: "100%" }}
+                    contentFit="cover"
+                    cachePolicy="memory-disk"
+                    transition={120}
+                  />
                 ) : (
                   <View className="flex-1 items-center justify-center">
                     <Ionicons name="image-outline" size={64} className="text-[#D1D1D6] dark:text-[#3A3A3C]" />
@@ -409,6 +508,31 @@ function ProductDetailScreen({
             </Text>
           </View>
 
+          {(design.locked ||
+            design.printerId ||
+            design.openForCustomization === false ||
+            design.influencerMerch ||
+            design.influencerDesign) && (
+            <View className="mb-4 flex-row flex-wrap items-center gap-2">
+              {(design.influencerMerch || design.influencerDesign) && (
+                <View className="flex-row items-center rounded-full bg-[#0050BA]/15 px-3 py-1.5 dark:bg-[#0050BA]/30">
+                  <MaterialCommunityIcons name="crown" size={14} color="#F9A70D" />
+                  <Text className="ml-1.5 text-[11px] font-bold text-[#0050BA] dark:text-[#7BB0FF] uppercase">
+                    Influencer Merch
+                  </Text>
+                </View>
+              )}
+              {(design.locked || design.printerId || design.openForCustomization === false) && (
+                <View className="flex-row items-center rounded-full bg-[#3E2F8A]/10 px-3 py-1.5 dark:bg-[#3E2F8A]/30">
+                  <Ionicons name="lock-closed" size={13} color={isDark ? '#A993FF' : '#3E2F8A'} />
+                  <Text className="ml-1.5 text-[11px] font-semibold text-[#3E2F8A] dark:text-[#A993FF]">
+                    {design.printerName ? `Locked to ${design.printerName}` : 'Locked Item'}
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
+
           <Text className="mb-8 text-[15px] leading-6 text-[#3A3A3C] dark:text-[#D1D1D6]">
             {design.description || "Premium quality design crafted for exceptional aesthetics and comfort. Explore the styles below to personalize your fit."}
           </Text>
@@ -431,7 +555,13 @@ function ProductDetailScreen({
                     className={`mr-4 overflow-hidden rounded-2xl border-2 ${isActive ? 'border-[#3E2F8A]' : 'border-transparent bg-[#F5F5F7] dark:bg-[#1C1C1E]'}`}
                   >
                     {mock.imagePath ? (
-                      <Image source={{ uri: mock.imagePath }} className="h-full w-full" />
+                      <Image
+                        source={{ uri: mock.imagePath }}
+                        style={{ width: '100%', height: '100%' }}
+                        contentFit="cover"
+                        cachePolicy="memory-disk"
+                        transition={120}
+                      />
                     ) : (
                       <View className="flex-1 items-center justify-center">
                         <Ionicons name="shirt-outline" size={32} className="text-[#CCC] dark:text-[#555]" />
@@ -586,12 +716,14 @@ export default function ProductsScreen() {
         designer: artistId ? Number(artistId) : undefined,
         searchField: query.trim() || undefined,
         designCategories: nextFilters.designCategories.length ? nextFilters.designCategories.join(',') : undefined,
-        mockName: nextFilters.productCategories.length ? nextFilters.productCategories.join(',') : undefined,
         lowerPriceRange: nextFilters.priceRange[0],
         upperPriceRange: nextFilters.priceRange[1],
       });
 
       let list = normalizeDesignListResponse(res);
+      if (nextFilters.productCategories.length) {
+        list = list.filter((design) => matchesProductCategory(design, nextFilters.productCategories));
+      }
       if (nextFilters.sortBy === 'Low Price') list = list.sort((a, b) => getLowestPrice(a) - getLowestPrice(b));
       else if (nextFilters.sortBy === 'High Price') list = list.sort((a, b) => getLowestPrice(b) - getLowestPrice(a));
 

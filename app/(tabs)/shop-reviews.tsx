@@ -47,10 +47,16 @@ export default function ShopReviewsScreen() {
       ) : (
         <ScrollView contentContainerStyle={{ padding: 16 }}>
           {reviews.map((item: any, index) => {
-            const author = toDisplayName(item?.profile || item?.user || item?.author || {});
+            const author = toDisplayName(item?.ratingUser || item?.profile || item?.user || item?.author || {});
             const comment = String(item?.comment || item?.review || item?.message || '');
             const stars = Number(item?.stars || item?.rating || item?.rate || 0);
-            const avatar = toAbsoluteImage(item?.profile?.profilePicturePath || item?.user?.profilePicturePath || item?.avatar);
+            const avatar = toAbsoluteImage(
+              item?.ratingUser?.profileImage?.url ||
+                item?.ratingUser?.profilePic ||
+                item?.profile?.profilePicturePath ||
+                item?.user?.profilePicturePath ||
+                item?.avatar,
+            );
 
             return (
               <View key={`${item?.id || index}`} style={{ flexDirection: 'row', gap: 12, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: theme.border, backgroundColor: theme.surface }}>

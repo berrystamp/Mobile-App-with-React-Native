@@ -1,10 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useState } from 'react';
+import { Image } from 'expo-image';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
-  Image,
   Text,
   TouchableOpacity,
   View,
@@ -46,8 +46,32 @@ export default function SelectDesignerScreen() {
   const isDark = useColorScheme() === 'dark';
   const { show: showAlert, element: alertElement } = useAppAlert();
 
-  // 1. Pull clearDraft in addition to the variables
-  const { designFor, theme, items, clearDraft } = useCustomDesignStore();
+  // 1. Pull clearDraft in addition to the variables, with fallback to route params
+  const { designFor: storeDesignFor, theme: storeTheme, items: storeItems, clearDraft } = useCustomDesignStore();
+  const {
+    designFor: paramDesignFor,
+    theme: paramTheme,
+    items: paramItems,
+  } = useLocalSearchParams<{
+    designFor?: string;
+    theme?: string;
+    items?: string;
+  }>();
+
+  const designFor = storeDesignFor || paramDesignFor || 'Custom Design';
+  const theme = storeTheme || paramTheme || 'Modern';
+  const items = useMemo(() => {
+    if (storeItems && storeItems.length > 0) return storeItems;
+    if (paramItems) {
+      try {
+        const parsed = JSON.parse(paramItems);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch {
+        // ignore JSON parse error
+      }
+    }
+    return ['Tshirt'];
+  }, [paramItems, storeItems]);
 
   const [loading, setLoading] = useState(true);
   const [designers, setDesigners] = useState<DesignerCard[]>([]);
@@ -59,17 +83,20 @@ export default function SelectDesignerScreen() {
       const response = await ApiService.getPublicProfiles('DESIGNER', 0, 60);
       const list = unwrapList(response);
 
-      setDesigners(
-        list.map((item: any) => ({
-          id: Number(item.id),
-          name: item.username || item.name || 'Designer',
-          avatar: toAbsolutePath(item.profileImage?.url || item.profilePic || item.previewProfilePic || item.thumbnailProfilePic),
-          cover: toAbsolutePath(item.coverImage?.url || item.coverPic || item.previewCoverPic || item.thumbnailCoverPic || item.profileImage?.url),
-          role: item.bio || 'Creative designer',
-          jobs: Number(item.insight?.totalUploads || 0),
-          rating: item.insight?.rating?.avgStars ? String(item.insight.rating.avgStars) : '4.5',
-        }))
-      );
+      const mapped = list.map((item: any) => ({
+        id: Number(item.id),
+        name: item.userName || item.username || item.name || 'Designer',
+        avatar: toAbsolutePath(item.profileImage?.thumbnailUrl || item.profileImage?.url || item.profilePic || item.previewProfilePic || item.thumbnailProfilePic),
+        cover: toAbsolutePath(item.coverImage?.url || item.coverPic || item.previewCoverPic || item.thumbnailCoverPic || item.profileImage?.url),
+        role: item.bio || 'Creative designer',
+        jobs: Number(item.insight?.totalUploads || 0),
+        rating: item.insight?.rating?.avgStars ? String(Number(item.insight.rating.avgStars).toFixed(1)) : '4.5',
+      }));
+      setDesigners(mapped);
+      const imageUrls = mapped.flatMap((d: DesignerCard) => [d.avatar, d.cover]).filter((u: string) => Boolean(u && u.startsWith('http')));
+      if (imageUrls.length > 0) {
+        Image.prefetch(imageUrls.slice(0, 24), 'memory-disk').catch(() => {});
+      }
     } catch (error) {
       console.error('Unable to fetch designers', error);
       setDesigners([]);
@@ -81,7 +108,6 @@ export default function SelectDesignerScreen() {
   useEffect(() => {
     loadDesigners();
   }, [loadDesigners]);
-  console.log(designers)
   const handleMessage = async (designer: DesignerCard) => {
     if (submittingId) return;
     setSubmittingId(designer.id);
@@ -156,10 +182,10 @@ export default function SelectDesignerScreen() {
         contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 24 }}
         renderItem={({ item }) => (
           <View className="m-2 flex-1 items-center overflow-hidden rounded-2xl border border-[#ECE8F3] bg-white pb-4 dark:border-[#33333A] dark:bg-[#1C1C1E]">
-            <Image source={{ uri: item.cover }} className="h-[62px] w-full" />
+            <Image source={{ uri: item.cover }} style={{ height: 62, width: '100%' }} contentFit="cover" cachePolicy="memory-disk" transition={150} />
 
             <View className="-mt-6 rounded-full bg-white p-[2px] dark:bg-[#1C1C1E]">
-              <Image source={{ uri: item.avatar }} className="h-12 w-12 rounded-full" />
+              <Image source={{ uri: item.avatar }} style={{ height: 48, width: 48, borderRadius: 24 }} contentFit="cover" cachePolicy="memory-disk" transition={150} />
             </View>
 
             <Text className="mt-2 px-2 text-[16px] font-semibold text-[#2A2537] dark:text-white" numberOfLines={1}>
