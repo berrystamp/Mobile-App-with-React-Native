@@ -18,9 +18,9 @@ export function ConversationRow({ conversation, onPress, onLongPress }: Conversa
   const isOrder = conversation.lastMessageDetail?.chatType === 'ORDER';
 
   const lastMessageText = isOrderRequest
-    ? 'You received an order request'
+    ? 'Order request'
     : isOrder
-    ? 'You have an active order'
+    ? 'Order update'
     : isGalleryPreview
     ? 'Product gallery'
     : conversation.lastMessage;

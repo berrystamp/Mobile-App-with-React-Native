@@ -12,9 +12,11 @@ export type CollectionItem = {
 
 export type ShopProfile = {
   profileId: number;
+  profileType?: 'CUSTOMER' | 'DESIGNER' | 'PRINTER';
   fullName: string;
   username: string;
   bio: string;
+  location?: string;
   categories: string[];
   cover: string;
   avatar: string;

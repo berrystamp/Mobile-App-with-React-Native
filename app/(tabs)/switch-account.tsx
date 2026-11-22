@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import { Alert, ScrollView, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
@@ -8,9 +8,11 @@ import { toProfileType, useAuthStore } from '@/store/authStore';
 
 export default function SwitchAccountScreen() {
   const router = useRouter();
+  const { mode } = useLocalSearchParams<{ mode?: string }>();
   const { role } = useAuthStore();
   const current = toProfileType(role);
-  const [enabled, setEnabled] = useState(current !== 'CUSTOMER');
+  const isRegisterFlow = mode === 'register';
+  const [enabled, setEnabled] = useState(isRegisterFlow || current !== 'CUSTOMER');
   const [accountType, setAccountType] = useState<'DESIGNER' | 'PRINTER'>('DESIGNER');
   const [name, setName] = useState('');
   const [bio, setBio] = useState('');
@@ -26,13 +28,23 @@ export default function SwitchAccountScreen() {
 
     setSubmitting(true);
     try {
-      await ApiService.updateMyProfile({
-        profileType: accountType,
+      const currentUser = await ApiService.getCurrentUser().catch(() => null);
+      const userBody = currentUser?.responseBody || currentUser || {};
+      await ApiService.addProfile({
+        profile: accountType,
         name: name.trim(),
-        bio: bio.trim(),
+        phoneNumber: userBody?.phoneNumber || undefined,
       });
-      Alert.alert('Success', `${accountType.toLowerCase()} account updated.`);
-      router.back();
+      await ApiService.setActiveProfileType(accountType);
+      if (bio.trim()) {
+        await ApiService.updateMyProfile({
+          name: name.trim(),
+          bio: bio.trim(),
+        }).catch(() => {});
+      }
+      Alert.alert('Success', `${accountType.toLowerCase()} account created.`, [
+        { text: 'OK', onPress: () => router.replace('/(tabs)') },
+      ]);
     } catch (error: any) {
       Alert.alert('Unable to add account', error?.response?.data?.responseMessage || error?.message || 'Please try again.');
     } finally {
@@ -46,7 +58,9 @@ export default function SwitchAccountScreen() {
         <TouchableOpacity onPress={() => router.back()} className="h-9 w-9 items-center justify-center rounded-xl bg-[#ECEAF7]">
           <Ionicons name="arrow-back" size={20} color="#2B2833" />
         </TouchableOpacity>
-        <Text className="ml-4 text-3xl font-semibold text-[#2A2636]">Switch Account</Text>
+        <Text className="ml-4 text-2xl font-semibold text-[#2A2636]">
+          {isRegisterFlow ? 'Register Seller Account' : 'Switch Account'}
+        </Text>
       </View>
 
       <ScrollView className="px-5" contentContainerStyle={{ paddingBottom: 30 }}>

@@ -4,7 +4,7 @@ import { useAppAlert } from "@/components/common/AppAlert";
 import { useAuth } from "@/context/AuthContext";
 import { useFileUpload } from "@/hooks/useFileUpload";
 import { DEFAULT_DESIGN_THEMES } from "@/lib/customDesign";
-import { GeocodedAddress, geocodeQuery } from "@/lib/geocoding";
+import type { GeocodedAddress } from "@/lib/geocoding";
 import { mergeUserAndProfile, normalizeProfileResponse } from "@/lib/profile";
 import ApiService from "@/services/apiClient";
 import { toProfileType, useAuthStore } from "@/store/authStore";
@@ -12,7 +12,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
     Image,
@@ -266,17 +266,14 @@ export default function EditProfileScreen() {
 
   // ─── Shop location state ────────────────────────────────────────────────
   const [showLocationModal, setShowLocationModal] = useState(section === "location");
-  const [locationSearch, setLocationSearch] = useState("");
-  const [locationSuggestions, setLocationSuggestions] = useState<GeocodedAddress[]>([]);
-  const [locationSearching, setLocationSearching] = useState(false);
   const [fetchingCurrentLocation, setFetchingCurrentLocation] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
   const [selectedLocation, setSelectedLocation] = useState<
     (GeocodedAddress & { city?: string; state?: string; country?: string; postalCode?: string }) | null
   >(null);
   const [savingLocation, setSavingLocation] = useState(false);
   const [nextLocationUpdate, setNextLocationUpdate] = useState<Date | null>(null);
   const locationStorageKey = 'shop-location-updated:' + user?.id + ':' + role;
-  const locationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isCustomer = role === "CUSTOMER";
 
@@ -401,10 +398,11 @@ export default function EditProfileScreen() {
 
   const fetchCurrentLocation = useCallback(async () => {
     setFetchingCurrentLocation(true);
+    setLocationError(null);
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
-        setFetchingCurrentLocation(false);
+        setLocationError("Location permission is required to automatically set your shop location.");
         return;
       }
 
@@ -419,7 +417,6 @@ export default function EditProfileScreen() {
         const parts = [p.name, p.street, p.district, p.city, p.region, p.country].filter(Boolean);
         const unique = parts.filter((part, idx) => parts.indexOf(part) === idx);
         const formatted = unique.join(", ") || `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
-        setLocationSearch(formatted);
         setSelectedLocation({
           name: formatted,
           latitude,
@@ -431,7 +428,6 @@ export default function EditProfileScreen() {
         });
       } else {
         const fallback = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
-        setLocationSearch(fallback);
         setSelectedLocation({
           name: fallback,
           latitude,
@@ -440,7 +436,7 @@ export default function EditProfileScreen() {
         });
       }
     } catch {
-      // Allow manual search if GPS is unavailable
+      setLocationError("Unable to detect your current location. Please turn on device location and try again.");
     } finally {
       setFetchingCurrentLocation(false);
     }
@@ -458,21 +454,6 @@ export default function EditProfileScreen() {
     }
   }, [showLocationModal, role, fetchCurrentLocation]);
 
-  const handleLocationSearch = (query: string) => {
-    setLocationSearch(query);
-    if (locationTimerRef.current) clearTimeout(locationTimerRef.current);
-    if (query.trim().length < 3) { setLocationSuggestions([]); return; }
-    locationTimerRef.current = setTimeout(async () => {
-      setLocationSearching(true);
-      try {
-        const results = await geocodeQuery(query);
-        setLocationSuggestions(results);
-      } finally {
-        setLocationSearching(false);
-      }
-    }, 400);
-  };
-
   const handleSelectLocation = useCallback(async (
     address: GeocodedAddress & { city?: string; state?: string; country?: string; postalCode?: string }
   ) => {
@@ -481,9 +462,7 @@ export default function EditProfileScreen() {
       showAlert({ type: 'warning', title: 'Location update unavailable', message: 'You can update your shop location again on ' + nextLocationUpdate.toLocaleDateString() + '.' });
       return;
     }
-    setLocationSearch(address.name);
     setSelectedLocation(address);
-    setLocationSuggestions([]);
     setSavingLocation(true);
     try {
       await ApiService.updateShopLocation({
@@ -602,7 +581,7 @@ export default function EditProfileScreen() {
           {/* Update Shop Location */}
           {(role === "DESIGNER" || role === "PRINTER") && (
             <TouchableOpacity
-              onPress={() => { setLocationSearch(""); setLocationSuggestions([]); setShowLocationModal(true); }}
+              onPress={() => { setSelectedLocation(null); setLocationError(null); setShowLocationModal(true); }}
               style={[styles.specRow, { borderColor: inputBorder }]}
               activeOpacity={0.75}
             >
@@ -738,8 +717,8 @@ export default function EditProfileScreen() {
             </View>
 
             <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
-              <Text style={{ fontSize: 14, color: textMuted, marginBottom: 12, lineHeight: 20 }}>
-                Your current location is automatically detected via Google Maps, or you can search for your shop&apos;s address below.
+              <Text style={{ fontSize: 14, color: textMuted, marginBottom: 14, lineHeight: 20 }}>
+                Your shop location is automatically detected from your current device location. Manual address entry is disabled.
                 {'\n'}Shop location can be updated once every two months.
                 {nextLocationUpdate
                   ? '\nNext update: ' + nextLocationUpdate.toLocaleDateString() : ''}
@@ -754,9 +733,9 @@ export default function EditProfileScreen() {
                   justifyContent: "center",
                   backgroundColor: isDark ? "#282249" : "#F3F0FF",
                   borderRadius: 10,
-                  paddingVertical: 11,
+                  paddingVertical: 12,
                   paddingHorizontal: 14,
-                  marginBottom: 12,
+                  marginBottom: 14,
                   borderWidth: 1,
                   borderColor: primary,
                 }}
@@ -767,43 +746,19 @@ export default function EditProfileScreen() {
                   <Ionicons name="locate-outline" size={18} color={primary} style={{ marginRight: 8 }} />
                 )}
                 <Text style={{ fontSize: 13, fontWeight: "600", color: primary }}>
-                  {fetchingCurrentLocation ? "Detecting current location..." : "Use Current Location (Google Map)"}
+                  {fetchingCurrentLocation ? "Detecting current location..." : "Refresh Current Location"}
                 </Text>
               </TouchableOpacity>
 
-              <View style={{ flexDirection: "row", alignItems: "center", borderWidth: 1, borderRadius: 10, borderColor: inputBorder, backgroundColor: surface, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 12 }}>
-                <Ionicons name="search-outline" size={18} color={textMuted} style={{ marginRight: 8 }} />
-                <TextInput
-                  value={locationSearch}
-                  onChangeText={handleLocationSearch}
-                  placeholder="Search address (e.g. Yaba, Lagos)"
-                  placeholderTextColor={textMuted}
-                  style={{ flex: 1, fontSize: 14, color: text }}
-                />
-                {locationSearching && <ActivityIndicator size="small" color={primary} style={{ marginLeft: 8 }} />}
-              </View>
-
-              {locationSuggestions.length > 0 && (
-                <View style={{ backgroundColor: surface, borderRadius: 10, borderWidth: 1, borderColor: border, overflow: "hidden", marginBottom: 14 }}>
-                  {locationSuggestions.map((addr, i) => (
-                    <TouchableOpacity
-                      key={`${addr.latitude}-${addr.longitude}`}
-                      onPress={() => {
-                        setSelectedLocation(addr);
-                        setLocationSearch(addr.name);
-                        setLocationSuggestions([]);
-                      }}
-                      disabled={savingLocation}
-                      style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 14, paddingVertical: 14, borderBottomWidth: i < locationSuggestions.length - 1 ? StyleSheet.hairlineWidth : 0, borderBottomColor: border }}
-                    >
-                      <Ionicons name="location-outline" size={16} color={primary} style={{ marginRight: 10 }} />
-                      <Text style={{ flex: 1, fontSize: 13, color: text, lineHeight: 18 }}>{addr.name}</Text>
-                    </TouchableOpacity>
-                  ))}
+              {locationError && !fetchingCurrentLocation ? (
+                <View style={{ padding: 14, borderRadius: 12, backgroundColor: isDark ? "#2A1515" : "#FFF1F0", borderWidth: 1, borderColor: "#FCA5A5", marginBottom: 14 }}>
+                  <Text style={{ fontSize: 13, color: isDark ? "#FCA5A5" : "#B91C1C", lineHeight: 19 }}>
+                    {locationError}
+                  </Text>
                 </View>
-              )}
+              ) : null}
 
-              {selectedLocation && (
+              {selectedLocation ? (
                 <View style={{ borderRadius: 14, overflow: "hidden", borderWidth: 1, borderColor: border, backgroundColor: surface, marginBottom: 16 }}>
                   <View style={{ height: 220, width: "100%" }}>
                     <WebView
@@ -814,7 +769,7 @@ export default function EditProfileScreen() {
                       scrollEnabled={false}
                     />
                   </View>
-                  <View style={{ padding: 12, flexDirection: "row", alignItems: "center" }}>
+                  <View style={{ padding: 14, flexDirection: "row", alignItems: "center" }}>
                     <Ionicons name="location" size={18} color={primary} style={{ marginRight: 8 }} />
                     <View style={{ flex: 1 }}>
                       <Text style={{ fontSize: 13, fontWeight: "600", color: text }} numberOfLines={2}>
@@ -826,13 +781,14 @@ export default function EditProfileScreen() {
                     </View>
                   </View>
                 </View>
-              )}
-
-              {locationSearch.length >= 3 && !locationSearching && locationSuggestions.length === 0 && !selectedLocation && (
-                <Text style={{ textAlign: "center", color: textMuted, fontSize: 13, marginTop: 20 }}>
-                  No results found. Try a different search.
-                </Text>
-              )}
+              ) : !fetchingCurrentLocation && !locationError ? (
+                <View style={{ padding: 24, borderRadius: 14, borderWidth: 1, borderColor: border, backgroundColor: surface, alignItems: "center" }}>
+                  <Ionicons name="navigate-circle-outline" size={32} color={primary} />
+                  <Text style={{ marginTop: 8, fontSize: 13, color: textMuted, textAlign: "center" }}>
+                    Tap &quot;Refresh Current Location&quot; to detect your shop&apos;s location automatically.
+                  </Text>
+                </View>
+              ) : null}
             </ScrollView>
 
             <View style={{ paddingHorizontal: 20, paddingTop: 12, paddingBottom: Math.max(insets.bottom, 16) + 8, backgroundColor: surface, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: border }}>
@@ -840,15 +796,13 @@ export default function EditProfileScreen() {
                 onPress={() => {
                   if (selectedLocation) {
                     handleSelectLocation(selectedLocation);
-                  } else if (locationSuggestions[0]) {
-                    handleSelectLocation(locationSuggestions[0]);
                   } else {
-                    showAlert({ type: "warning", title: "Select a location", message: "Please allow location access or search and select an address first." });
+                    showAlert({ type: "warning", title: "Location required", message: "Please allow location access to automatically detect your shop location." });
                   }
                 }}
-                disabled={savingLocation || (!selectedLocation && locationSuggestions.length === 0)}
+                disabled={savingLocation || fetchingCurrentLocation || !selectedLocation}
                 style={{
-                  backgroundColor: savingLocation || (!selectedLocation && locationSuggestions.length === 0) ? "#9E97B8" : primary,
+                  backgroundColor: savingLocation || fetchingCurrentLocation || !selectedLocation ? "#9E97B8" : primary,
                   borderRadius: 999,
                   paddingVertical: 15,
                   alignItems: "center",

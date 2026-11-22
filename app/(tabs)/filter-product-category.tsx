@@ -37,7 +37,7 @@ export default function FilterProductCategoryScreen() {
         .flatMap((value: any) => Array.isArray(value) ? value : [])
         .map((value: any) => typeof value === 'string' ? value : value?.name || value?.category || value?.label)
         .filter(Boolean);
-      const designValues = designs.flatMap((design) => design.mocks.map((mock) => mock.category || mock.name)).filter(Boolean);
+      const designValues = designs.flatMap((design) => design.mocks.map((mock) => mock.category)).filter(Boolean);
       setSelectedItems(filters.productCategories || []);
       const extraValues = Array.from(new Set([...taxonomyValues, ...designValues]))
         .filter((val) => !STANDARD_PRODUCT_CATEGORIES.some((std) => std.toLowerCase() === String(val).toLowerCase()))

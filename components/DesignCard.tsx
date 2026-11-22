@@ -1,4 +1,5 @@
 import { formatNaira } from "@/lib/currency";
+import { isInfluencerDesign } from "@/lib/designs";
 import { Design } from "@/types";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
@@ -79,11 +80,7 @@ export const DesignCard: React.FC<DesignCardProps> = ({
       design.printerId ||
       design.openForCustomization === false,
   );
-  const isInfluencer = Boolean(
-    design.influencerMerch ||
-      design.influencerDesign ||
-      design.autographMessage,
-  );
+  const isInfluencer = isInfluencerDesign(design);
 
   return (
     <TouchableOpacity

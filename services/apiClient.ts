@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 import { extractFaqFromHtml, type FaqItem } from '@/lib/faq';
-import { toAccountType, useAuthStore } from '@/store/authStore';
+import { toAccountType, toProfileType, useAuthStore } from '@/store/authStore';
+import { useConversationStore } from '@/store/conversationStore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AxiosRequestConfig } from 'axios';
 import api from './api';
@@ -91,7 +92,7 @@ export interface PrintOrderPayloadItem {
 // Safe non-reactive read for Zustand store outside of React components
 const getProfileType = () => {
   const state = useAuthStore.getState();
-  return state.role?.toUpperCase() || 'CUSTOMER';
+  return toProfileType(state.role);
 };
 
 class ApiService {
@@ -312,9 +313,44 @@ class ApiService {
     return data;
   }
 
+  async addProfile(payload: {
+    profile: 'CUSTOMER' | 'DESIGNER' | 'PRINTER';
+    name: string;
+    phoneNumber?: string;
+    address?: {
+      address?: string;
+      city?: string;
+      state?: string;
+      country?: string;
+      postalCode?: string;
+      longitude?: number;
+      latitude?: number;
+    };
+  }) {
+    const response = await api.post('/profile', payload);
+    const data = response.data;
+    if (data && data.requestSuccessful === false) {
+      const msg =
+        data.responseMessage ||
+        data.message ||
+        data.error ||
+        'Profile creation failed';
+      const err: any = new Error(msg);
+      err.response = { data };
+      throw err;
+    }
+    const body = data?.responseBody || data;
+    if (body && typeof body === 'object' && (body.id || body.email || body.designerProfile || body.printerProfile)) {
+      await AsyncStorage.setItem('userData', JSON.stringify(body)).catch(() => {});
+    }
+    return data;
+  }
+
   async setActiveProfileType(profileType: ProfileTypeInterface) {
     await AsyncStorage.setItem('profileType', profileType);
     useAuthStore.getState().setAccountType(toAccountType(profileType));
+    // Drop cached cross-account conversation snapshots so they cannot leak across roles.
+    useConversationStore.getState().setResponse(null);
     return { requestSuccessful: true };
   }
 
@@ -1354,21 +1390,51 @@ class ApiService {
   }
 
   async deleteConversation(conversationId: string) {
-    return { requestSuccessful: true, conversationId };
+    const { markConversationDeletedLocally } = await import('@/lib/messages');
+    const profileType = getProfileType();
+    const headers = { profileType };
+    const encodedId = encodeURIComponent(String(conversationId));
+    const candidates = [
+      () => api.delete(`/conversations/${encodedId}`, { headers }),
+      () => api.delete(`/messages/conversations/${encodedId}`, { headers }),
+    ];
+
+    for (const request of candidates) {
+      try {
+        const response = await request();
+        markConversationDeletedLocally(conversationId);
+        return response.data;
+      } catch (error: any) {
+        if (![404, 405].includes(error?.response?.status)) {
+          throw error;
+        }
+      }
+    }
+
+    // Backend conversation delete endpoint is not exposed; persist deletion locally
+    markConversationDeletedLocally(conversationId);
+    return { requestSuccessful: true, conversationId, localOnly: true };
   }
 
-  async reportConversation(conversationId: string, reason: string) {
+  async reportConversation(conversationId: string, reason: string, participantName?: string) {
+    const label = participantName
+      ? `Conversation #${conversationId} (${participantName})`
+      : `Conversation #${conversationId}`;
     return this.submitFeedback({
       type: 'BUG',
-      category: `Conversation #${conversationId}`,
+      category: label,
       message: reason,
     });
   }
 
   // Reports and suggestions are persisted by the backend API.
   async submitFeedback(payload: { type: 'IDEA' | 'BUG'; category: string; message: string }) {
-    const user = await this.getCurrentUser().catch(() => null);
-    const email = String(user?.email || user?.responseBody?.email || '').trim();
+    let user = await this.getCurrentUser().catch(() => null);
+    let email = String(user?.email || user?.responseBody?.email || '').trim();
+    if (!email) {
+      user = await this.syncCurrentUserFromBackend().catch(() => null);
+      email = String(user?.responseBody?.email || user?.email || '').trim();
+    }
     if (!email) throw new Error('Your account email could not be found. Please sign in again.');
     const subject = `[Berrystamp ${payload.type === 'IDEA' ? 'Suggestion' : 'Report'}] ${payload.category}`;
     const response = await api.post('/reports', {
@@ -1813,25 +1879,16 @@ class ApiService {
 
   async getDesignInsights(designId: string | number) {
     const profileType = getProfileType();
-    const [designRes, ordersRes, myProfileRes] = await Promise.all([
+    const [designRes, ordersRes] = await Promise.all([
       (profileType === 'DESIGNER'
         ? this.fetchDesignerDesignById(Number(designId)).catch(() => this.fetchDesignById(Number(designId)))
         : this.fetchDesignById(Number(designId))
       ).catch(() => null),
       this.getManageOrders({ profileType: profileType as ProfileTypeInterface, page: 0, size: 100 }).catch(() => null),
-      this.getMyProfile().catch(() => null),
     ]);
     const designBody = designRes?.responseBody || designRes?.data || designRes || {};
-    const profileBody = myProfileRes?.responseBody || myProfileRes || {};
-    const designerProfileId =
-      profileBody?.designerProfile?.id ||
-      designBody?.designer?.id ||
-      designBody?.profile?.id ||
-      profileBody?.id;
-    const profileInsightRes = designerProfileId
-      ? await this.getProfileInsights(designerProfileId).catch(() => null)
-      : null;
-    const profileInsight = profileInsightRes?.responseBody || profileInsightRes || {};
+    const insightObj =
+      designBody?.insight || designBody?.analytics || designBody?.metrics || designBody?.postInsight || {};
 
     const ordersContent =
       ordersRes?.responseBody?.content ||
@@ -1843,43 +1900,82 @@ class ApiService {
       ? ordersContent.filter((o: any) => {
           const reqDesignId = Number(
             o?.designId ||
+              o?.design?.id ||
               o?.orderRequest?.printRequest?.designId ||
+              o?.orderRequest?.printRequest?.design?.id ||
               o?.orderRequest?.customDesignRequest?.designId ||
+              o?.orderRequest?.customDesignRequest?.design?.id ||
               o?.orderRequest?.designId ||
               0,
           );
-          return reqDesignId > 0 && reqDesignId === designIdNum;
+          if (!(reqDesignId > 0 && reqDesignId === designIdNum)) return false;
+          const status = String(o?.orderStatus || o?.status || '').toUpperCase();
+          if (['CANCELLED', 'CANCELED', 'REJECTED', 'DECLINED', 'TERMINATED'].includes(status)) {
+            return false;
+          }
+          return true;
         })
       : [];
 
-    const likes = Number(designBody?.likes ?? designBody?.likeCount ?? 0);
-    const sales = Number(
-      designBody?.noOfSales ??
-        designBody?.salesCount ??
-        designBody?.ordersCount ??
-        (matchingOrders.length || 0),
+    const readMetric = (...values: any[]): number | null => {
+      const found = values.find((v) => v !== undefined && v !== null && v !== '');
+      if (found === undefined) return null;
+      const numeric = Number(found);
+      return Number.isFinite(numeric) && numeric >= 0 ? numeric : null;
+    };
+
+    const completedOrPaidSales = matchingOrders.filter((o: any) => {
+      const status = String(o?.orderStatus || o?.status || '').toUpperCase();
+      return Boolean(
+        o?.paid ||
+          ['ACTIVE', 'AWAITING_CONFIRMATION', 'COMPLETED', 'PICKUP_REQUESTED', 'DELIVER_REQUESTED'].includes(status),
+      );
+    }).length;
+
+    const noOfSales = readMetric(
+      insightObj?.noOfSales,
+      insightObj?.salesCount,
+      designBody?.noOfSales,
+      designBody?.salesCount,
+      designBody?.ordersCount,
+      ordersRes ? completedOrPaidSales : undefined,
     );
-    const followers = Number(profileInsight?.totalFollowers ?? 0);
-    const clicks = Number(designBody?.postClicks ?? designBody?.clicks ?? (likes + sales));
-    const accountReached = Number(
-      designBody?.accountReached ?? designBody?.reach ?? (followers + likes + sales),
+    const postClicks = readMetric(
+      insightObj?.postClicks,
+      insightObj?.clicks,
+      designBody?.postClicks,
+      designBody?.clicks,
     );
-    const totalImpressions = Number(
-      designBody?.totalImpressions ?? designBody?.impressions ?? (accountReached + clicks),
+    const accountReached = readMetric(
+      insightObj?.accountReached,
+      insightObj?.accountsReached,
+      insightObj?.reach,
+      designBody?.accountReached,
+      designBody?.reach,
     );
-    const followersReachedPercentage =
-      accountReached > 0 && followers > 0
-        ? Math.min(100, Math.round((Math.min(followers, accountReached) / accountReached) * 100))
-        : 0;
-    const nonFollowersReachedPercentage =
-      accountReached > 0 ? Math.max(0, 100 - followersReachedPercentage) : 0;
+    const totalImpressions = readMetric(
+      insightObj?.totalImpressions,
+      insightObj?.impressions,
+      designBody?.totalImpressions,
+      designBody?.impressions,
+    );
+    const followersReachedPercentage = readMetric(
+      insightObj?.followersReachedPercentage,
+      insightObj?.followersPercentage,
+      designBody?.followersReachedPercentage,
+    );
+    const nonFollowersReachedPercentage = readMetric(
+      insightObj?.nonFollowersReachedPercentage,
+      insightObj?.nonFollowersPercentage,
+      designBody?.nonFollowersReachedPercentage,
+    );
 
     return {
       requestSuccessful: true,
       responseBody: {
         accountReached,
-        postClicks: clicks,
-        noOfSales: sales,
+        postClicks,
+        noOfSales,
         totalImpressions,
         followersReachedPercentage,
         nonFollowersReachedPercentage,

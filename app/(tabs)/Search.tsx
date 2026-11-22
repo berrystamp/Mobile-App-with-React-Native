@@ -1,6 +1,6 @@
 import { addRecentDesign, addSearchHistory, getSearchFilters, SearchFilters } from '@/lib/localStorage';
 import { formatNaira } from '@/lib/currency';
-import { matchesProductCategory, normalizeDesignListResponse } from '@/lib/designs';
+import { isInfluencerDesign, matchesProductCategory, normalizeDesignListResponse } from '@/lib/designs';
 import ApiService from '@/services/apiClient';
 import { Design } from '@/types';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -56,11 +56,7 @@ function SearchDesignCard({ design, onPress }: { design: Design; onPress: () => 
       design.printerId ||
       design.openForCustomization === false,
   );
-  const isInfluencer = Boolean(
-    design.influencerMerch ||
-      design.influencerDesign ||
-      design.autographMessage,
-  );
+  const isInfluencer = isInfluencerDesign(design);
 
   return (
     <TouchableOpacity
@@ -167,7 +163,15 @@ const SearchScreen = () => {
         });
 
         const normalizedResults = normalizeDesignListResponse(response);
-        setResults(applyStoredFilters(normalizedResults, filters));
+        const filtered = applyStoredFilters(normalizedResults, filters);
+        setResults(filtered);
+        const prefetchUrls = filtered
+          .slice(0, 25)
+          .flatMap((d) => [d.imagePath, ...d.mocks.slice(0, 2).map((m) => m.imagePath)])
+          .filter((u): u is string => Boolean(u && u.startsWith('http')));
+        if (prefetchUrls.length > 0) {
+          Image.prefetch(Array.from(new Set(prefetchUrls)), 'memory-disk').catch(() => {});
+        }
       } catch (err: any) {
         console.error('Search screen request failed', err);
         setError(err.response?.data?.message || 'Unable to load designs right now.');

@@ -89,16 +89,34 @@ export const normalizeManageOrder = (input: any, index = 0): ManageOrderItem => 
     ...toList(printRequest.mockTypes),
   ];
 
+  const hasPrintPayload = Boolean(
+    printRequest.id ||
+      printRequest.mockName ||
+      printRequest.mockId ||
+      printRequest.sourceOfItem ||
+      printRequest.size ||
+      printRequest.colour ||
+      Number(item.printingAmount || 0) > 0 ||
+      item.printer,
+  );
+  const hasCustomDesignPayload = Boolean(
+    customRequest.id ||
+      customRequest.theme ||
+      customRequest.purpose ||
+      (Array.isArray(customRequest.mockTypes) && customRequest.mockTypes.length > 0) ||
+      item.designer,
+  );
+
   const rawOrderType = String(
     request.orderType ||
       item.orderType ||
-      (request.printRequest || item.printer ? 'PRINT' : request.customDesignRequest || item.designer ? 'DESIGN' : ''),
+      (hasPrintPayload ? 'PRINT' : hasCustomDesignPayload ? 'DESIGN' : ''),
   ).toUpperCase();
   const providerRole = String(
     provider.profileType ||
-      (item.printer || request.printRequest
+      (hasPrintPayload
         ? 'PRINTER'
-        : item.designer || request.customDesignRequest
+        : hasCustomDesignPayload
           ? 'DESIGNER'
           : ''),
   ).toUpperCase() || undefined;

@@ -7,12 +7,12 @@ const SHARE_ORIGIN = (process.env.EXPO_PUBLIC_SHARE_ORIGIN || 'https://berrystam
 
 export function resourceShareUrl(type: ResourceType, id: string | number, profileId?: string | number) {
   const encodedId = encodeURIComponent(String(id));
-  if (type === 'design') return `${SHARE_ORIGIN}/products?designId=${encodedId}`;
-  if (type === 'profile') return `${SHARE_ORIGIN}/my-shop?profileId=${encodedId}`;
+  if (type === 'design') return `${SHARE_ORIGIN}/design/${encodedId}`;
+  if (type === 'profile') return `${SHARE_ORIGIN}/designer/${encodedId}/shop`;
   if (profileId == null || String(profileId).trim() === '') {
     throw new Error('The shop for this collection is unavailable. Please refresh and try again.');
   }
-  return `${SHARE_ORIGIN}/my-shop?profileId=${encodeURIComponent(String(profileId))}&collectionId=${encodedId}`;
+  return `${SHARE_ORIGIN}/designer/${encodeURIComponent(String(profileId))}/shop?collectionId=${encodedId}`;
 }
 
 export async function shareResourceLink(title: string, url: string) {

@@ -68,6 +68,8 @@ export function matchesProductCategory(design: Design, selectedCategories: strin
 
 interface BackendImage {
   url?: string;
+  previewUrl?: string;
+  thumbnailUrl?: string;
   path?: string;
 }
 
@@ -86,6 +88,8 @@ interface BackendMock {
   limitedStatus?: boolean;
   image?: BackendImage | null;
   imageUrl?: string;
+  previewImageUrl?: string;
+  thumbnailImageUrl?: string;
   availableQty?: number;
   colours?: string[];
   sizes?: string[];
@@ -175,16 +179,71 @@ export function normalizeArtist(input?: BackendDesigner | null): Artist {
   };
 }
 
+export function isInfluencerDesign(input: any): boolean {
+  if (!input || typeof input !== "object") return false;
+  if (
+    Boolean(
+      input.influencerMerch ||
+        input.influencerDesign ||
+        input.isInfluencer ||
+        input.isInfluencerMerch ||
+        input.isInfluencerDesign ||
+        input.influencer ||
+        input.fixedPricing ||
+        input.directCheckout ||
+        input.assignedPrinterOnly ||
+        input.instantPurchase ||
+        (typeof input.autographMessage === "string" && input.autographMessage.trim().length > 0),
+    )
+  ) {
+    return true;
+  }
+
+  const labelHints = [input.type, input.designType, input.badge, input.badgeType, input.tier, input.category];
+  if (labelHints.some((v) => String(v || "").toLowerCase().includes("influencer"))) {
+    return true;
+  }
+
+  const toTokens = (raw: any): string[] => {
+    if (Array.isArray(raw)) {
+      return raw
+        .map((entry) =>
+          typeof entry === "string" ? entry : entry?.name || entry?.label || entry?.tag || entry?.category || "",
+        )
+        .filter(Boolean);
+    }
+    if (typeof raw === "string") {
+      return raw.split(",").map((s) => s.trim()).filter(Boolean);
+    }
+    return [];
+  };
+
+  return (
+    toTokens(input.tags).some((t) => t.toLowerCase().includes("influencer")) ||
+    toTokens(input.categories).some((c) => c.toLowerCase().includes("influencer"))
+  );
+}
+
 export function normalizeMock(mock: BackendMock, amount = 0): Mock {
-  const rawSizes = Array.isArray(mock.sizes)
-    ? mock.sizes.map(String).filter(Boolean)
-    : [];
+  const rawSizesInput = mock.sizes ?? (mock as any).availableSizes;
+  const rawSizes = Array.isArray(rawSizesInput)
+    ? rawSizesInput.map(String).map((s) => s.trim()).filter(Boolean)
+    : typeof rawSizesInput === "string"
+      ? rawSizesInput.split(",").map((s) => s.trim()).filter(Boolean)
+      : [];
   return {
     id: mock.id,
     name: mock.name || "Mock",
     category: mock.category || "",
     imagePath: toAbsoluteUrl(
-      mock.image?.url || mock.image?.path || mock.imageUrl || "",
+      mock.image?.previewUrl ||
+        mock.image?.url ||
+        mock.image?.thumbnailUrl ||
+        mock.image?.path ||
+        mock.previewImageUrl ||
+        mock.imageUrl ||
+        mock.thumbnailImageUrl ||
+        "",
     ),
     price: amount,
     available: (mock.availableQty || 0) > 0,
@@ -222,10 +281,12 @@ export function normalizeDesign(input: BackendDesign): Design {
     })();
 
   const imagePath = toAbsoluteUrl(
-    input.imageUrlFront ||
-    input.coverImage?.url ||
-    input.coverImage?.path ||
-    "",
+    input.coverImage?.previewUrl ||
+      input.imageUrlFront ||
+      input.coverImage?.url ||
+      input.coverImage?.thumbnailUrl ||
+      input.coverImage?.path ||
+      "",
   );
   const title = input.title || input.name || "Untitled design";
   const amount = input.amount || 0;
@@ -233,21 +294,12 @@ export function normalizeDesign(input: BackendDesign): Design {
   const printerId = input.printer?.id ?? input.printerId ?? undefined;
   const printerName = input.printer?.name || input.printer?.userName || undefined;
   const openForCustomization = input.openForCustomization ?? true;
-  const hasInfluencerTag =
-    (input.tags || []).some((t) => String(t).toLowerCase().includes("influencer")) ||
-    (input.categories || []).some((c) => String(c).toLowerCase().includes("influencer"));
-
   const locked = Boolean(
     printerId ||
       input.openForCustomization === false ||
       input.locked,
   );
-  const influencerMerch = Boolean(
-    input.influencerMerch ||
-      input.influencerDesign ||
-      input.autographMessage ||
-      hasInfluencerTag,
-  );
+  const influencerMerch = isInfluencerDesign(input);
 
   return {
     id: input.id,

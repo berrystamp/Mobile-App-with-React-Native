@@ -18,15 +18,17 @@ import {
   View
 } from 'react-native';
 
-import type { CollectionItem, TabType } from '@/components/shop/types';
+import type { CollectionItem, ReviewItem, TabType } from '@/components/shop/types';
 import { fetchShopData, toAbsoluteImage, toCountLabel, unwrapList } from '@/components/shop/utils';
 import { formatNaira } from '@/lib/currency';
+import { isInfluencerDesign } from '@/lib/designs';
 import { useShareAfterDismiss } from '@/hooks/use-share-after-dismiss';
 import { resourceShareUrl, shareResourceLink } from '@/lib/sharing';
 import { upsertLocalConversation } from '@/lib/localConversations';
 import ApiService from '@/services/apiClient';
 import { toProfileType, useAuthStore } from '@/store/authStore';
 import * as ImagePicker from 'expo-image-picker';
+import { Image as ExpoImage } from 'expo-image';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -100,7 +102,7 @@ function DesignCard({ item, theme, readOnly, username, onMenu, onPress }: { item
     <TouchableOpacity onPress={onPress} activeOpacity={0.88} style={{ width: '48.5%', borderRadius: 12, marginBottom: 12, backgroundColor: theme.surface, overflow: 'hidden' }}>
       <View style={{ position: 'relative' }}>
         {item.imagePath ? (
-          <Image source={{ uri: item.imagePath }} style={{ width: '100%', height: 120, backgroundColor: theme.inputBg }} resizeMode="cover" />
+          <ExpoImage source={{ uri: item.imagePath }} style={{ width: '100%', height: 120, backgroundColor: theme.inputBg }} contentFit="cover" cachePolicy="memory-disk" transition={120} />
         ) : (
           <View style={{ width: '100%', height: 120, backgroundColor: theme.inputBg, alignItems: 'center', justifyContent: 'center' }}>
             <Ionicons name="image-outline" size={28} color={theme.muted} />
@@ -148,7 +150,7 @@ function CollectionCard({ item, theme, onMenu, onPress, readOnly }: { item: Coll
     <TouchableOpacity onPress={onPress} activeOpacity={0.88} style={{ width: '48.5%', borderRadius: 12, marginBottom: 12, backgroundColor: theme.surface, overflow: 'hidden' }}>
       <View style={{ position: 'relative', width: '100%', height: 120, backgroundColor: theme.inputBg, alignItems: 'center', justifyContent: 'center' }}>
         {item.imagePath ? (
-          <Image source={{ uri: item.imagePath }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+          <ExpoImage source={{ uri: item.imagePath }} style={{ width: '100%', height: '100%' }} contentFit="cover" cachePolicy="memory-disk" transition={120} />
         ) : (
           <Ionicons name="albums-outline" size={28} color={theme.muted} />
         )}
@@ -1147,7 +1149,7 @@ function CollectionDetailScreen({ visible, theme, collection, username, readOnly
                     <View style={{ position: 'relative' }}>
                       <View style={{ width: '100%', height: 110, backgroundColor: theme.inputBg, alignItems: 'center', justifyContent: 'center' }}>
                         {design._imageUri ? (
-                          <Image source={{ uri: design._imageUri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                          <ExpoImage source={{ uri: design._imageUri }} style={{ width: '100%', height: '100%' }} contentFit="cover" cachePolicy="memory-disk" transition={120} />
                         ) : (
                           <Ionicons name="image-outline" size={24} color={theme.muted} />
                         )}
@@ -1282,8 +1284,16 @@ export default function MyShopScreen() {
     try {
       if (!isRefresh) setLoading(true);
       const data = await fetchShopData(activeRole, profileId ? Number(profileId) : undefined);
-      // console.log("The frontend Data",JSON.stringify(data))
       setShop(data);
+      const urls = [
+        data?.profile?.avatar,
+        data?.profile?.cover,
+        ...(data?.designs || []).map((d: any) => d?.imagePath),
+        ...(data?.collections || []).map((c: any) => c?.imagePath),
+      ].filter((u: any): u is string => Boolean(u && typeof u === 'string' && u.startsWith('http')));
+      if (urls.length > 0) {
+        ExpoImage.prefetch(Array.from(new Set(urls)).slice(0, 40), 'memory-disk').catch(() => {});
+      }
       if (data.shouldPromptPayment && !readOnly && (activeRole === 'DESIGNER' || activeRole === 'PRINTER')) {
         setShowPaymentPrompt(true);
       }
@@ -1300,6 +1310,13 @@ export default function MyShopScreen() {
   const onRefresh = useCallback(() => { setRefreshing(true); loadShop(true); }, [loadShop]);
 
   // ── Derived data ──
+  const isPrinterShop = useMemo(
+    () =>
+      String(shop?.profile?.profileType || (!readOnly ? activeRole : '')).toUpperCase() ===
+      'PRINTER',
+    [shop?.profile?.profileType, readOnly, activeRole],
+  );
+
   const designItems: any[] = useMemo(() =>
     (shop?.designs || []).map((item: any) => {
       const isLocked = Boolean(item.locked || item.printerId || item.printer?.id || item.openForCustomization === false);
@@ -1310,7 +1327,7 @@ export default function MyShopScreen() {
         price: item.amount || item.price || 0,
         type: 'design',
         locked: isLocked,
-        influencerMerch: Boolean(item.influencerMerch || item.influencerDesign || item.autographMessage),
+        influencerMerch: isInfluencerDesign(item),
       };
     }), [shop?.designs]);
 
@@ -1553,61 +1570,127 @@ export default function MyShopScreen() {
           )}
         </View>
 
-        {/* ── Tabs ── */}
-        <View style={{ flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: theme.border, marginHorizontal: 16 }}>
-          {(['designs', 'collections'] as TabType[]).map((t) => (
-            <TouchableOpacity key={t} onPress={() => setActiveTab(t)} style={{ flex: 1, alignItems: 'center', paddingBottom: 10 }}>
-              <Text style={{ fontSize: 16, fontWeight: '600', color: activeTab === t ? theme.text : theme.muted }}>{t === 'designs' ? 'Design' : 'Collection'}</Text>
-              {activeTab === t ? <View style={{ height: 2, width: '100%', backgroundColor: theme.primary, marginTop: 8 }} /> : null}
-            </TouchableOpacity>
-          ))}
-        </View>
+        {isPrinterShop ? (
+          <View style={{ paddingHorizontal: 16, paddingTop: 4, gap: 14 }}>
+            <View style={{ backgroundColor: theme.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: theme.border }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                <Text style={{ fontSize: 16, fontWeight: '700', color: theme.text }}>Print Shop Overview</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: theme.primary + '16', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 }}>
+                  <Ionicons name="print-outline" size={14} color={theme.primary} />
+                  <Text style={{ color: theme.primary, fontSize: 12, fontWeight: '600' }}>Printer</Text>
+                </View>
+              </View>
+              <Text style={{ color: theme.muted, fontSize: 14, lineHeight: 20 }}>
+                {profile?.bio || 'Custom printing & production services.'}
+              </Text>
+              {profile?.location ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 }}>
+                  <Ionicons name="location-outline" size={16} color={theme.primary} />
+                  <Text style={{ color: theme.text, fontSize: 13, flex: 1 }}>{profile.location}</Text>
+                </View>
+              ) : null}
+              {!readOnly && (
+                <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
+                  <TouchableOpacity
+                    onPress={() => router.push('/manage-order' as any)}
+                    style={[S.outlineBtn, { flex: 1, borderColor: theme.border }]}
+                  >
+                    <Text style={{ color: theme.text, fontWeight: '600', fontSize: 13 }}>Print Orders</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => router.push('/influencer-merch-orders' as any)}
+                    style={[S.outlineBtn, { flex: 1, borderColor: theme.border }]}
+                  >
+                    <MaterialCommunityIcons name="crown" size={15} color="#F9A70D" style={{ marginRight: 5 }} />
+                    <Text style={{ color: theme.text, fontWeight: '600', fontSize: 13 }}>Influencer Jobs</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
 
-        {/* ── Grid ── */}
-        <View style={{ paddingHorizontal: 16, paddingTop: 16 }}>
-          {activeTab === 'designs' ? (
-            designItems.length === 0 ? (
-              <Text style={{ textAlign: 'center', color: theme.muted, marginTop: 32 }}>No designs uploaded yet.</Text>
-            ) : (
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
-                {designItems.map((item) => (
-                  <DesignCard
-                    key={String(item.id)}
-                    item={item}
-                    readOnly={readOnly}
-                    theme={theme}
-                    username={profile?.fullName || profile?.username || 'designer'}
-                    onMenu={() => handleDesignMenu(item)}
-                    onPress={() => router.push({ pathname: '/products', params: { designId: String(item.id) } })}
-                  />
-                ))}
+            <View style={{ backgroundColor: theme.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: theme.border }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <Text style={{ fontSize: 16, fontWeight: '700', color: theme.text }}>Reviews ({shop?.reviews?.length || 0})</Text>
+                <TouchableOpacity onPress={() => router.push({ pathname: '/shop-reviews', params: { profileId: String(profile?.profileId) } })}>
+                  <Text style={{ color: theme.primary, fontSize: 13, fontWeight: '600' }}>See all</Text>
+                </TouchableOpacity>
               </View>
-            )
-          ) : (
-            collectionItems.length === 0 ? (
-              <Text style={{ textAlign: 'center', color: theme.muted, marginTop: 32 }}>No collections yet.</Text>
-            ) : (
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
-                {collectionItems.map((item) => (
-                  <CollectionCard
-                    key={String(item.id)}
-                    item={item}
-                    readOnly={readOnly}
-                    theme={theme}
-                    onMenu={() => handleCollectionMenu(item)}
-                    onPress={() => { setCollectionDetail(item); setShowCollectionDetail(true); }}
-                  />
-                ))}
-              </View>
-            )
-          )}
-        </View>
+              {!shop?.reviews?.length ? (
+                <Text style={{ color: theme.muted, fontSize: 13 }}>No customer reviews yet.</Text>
+              ) : (
+                <View style={{ gap: 12 }}>
+                  {shop.reviews.slice(0, 4).map((rev: ReviewItem) => (
+                    <View key={String(rev.id)} style={{ borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.border, paddingTop: 10 }}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                        <Text style={{ fontSize: 13, fontWeight: '600', color: theme.text }}>{rev.author}</Text>
+                        <Text style={{ fontSize: 12, fontWeight: '600', color: '#F59E0B' }}>{"★".repeat(Math.max(1, Math.min(5, Math.round(rev.stars || 5))))}</Text>
+                      </View>
+                      <Text style={{ fontSize: 13, color: theme.muted, lineHeight: 18 }}>{rev.comment}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
+          </View>
+        ) : (
+          <>
+            {/* ── Tabs ── */}
+            <View style={{ flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: theme.border, marginHorizontal: 16 }}>
+              {(['designs', 'collections'] as TabType[]).map((t) => (
+                <TouchableOpacity key={t} onPress={() => setActiveTab(t)} style={{ flex: 1, alignItems: 'center', paddingBottom: 10 }}>
+                  <Text style={{ fontSize: 16, fontWeight: '600', color: activeTab === t ? theme.text : theme.muted }}>{t === 'designs' ? 'Design' : 'Collection'}</Text>
+                  {activeTab === t ? <View style={{ height: 2, width: '100%', backgroundColor: theme.primary, marginTop: 8 }} /> : null}
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* ── Grid ── */}
+            <View style={{ paddingHorizontal: 16, paddingTop: 16 }}>
+              {activeTab === 'designs' ? (
+                designItems.length === 0 ? (
+                  <Text style={{ textAlign: 'center', color: theme.muted, marginTop: 32 }}>No designs uploaded yet.</Text>
+                ) : (
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
+                    {designItems.map((item) => (
+                      <DesignCard
+                        key={String(item.id)}
+                        item={item}
+                        readOnly={readOnly}
+                        theme={theme}
+                        username={profile?.fullName || profile?.username || 'designer'}
+                        onMenu={() => handleDesignMenu(item)}
+                        onPress={() => router.push({ pathname: '/products', params: { designId: String(item.id) } })}
+                      />
+                    ))}
+                  </View>
+                )
+              ) : (
+                collectionItems.length === 0 ? (
+                  <Text style={{ textAlign: 'center', color: theme.muted, marginTop: 32 }}>No collections yet.</Text>
+                ) : (
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
+                    {collectionItems.map((item) => (
+                      <CollectionCard
+                        key={String(item.id)}
+                        item={item}
+                        readOnly={readOnly}
+                        theme={theme}
+                        onMenu={() => handleCollectionMenu(item)}
+                        onPress={() => { setCollectionDetail(item); setShowCollectionDetail(true); }}
+                      />
+                    ))}
+                  </View>
+                )
+              )}
+            </View>
+          </>
+        )}
 
 
       </ScrollView>
 
       {/* ── FAB ── */}
-      {!readOnly ? (
+      {!readOnly && !isPrinterShop ? (
         <TouchableOpacity onPress={() => setShowQuickActions(true)} style={{ position: 'absolute', bottom: insets.bottom + 24, right: 20, width: 56, height: 56, borderRadius: 28, backgroundColor: theme.primary, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 8 }}>
           <Ionicons name="add" size={28} color="#fff" />
         </TouchableOpacity>

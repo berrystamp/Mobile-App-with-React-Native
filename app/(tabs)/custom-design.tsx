@@ -137,7 +137,11 @@ export default function CustomDesignHubScreen() {
                   {imageUrl ? (
                     <Image source={{ uri: imageUrl }} style={{ width: '100%', height: '100%' }} contentFit="cover" cachePolicy="memory-disk" transition={150} />
                   ) : (
-                    <Ionicons name="image-outline" size={32} color={subtext} />
+                    <Image
+                      source={isDark ? require('@/assets/logo02.png') : require('@/assets/logo01.png')}
+                      style={{ width: 84, height: 84 }}
+                      contentFit="contain"
+                    />
                   )}
                 </View>
                 <View style={{ padding: 10 }}>

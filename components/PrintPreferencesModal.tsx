@@ -307,7 +307,10 @@ export default function PrintPreferencesModal({ visible, onClose, onContinue }: 
   const onChangeDate = (_event: any, selectedDate?: Date) => {
     if (selectedDate) {
       setDate(selectedDate);
-      setDeliveryDate(selectedDate.toISOString().split("T")[0]);
+      const year = selectedDate.getFullYear();
+      const month = String(selectedDate.getMonth() + 1).padStart(2, "0");
+      const day = String(selectedDate.getDate()).padStart(2, "0");
+      setDeliveryDate(`${year}-${month}-${day}`);
       setErrors((e) => ({ ...e, deliveryDate: undefined }));
     }
     setShowDatePicker(false);
@@ -351,7 +354,7 @@ export default function PrintPreferencesModal({ visible, onClose, onContinue }: 
             style={{ paddingBottom: Platform.OS === "ios" ? 40 : 24 }}
             className="w-full items-center rounded-t-[32px] bg-white px-6 pt-6 dark:bg-[#1E1E1E]"
           >
-            <View className="relative mb-8 w-full flex-row items-center justify-center">
+            <View className="relative mb-5 w-full flex-row items-center justify-center">
               <Text className="mx-auto text-lg font-semibold text-[#333333] dark:text-white">
                 Printing Preferences
               </Text>
@@ -363,6 +366,7 @@ export default function PrintPreferencesModal({ visible, onClose, onContinue }: 
             <ScrollView
               showsVerticalScrollIndicator={false}
               style={{ maxHeight: screenHeight * 0.72 }}
+              contentContainerStyle={{ paddingTop: 12, paddingBottom: 8 }}
               className="w-full"
               keyboardShouldPersistTaps="handled"
             >

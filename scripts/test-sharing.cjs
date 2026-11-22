@@ -16,8 +16,9 @@ async function main() {
   const designUrl = resourceShareUrl('design', 12);
   assert.equal(designUrl, 'https://berrystamp.com/products?designId=12');
   assert.equal(resourceShareUrl('profile', 3), 'https://berrystamp.com/my-shop?profileId=3');
-  assert.equal(resourceShareUrl('collection', 8, 3), 'https://berrystamp.com/my-shop?profileId=3&collectionId=8');
+  assert.equal(resourceShareUrl('collection', 8, 3), 'https://berrystamp.com/designer/3/shop?collectionId=8');
   assert.throws(() => resourceShareUrl('collection', 8));
+  assert.equal(resourceShareUrl('collection', 6, 4), 'https://berrystamp.com/designer/4/shop?collectionId=6');
   assert.equal(new URL(resourceShareUrl('profile', 'a&b')).searchParams.get('profileId'), 'a&b');
   for (const platform of ['android', 'ios', 'web']) {
     native.Platform.OS = platform;

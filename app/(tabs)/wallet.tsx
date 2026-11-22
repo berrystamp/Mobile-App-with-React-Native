@@ -16,6 +16,7 @@ import {
     Platform,
     RefreshControl,
     ScrollView,
+    Share,
     StyleSheet,
     Text,
     TextInput,
@@ -650,16 +651,16 @@ export default function WalletScreen() {
                 {withdrawing ? (
                   <ActivityIndicator color="#FFFFFF" size="small" />
                 ) : (
-                  <Text style={styles.proceedBtnText}>Share Receipt</Text>
+                  <Text style={styles.proceedBtnText}>Confirm Withdraw</Text>
                 )}
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.viewDetailsBtn}
-                onPress={handleFinalWithdraw}
+                onPress={() => setWithdrawModalVisible(false)}
                 disabled={withdrawing}
               >
                 <Text style={[styles.viewDetailsText, { color: PRIMARY }]}>
-                  View Details
+                  Cancel
                 </Text>
               </TouchableOpacity>
             </View>
@@ -670,6 +671,35 @@ export default function WalletScreen() {
   }
 
   // ─── SUCCESS SCREEN ─────────────────────────────────────────────────────────
+  const handleBackToWallet = () => {
+    setScreen("wallet");
+    load(true);
+  };
+
+  const handleShareReceipt = async () => {
+    const amountText = formatNaira(withdrawResult?.amount ?? 0);
+    const beneficiary = withdrawResult?.beneficiary || paymentDetail?.accountName || "Bank Account";
+    const dateText = withdrawResult?.date ?? formatDateObj(new Date());
+    const referenceText = withdrawResult?.reference || "Pending";
+    const statusText = withdrawResult?.status || "Completed";
+
+    try {
+      await Share.share({
+        title: "Berrystamp Withdrawal Receipt",
+        message: [
+          "Berrystamp Withdrawal Receipt",
+          `Amount: ${amountText}`,
+          `Beneficiary: ${beneficiary}`,
+          `Date: ${dateText}`,
+          `Reference: ${referenceText}`,
+          `Status: ${statusText}`,
+        ].join("\n"),
+      });
+    } catch {
+      Alert.alert("Share failed", "Unable to share receipt right now.");
+    }
+  };
+
   return (
     <View style={[styles.flex, { backgroundColor: theme.background }]}>
       <View
@@ -683,13 +713,19 @@ export default function WalletScreen() {
         ]}
       >
         <TouchableOpacity
-          onPress={() => router.back()}
+          onPress={handleBackToWallet}
           style={styles.headerBtn}
         >
           <Ionicons name="arrow-back" size={24} color={theme.text} />
         </TouchableOpacity>
         <View style={styles.headerBtn} />
-        <View style={styles.headerBtn} />
+        <TouchableOpacity
+          onPress={handleShareReceipt}
+          style={styles.headerBtn}
+          accessibilityLabel="Share receipt"
+        >
+          <Ionicons name="share-social-outline" size={22} color={theme.text} />
+        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -763,12 +799,42 @@ export default function WalletScreen() {
           ))}
         </View>
 
-        <TouchableOpacity
-          style={[styles.shareBtn, { backgroundColor: PRIMARY }]}
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 12,
+            width: "100%",
+            marginBottom: 14,
+          }}
         >
-          <Text style={styles.shareBtnText}>Share Receipt</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.reportBtn}>
+          <TouchableOpacity
+            style={[styles.shareBtn, { backgroundColor: PRIMARY, flex: 1, marginBottom: 0 }]}
+            onPress={handleBackToWallet}
+          >
+            <Text style={styles.shareBtnText}>Okay</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={{
+              width: 52,
+              height: 52,
+              borderRadius: 26,
+              borderWidth: 1.5,
+              borderColor: PRIMARY,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: theme.surface,
+            }}
+            onPress={handleShareReceipt}
+            accessibilityLabel="Share receipt"
+          >
+            <Ionicons name="share-social-outline" size={22} color={PRIMARY} />
+          </TouchableOpacity>
+        </View>
+        <TouchableOpacity
+          style={styles.reportBtn}
+          onPress={() => router.push("/suggestion" as any)}
+        >
           <Text style={[styles.reportBtnText, { color: PRIMARY }]}>
             Report a problem
           </Text>

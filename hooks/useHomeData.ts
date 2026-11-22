@@ -11,11 +11,11 @@ let memoryHomeCache: { topArtists: Artist[]; recentDesigns: Design[]; featuredDe
 function prefetchHomeImages(artists: Artist[], recent: Design[], featured: Design[]) {
   const urls = [
     ...artists.map((a) => a.profilePicturePath),
-    ...recent.map((d) => d.imagePath),
-    ...featured.map((d) => d.imagePath),
+    ...recent.flatMap((d) => [d.imagePath, ...d.mocks.slice(0, 2).map((m) => m.imagePath)]),
+    ...featured.flatMap((d) => [d.imagePath, ...d.mocks.slice(0, 2).map((m) => m.imagePath)]),
   ].filter((u): u is string => Boolean(u && u.startsWith('http')));
   if (urls.length > 0) {
-    ExpoImage.prefetch(Array.from(new Set(urls)).slice(0, 30), 'memory-disk').catch(() => {});
+    ExpoImage.prefetch(Array.from(new Set(urls)).slice(0, 50), 'memory-disk').catch(() => {});
   }
 }
 

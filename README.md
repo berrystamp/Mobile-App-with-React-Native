@@ -38,8 +38,8 @@ This command will move the starter code to the **app-example** directory and cre
 ## Shared links
 
 Profile, collection, and design shares use `https://berrystamp.com` by default.
-The website must serve the Expo web routes `/products?designId=...` and
-`/my-shop?profileId=...` (with `collectionId=...` for a collection).
+The website must serve the Expo web routes `/products?designId=...`,
+`/my-shop?profileId=...`, and `/designer/<profileId>/shop?collectionId=...` for a collection.
 Set `EXPO_PUBLIC_SHARE_ORIGIN` before building to use a different web deployment.
 Opening HTTPS links directly in the installed app also requires domain association
 files on the website and native universal/app link configuration.

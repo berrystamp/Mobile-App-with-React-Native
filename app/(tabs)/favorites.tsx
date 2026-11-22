@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
@@ -14,7 +14,7 @@ import {
 
 import { useAppAlert } from "@/components/common/AppAlert";
 import { formatNaira } from "@/lib/currency";
-import { normalizeDesignListResponse } from "@/lib/designs";
+import { isInfluencerDesign, normalizeDesignListResponse } from "@/lib/designs";
 import ApiService from "@/services/apiClient";
 import { isCustomerRole, useAuthStore } from "@/store/authStore";
 import type { Design } from "@/types";
@@ -179,7 +179,7 @@ export default function FavoritesScreen() {
 
               return (
                 <View className="mb-3 flex-row rounded-2xl border border-gray-100 bg-white p-3 dark:border-gray-800 dark:bg-[#1E1E1E]">
-                  <View className="mr-3 h-24 w-24 overflow-hidden rounded-xl bg-gray-100 dark:bg-gray-800">
+                  <View className="mr-3 h-24 w-24 overflow-hidden rounded-xl bg-gray-100 dark:bg-gray-800" style={{ position: "relative" }}>
                     {imageUri ? (
                       <Image
                         source={{ uri: imageUri }}
@@ -189,16 +189,38 @@ export default function FavoritesScreen() {
                         transition={120}
                       />
                     ) : null}
+                    {isInfluencerDesign(item) && (
+                      <View
+                        style={{
+                          position: "absolute",
+                          bottom: 6,
+                          left: 6,
+                          width: 22,
+                          height: 22,
+                          borderRadius: 11,
+                          backgroundColor: "rgba(31,20,73,0.92)",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <MaterialCommunityIcons name="crown" size={13} color="#F9A70D" />
+                      </View>
+                    )}
                   </View>
 
                   <View className="flex-1 justify-between">
                     <View>
-                      <Text
-                        numberOfLines={1}
-                        className="text-base font-semibold text-[#1E1B2B] dark:text-white"
-                      >
-                        {item.title}
-                      </Text>
+                      <View className="flex-row items-center gap-1.5">
+                        <Text
+                          numberOfLines={1}
+                          className="flex-1 text-base font-semibold text-[#1E1B2B] dark:text-white"
+                        >
+                          {item.title}
+                        </Text>
+                        {isInfluencerDesign(item) && (
+                          <MaterialCommunityIcons name="crown" size={14} color="#F9A70D" />
+                        )}
+                      </View>
                       <Text
                         numberOfLines={1}
                         className="mt-1 text-sm text-[#8F889D] dark:text-gray-400"

@@ -21,12 +21,11 @@ import PrintPreferencesModal, {
   PrintPreferencesResult,
 } from "@/components/PrintPreferencesModal";
 import { formatNaira } from "@/lib/currency";
-import { normalizeDesign, normalizeDesignListResponse } from "@/lib/designs";
+import { normalizeDesignListResponse } from "@/lib/designs";
 import { upsertLocalConversation } from "@/lib/localConversations";
 import {
   addRecentDesign,
   getCartItems,
-  getRecentDesignIds,
   saveCartItems,
 } from "@/lib/localStorage";
 import {
@@ -120,9 +119,8 @@ export default function CartScreen() {
         setIsLoading(false);
       }
 
-      const [response, recentIds, storedPreferences] = await Promise.all([
+      const [response, storedPreferences] = await Promise.all([
         ApiService.getCartItems(),
-        getRecentDesignIds(),
         getPrintPreferences(),
       ]);
 
@@ -163,7 +161,7 @@ export default function CartScreen() {
           }
 
           const designerProfile = designObj?.designer || designObj?.profile || item.design?.designer || item.design?.profile;
-          const printerProfile = designObj?.printer || item.printer;
+          const printerProfile = designObj?.printer || item.design?.printer || item.printer;
           const resolvedDesignerId = Number(designerProfile?.id || 0) || undefined;
           const resolvedDesignerName =
             designerProfile?.name ||
@@ -173,19 +171,28 @@ export default function CartScreen() {
           const resolvedPrinterId =
             Number(
               printerProfile?.id ||
+                printerProfile?.profileId ||
                 designObj?.printerId ||
+                designObj?.assignedPrinterId ||
+                item.design?.printerId ||
                 item.printerId ||
                 0,
             ) || undefined;
           const resolvedPrinterName =
             printerProfile?.name ||
             printerProfile?.userName ||
+            designObj?.printerName ||
+            item.printerName ||
             undefined;
           const locked = Boolean(
             resolvedPrinterId ||
               designObj?.openForCustomization === false ||
               designObj?.locked ||
               designObj?.assignedPrinterOnly ||
+              item.design?.openForCustomization === false ||
+              item.design?.locked ||
+              item.openForCustomization === false ||
+              item.locked ||
               item.isLocked,
           );
 
@@ -253,27 +260,16 @@ export default function CartScreen() {
         setCartTab("select");
       }
 
-      if (recentIds.length > 0) {
-        const recentResponses = await Promise.allSettled(
-          recentIds
-            .slice(0, 4)
-            .map((designId) => ApiService.fetchDesignById(designId)),
-        );
-        const nextRecentDesigns = recentResponses
-          .filter(
-            (result): result is PromiseFulfilledResult<any> =>
-              result.status === "fulfilled",
-          )
-          .map((result) =>
-            normalizeDesign(result.value?.responseBody || result.value),
-          )
-          .filter((design) => Boolean(design?.id));
-        setRecentDesigns(nextRecentDesigns);
-      } else {
-        const recentResponse = await ApiService.getRecentDesigns(4);
-        setRecentDesigns(
-          normalizeDesignListResponse(recentResponse).slice(0, 4),
-        );
+      const recentResponse = await ApiService.getRecentDesigns(4);
+      const nextRecent = normalizeDesignListResponse(recentResponse).slice(0, 4);
+      setRecentDesigns(nextRecent);
+
+      const prefetchUrls = [
+        ...formattedItems.map((i) => i.imageUrl),
+        ...nextRecent.flatMap((d) => [d.imagePath, ...d.mocks.slice(0, 2).map((m) => m.imagePath)]),
+      ].filter((u): u is string => Boolean(u && u.startsWith("http")));
+      if (prefetchUrls.length > 0) {
+        Image.prefetch(Array.from(new Set(prefetchUrls)), "memory-disk").catch(() => {});
       }
     } catch (error) {
       console.error("Error fetching cart:", error);
@@ -436,38 +432,66 @@ export default function CartScreen() {
       printerName: item.printerName,
     }));
 
-    // If Locked Printing items already have an assigned printerId, send the print request directly to the locked printer
-    if (
-      cartTab === "designated" &&
-      selectedItems.length > 0 &&
-      selectedItems.every((item) => Boolean(item.printerId))
-    ) {
+    // Locked printing items already have an attached printer — send directly without selecting a printer
+    const hasLockedSelection =
+      cartTab === "designated" || selectedItems.some((item) => isLockedItem(item));
+
+    if (hasLockedSelection && selectedItems.length > 0) {
+      const missingPrinter = selectedItems.find((item) => !item.printerId);
+      if (missingPrinter) {
+        showAlert({
+          type: "error",
+          title: "Printer Unavailable",
+          message: `"${missingPrinter.name}" is locked, but its attached printer could not be found. Please refresh your cart and try again.`,
+        });
+        return;
+      }
+
       try {
         setIsLoading(true);
-        const payload = selectedItems.map((item) => ({
-          designId: Number(item.designId),
-          colour: item.colour || "",
-          quantity: Number(item.quantity) || 1,
-          size: item.size || "",
-          mockItemId: Number(item.mockId),
-          customDesign: false,
-          sourceOfItem: result.hasOwnItem ? "From Customer" : "From Printer",
-          estimatedAmount: Number(item.price) * (Number(item.quantity) || 1),
-          dateOfDelivery: result.dateOfDelivery || "",
-          deliveryAddress: {
-            name: result.deliveryAddress.name,
-            address: result.deliveryAddress.name,
-            latitude: result.deliveryAddress.latitude,
-            longitude: result.deliveryAddress.longitude,
-            country: "Nigeria",
-          },
-          printerId: Number(item.printerId),
-        }));
-        const res = await ApiService.createPrintOrders(payload);
-        const responseBody: any[] = res?.responseBody ?? res ?? [];
-        const firstOrder = Array.isArray(responseBody) ? responseBody[0] : responseBody;
-        const conversationId = firstOrder?.conversationId;
-        const createdOrderRequestId = firstOrder?.id;
+        const itemsByPrinter = new Map<number, CartItemType[]>();
+        selectedItems.forEach((item) => {
+          const pid = Number(item.printerId);
+          const group = itemsByPrinter.get(pid) || [];
+          group.push(item);
+          itemsByPrinter.set(pid, group);
+        });
+
+        let firstConversationId: string | undefined;
+        let firstOrderRequestId: string | undefined;
+        let firstPrinterId: number | undefined;
+        let firstPrinterName: string | undefined;
+
+        for (const [pid, group] of itemsByPrinter.entries()) {
+          const payload = group.map((item) => ({
+            designId: Number(item.designId),
+            colour: item.colour || "",
+            quantity: Number(item.quantity) || 1,
+            size: item.size || "",
+            mockItemId: Number(item.mockId),
+            customDesign: false,
+            sourceOfItem: result.hasOwnItem ? "From Customer" : "From Printer",
+            estimatedAmount: Number(item.price) * (Number(item.quantity) || 1),
+            dateOfDelivery: result.dateOfDelivery || "",
+            deliveryAddress: {
+              name: result.deliveryAddress.name,
+              address: result.deliveryAddress.name,
+              latitude: result.deliveryAddress.latitude,
+              longitude: result.deliveryAddress.longitude,
+              country: "Nigeria",
+            },
+            printerId: pid,
+          }));
+          const res = await ApiService.createPrintOrders(payload);
+          const responseBody: any[] = res?.responseBody ?? res ?? [];
+          const firstOrder = Array.isArray(responseBody) ? responseBody[0] : responseBody;
+          if (firstPrinterId == null) {
+            firstPrinterId = pid;
+            firstPrinterName = group[0]?.printerName || "Assigned Printer";
+            firstConversationId = firstOrder?.conversationId ? String(firstOrder.conversationId) : undefined;
+            firstOrderRequestId = firstOrder?.id ? String(firstOrder.id) : undefined;
+          }
+        }
 
         await Promise.allSettled(
           selectedItems.map((item) => ApiService.deleteCartItem(String(item.id)).catch(() => {})),
@@ -477,15 +501,14 @@ export default function CartScreen() {
         setCartItems(remaining);
         await saveCartItems(remaining);
 
-        const primaryItem = selectedItems[0];
         router.push({
           pathname: "/(tabs)/chat",
           params: {
-            ...(conversationId ? { conversationId: String(conversationId) } : {}),
-            participantId: String(primaryItem.printerId),
-            participantName: primaryItem.printerName || "Assigned Printer",
+            ...(firstConversationId ? { conversationId: firstConversationId } : {}),
+            participantId: String(firstPrinterId),
+            participantName: firstPrinterName || "Assigned Printer",
             participantRole: "Printers",
-            ...(createdOrderRequestId ? { orderId: String(createdOrderRequestId) } : {}),
+            ...(firstOrderRequestId ? { orderId: firstOrderRequestId } : {}),
           },
         });
         return;
@@ -1013,18 +1036,37 @@ export default function CartScreen() {
               )}
             </TouchableOpacity>
 
-            <Image
-              source={item.imageSource}
-              style={{
-                width: 72,
-                height: 72,
-                borderRadius: 10,
-                backgroundColor: isDark ? "#2C2C2E" : "#F2F2F5",
-              }}
-              contentFit="cover"
-              cachePolicy="memory-disk"
-              transition={150}
-            />
+            <View style={{ position: "relative" }}>
+              <Image
+                source={item.imageSource}
+                style={{
+                  width: 72,
+                  height: 72,
+                  borderRadius: 10,
+                  backgroundColor: isDark ? "#2C2C2E" : "#F2F2F5",
+                }}
+                contentFit="cover"
+                cachePolicy="memory-disk"
+                transition={150}
+              />
+              {isLockedItem(item) && (
+                <View
+                  style={{
+                    position: "absolute",
+                    top: 4,
+                    left: 4,
+                    width: 22,
+                    height: 22,
+                    borderRadius: 11,
+                    backgroundColor: isDark ? "rgba(0,0,0,0.65)" : "rgba(255,255,255,0.94)",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Ionicons name="lock-closed" size={12} color={isDark ? "#A993FF" : "#3B2D85"} />
+                </View>
+              )}
+            </View>
 
             <View style={{ flex: 1, marginLeft: 12 }}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
@@ -1275,6 +1317,29 @@ export default function CartScreen() {
                             name="image-outline"
                             size={28}
                             color={isDark ? "#555" : "#CCC"}
+                          />
+                        </View>
+                      )}
+
+                      {/* Lock badge */}
+                      {Boolean(design.locked || design.printerId || design.openForCustomization === false) && (
+                        <View
+                          style={{
+                            position: "absolute",
+                            top: 8,
+                            left: 8,
+                            width: 26,
+                            height: 26,
+                            borderRadius: 13,
+                            alignItems: "center",
+                            justifyContent: "center",
+                            backgroundColor: isDark ? "rgba(0,0,0,0.55)" : "rgba(255,255,255,0.92)",
+                          }}
+                        >
+                          <Ionicons
+                            name="lock-closed"
+                            size={13}
+                            color={isDark ? "#A993FF" : "#3B2D85"}
                           />
                         </View>
                       )}

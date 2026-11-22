@@ -3,17 +3,67 @@ import { useAuthStore } from '@/store/authStore';
 import type { Message } from '@/types';
 
 const READ_CONVERSATIONS_STORAGE_KEY = 'berrystamp_read_conversations_v1';
+const DELETED_CONVERSATIONS_STORAGE_KEY = 'berrystamp_deleted_conversations_v1';
 const CONVERSATIONS_CACHE_PREFIX = 'berrystamp_conversations_cache_v1_';
 const MESSAGES_CACHE_PREFIX = 'berrystamp_messages_cache_v1_';
 const ORDER_DETAIL_CACHE_KEY = 'berrystamp_order_detail_cache_v1';
 
 const localReadMap = new Map<string, { timestampMs: number; lastMessageId?: string }>();
+const deletedConversationIds = new Set<string>();
 const memoryConversationsCache = new Map<string, ConversationSummaryDto[]>();
 const memoryMessagesCache = new Map<string, (ChatMessageDto & { imageUrl?: string })[]>();
 const memoryOrderDetailCache = new Map<string, any>();
 let memoryMyProfileIdByRole: Record<string, number> = {};
 let readMapHydrated = false;
+let deletedMapHydrated = false;
 let orderCacheHydrated = false;
+
+const ensureDeletedHydrated = () => {
+  if (deletedMapHydrated) return;
+  deletedMapHydrated = true;
+  AsyncStorage.getItem(DELETED_CONVERSATIONS_STORAGE_KEY)
+    .then((raw) => {
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        parsed.forEach((id) => {
+          if (id != null) deletedConversationIds.add(String(id));
+        });
+      }
+    })
+    .catch(() => {});
+};
+
+ensureDeletedHydrated();
+
+export function markConversationDeletedLocally(conversationId?: string | number) {
+  if (conversationId === undefined || conversationId === null) return;
+  const key = String(conversationId).trim();
+  if (!key || key === 'new-conversation') return;
+  deletedConversationIds.add(key);
+  AsyncStorage.setItem(
+    DELETED_CONVERSATIONS_STORAGE_KEY,
+    JSON.stringify(Array.from(deletedConversationIds)),
+  ).catch(() => {});
+  removeConversationFromCache(key);
+}
+
+export function isConversationDeletedLocally(conversationId?: string | number): boolean {
+  if (conversationId === undefined || conversationId === null) return false;
+  return deletedConversationIds.has(String(conversationId).trim());
+}
+
+export function removeConversationFromCache(conversationId: string | number) {
+  const key = String(conversationId).trim();
+  if (!key) return;
+  memoryMessagesCache.delete(key);
+  AsyncStorage.removeItem(`${MESSAGES_CACHE_PREFIX}${key}`).catch(() => {});
+  memoryConversationsCache.forEach((threads, roleKey) => {
+    const filtered = threads.filter((t) => String(t.id) !== key);
+    memoryConversationsCache.set(roleKey, filtered);
+    AsyncStorage.setItem(`${CONVERSATIONS_CACHE_PREFIX}${roleKey}`, JSON.stringify(filtered)).catch(() => {});
+  });
+}
 
 const ensureOrderCacheHydrated = () => {
   if (orderCacheHydrated) return;
@@ -37,16 +87,20 @@ export function getMemoryConversations(role?: string): ConversationSummaryDto[] 
 }
 
 export async function getCachedConversations(role?: string): Promise<ConversationSummaryDto[] | null> {
+  ensureDeletedHydrated();
   const key = (role || useAuthStore.getState().role || 'CUSTOMER').toUpperCase();
   const inMem = memoryConversationsCache.get(key);
-  if (inMem && inMem.length > 0) return inMem;
+  if (inMem && inMem.length > 0) {
+    return inMem.filter((thread) => !deletedConversationIds.has(String(thread.id)));
+  }
   try {
     const raw = await AsyncStorage.getItem(`${CONVERSATIONS_CACHE_PREFIX}${key}`);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) {
-      memoryConversationsCache.set(key, parsed);
-      return parsed;
+      const visible = parsed.filter((thread) => !deletedConversationIds.has(String(thread?.id)));
+      memoryConversationsCache.set(key, visible);
+      return visible;
     }
   } catch {
     // ignore cache read errors
@@ -464,8 +518,17 @@ const resolveProfileThumbnailImage = (profile?: BackendParticipantProfile) => {
 
 const resolveMessagePreview = (message?: BackendConversationMessage) => {
   if (!message) return 'Tap to start conversation';
-  if (message.caption?.trim()) return message.caption.trim();
-  if (message.content?.trim()) return message.content.trim();
+  const chatType = String(message.chatType || '').toUpperCase();
+  const caption = message.caption?.trim();
+  const content = message.content?.trim();
+  if (chatType === 'ORDER_REQUEST') {
+    return caption && !/^\d+$/.test(caption) ? caption : 'Order request';
+  }
+  if (chatType === 'ORDER') {
+    return caption && !/^\d+$/.test(caption) ? caption : 'Order update';
+  }
+  if (caption) return caption;
+  if (content) return content;
   return 'Tap to start conversation';
 };
 
@@ -483,19 +546,36 @@ export function normalizeConversationsResponse(response: any, myProfileId?: numb
   const activeProfileType = getCurrentProfileType();
   const list = unwrapList(response).filter((item: BackendConversation) => {
     const participants = Array.isArray(item?.participants) ? item.participants : [];
-    if (!participants.length) return true;
+    const lastSender = item?.lastMessage?.sender;
+    const lastReceiver = item?.lastMessage?.receiver;
+
+    if (!participants.length) {
+      if (myProfileId && lastSender?.id && lastReceiver?.id) {
+        return Number(lastSender.id) === Number(myProfileId) || Number(lastReceiver.id) === Number(myProfileId);
+      }
+      return true;
+    }
 
     const hasProfileTypes = participants.some((p) => Boolean(p?.profileType));
-    if (myProfileId && hasProfileTypes) {
-      return participants.some(
+    if (myProfileId) {
+      const hasMyProfile = participants.some(
         (p) =>
           Number(p.id) === Number(myProfileId) &&
           (!p.profileType || String(p.profileType).toUpperCase() === activeProfileType),
       );
+      if (!hasMyProfile) return false;
+
+      // Also guard against messages whose sender/receiver explicitly point to a different role profile
+      if (lastSender?.profileType && lastReceiver?.profileType) {
+        const senderRole = String(lastSender.profileType).toUpperCase();
+        const receiverRole = String(lastReceiver.profileType).toUpperCase();
+        if (senderRole !== activeProfileType && receiverRole !== activeProfileType) {
+          return false;
+        }
+      }
+      return true;
     }
-    if (myProfileId) {
-      return participants.some((p) => Number(p.id) === Number(myProfileId));
-    }
+
     if (hasProfileTypes) {
       return participants.some((p) => String(p.profileType || '').toUpperCase() === activeProfileType);
     }
@@ -563,7 +643,9 @@ export function normalizeConversationsResponse(response: any, myProfileId?: numb
 }
 
 export async function getMergedConversations(response: any, myProfileId?: number): Promise<ConversationSummaryDto[]> {
-  const backend = normalizeConversationsResponse(response, myProfileId);
+  ensureDeletedHydrated();
+  const backend = normalizeConversationsResponse(response, myProfileId)
+    .filter((item) => !deletedConversationIds.has(String(item.id)));
 
   return backend.sort((left, right) => {
     const leftTime = left.timestamp ? new Date(left.timestamp).getTime() : 0;

@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image as ExpoImage } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, Modal, Pressable, SafeAreaView, Text, TextInput, TouchableOpacity, View, useColorScheme } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Modal, Pressable, SafeAreaView, Text, TextInput, TouchableOpacity, View, useColorScheme } from 'react-native';
 
 import { ConversationRow } from '@/components/messages/ConversationRow';
 import { MessageEmptyState } from '@/components/messages/MessageEmptyState';
@@ -39,10 +39,44 @@ export default function MessagesScreen() {
   const role = useAuthStore((state) => state.role);
   const initialCached = useMemo(() => getMemoryConversations(role), [role]);
   const [query, setQuery] = useState('');
-  const [threads, setThreads] = useState<ConversationSummaryDto[]>(initialCached || []);
+  const [threadsState, setThreadsState] = useState<{ role: string; items: ConversationSummaryDto[] }>(() => ({
+    role: String(role),
+    items: initialCached || [],
+  }));
+  const threads = useMemo(
+    () => (threadsState.role === String(role) ? threadsState.items : getMemoryConversations(role) || []),
+    [threadsState, role],
+  );
+  const setThreads = useCallback(
+    (
+      next:
+        | ConversationSummaryDto[]
+        | ((prev: ConversationSummaryDto[]) => ConversationSummaryDto[]),
+      targetRole: string = String(useAuthStore.getState().role),
+    ) => {
+      setThreadsState((prev) => {
+        const base =
+          prev.role === targetRole ? prev.items : getMemoryConversations(targetRole) || [];
+        const items = typeof next === 'function' ? next(base) : next;
+        return { role: targetRole, items };
+      });
+    },
+    [],
+  );
   const [loading, setLoading] = useState(!initialCached || initialCached.length === 0);
   const [refreshing, setRefreshing] = useState(false);
-  const [currentUserId, setCurrentUserId] = useState<number | null>(() => getMemoryMyProfileId(role) || null);
+  const [userIdState, setUserIdState] = useState<{ role: string; id: number | null }>(() => ({
+    role: String(role),
+    id: getMemoryMyProfileId(role) || null,
+  }));
+  const currentUserId =
+    userIdState.role === String(role) ? userIdState.id : getMemoryMyProfileId(role) || null;
+  const setCurrentUserId = useCallback(
+    (id: number | null, targetRole: string = String(useAuthStore.getState().role)) => {
+      setUserIdState({ role: targetRole, id });
+    },
+    [],
+  );
   const refreshedResponse = useConversationStore((state) => state.response);
   const [selectedConversation, setSelectedConversation] = useState<ConversationSummaryDto | null>(null);
   const [showActions, setShowActions] = useState(false);
@@ -51,16 +85,19 @@ export default function MessagesScreen() {
   const [showReportSuccess, setShowReportSuccess] = useState(false);
 
   useEffect(() => {
-    if (!refreshedResponse || !currentUserId) return;
+    const activeRole = useAuthStore.getState().role;
+    const expectedProfileId = getMemoryMyProfileId(activeRole) || currentUserId;
+    if (!refreshedResponse || !expectedProfileId) return;
     let cancelled = false;
-    getMergedConversations(refreshedResponse, currentUserId).then((all) => {
+    getMergedConversations(refreshedResponse, expectedProfileId).then((all) => {
       if (cancelled) return;
-      const filtered = all.filter((thread) => Number(thread.participantId) !== currentUserId);
-      setThreads(filtered);
-      setCachedConversations(filtered, role);
+      if (useAuthStore.getState().role !== activeRole) return;
+      const filtered = all.filter((thread) => Number(thread.participantId) !== Number(expectedProfileId));
+      setThreads(filtered, String(activeRole));
+      setCachedConversations(filtered, activeRole);
     });
     return () => { cancelled = true; };
-  }, [refreshedResponse, currentUserId, role]);
+  }, [refreshedResponse, currentUserId, role, setThreads]);
 
   const fetchConversations = useCallback(async (isPullToRefresh = false) => {
     const activeRole = useAuthStore.getState().role;
@@ -131,13 +168,13 @@ export default function MessagesScreen() {
     } catch {
       const fallback = await getCachedConversations(activeRole);
       if (fallback && fallback.length > 0) {
-        setThreads(fallback);
+        setThreads(fallback, String(activeRole));
       }
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [role]);
+  }, [setCurrentUserId, setThreads]);
 
   // Re-fetch whenever the screen comes back into focus so the last message
   // sent in a chat is reflected immediately without a manual pull-to-refresh.
@@ -196,26 +233,38 @@ export default function MessagesScreen() {
   const handleDeleteConversation = async () => {
     if (!selectedConversation) return;
 
+    const target = selectedConversation;
     const previous = [...threads];
-    setThreads((current) => current.filter((thread) => thread.id !== selectedConversation.id));
+    const next = threads.filter((thread) => thread.id !== target.id);
+    setThreads(next);
     closeAllModals();
 
     try {
-      await ApiService.deleteConversation(selectedConversation.id);
+      await ApiService.deleteConversation(target.id);
+      setCachedConversations(next, role);
       setSelectedConversation(null);
-    } catch {
+    } catch (err: any) {
       setThreads(previous);
+      Alert.alert(
+        'Delete failed',
+        err?.response?.data?.responseMessage || err?.message || 'Unable to delete this conversation.',
+      );
     }
   };
 
   const handleReportConversation = async (reason: string) => {
     if (!selectedConversation) return;
 
+    const target = selectedConversation;
     closeAllModals();
     try {
-      await ApiService.reportConversation(selectedConversation.id, reason);
-    } finally {
+      await ApiService.reportConversation(target.id, reason, target.name);
       setShowReportSuccess(true);
+    } catch (err: any) {
+      Alert.alert(
+        'Report failed',
+        err?.response?.data?.responseMessage || err?.message || 'Unable to submit your report. Please try again.',
+      );
     }
   };
 

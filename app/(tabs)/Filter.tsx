@@ -79,12 +79,12 @@ const FilterScreen = () => {
 
         const designs = normalizeDesignListResponse(designResponse);
 
-        // Merge standard product categories with any dynamic categories from API
+        // Merge standard product categories with any non-empty mock categories from API
         const dynamicProductCategories = designs
           .flatMap((design) =>
-            design.mocks.map((mock) => mock.category || mock.name),
+            design.mocks.map((mock) => mock.category),
           )
-          .filter(Boolean);
+          .filter((category): category is string => Boolean(category));
         const mergedProductCategories = Array.from(
           new Set([...STANDARD_PRODUCT_CATEGORIES, ...dynamicProductCategories]),
         );
@@ -212,18 +212,55 @@ const FilterScreen = () => {
               <Ionicons name="chevron-forward" size={16} color={theme.text} />
             </TouchableOpacity>
           </View>
-          <View style={[styles.chipRow, { flexWrap: "wrap" }]}>
-            {productCategories
-              .slice(0, 9)
-              .map((item) =>
-                renderChip(item, selectedProductCategories.includes(item), () =>
-                  toggleSelection(
-                    item,
-                    selectedProductCategories,
-                    setSelectedProductCategories,
-                  ),
-                ),
-              )}
+          <View style={{ gap: 2 }}>
+            {productCategories.map((item) => {
+              const active = selectedProductCategories.includes(item);
+              return (
+                <TouchableOpacity
+                  key={item}
+                  onPress={() =>
+                    toggleSelection(
+                      item,
+                      selectedProductCategories,
+                      setSelectedProductCategories,
+                    )
+                  }
+                  activeOpacity={0.7}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    paddingVertical: 10,
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      color: theme.text,
+                      fontWeight: active ? "600" : "400",
+                    }}
+                  >
+                    {item}
+                  </Text>
+                  <View
+                    style={{
+                      width: 20,
+                      height: 20,
+                      borderRadius: 4,
+                      borderWidth: 1.5,
+                      borderColor: active ? "#4B3A99" : theme.border,
+                      backgroundColor: active ? "#4B3A99" : "transparent",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    {active ? (
+                      <Ionicons name="checkmark" size={14} color="#FFFFFF" />
+                    ) : null}
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
 
@@ -438,8 +475,7 @@ const styles = StyleSheet.create({
     paddingRight: 16,
   },
   chip: {
-    maxWidth: 120,
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1,

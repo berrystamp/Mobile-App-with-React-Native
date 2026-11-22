@@ -176,6 +176,10 @@ export default function ProfileScreen() {
     () => availableProfiles.filter((item) => item !== activeRole),
     [activeRole, availableProfiles],
   );
+  const hasDesignerOrPrinter = useMemo(
+    () => availableProfiles.includes("DESIGNER") || availableProfiles.includes("PRINTER"),
+    [availableProfiles],
+  );
 
   const displayName = useMemo(() => {
     if (!user) return profile.fullName || "User";
@@ -487,6 +491,54 @@ export default function ProfileScreen() {
             <Text style={{ marginLeft: 10, fontSize: 14, fontWeight: "600", color: "#EF4444", flex: 1 }}>Log out</Text>
           </TouchableOpacity>
         </View>
+
+        {!hasDesignerOrPrinter && (
+          <View style={{ paddingHorizontal: 16, marginTop: 10, marginBottom: 12 }}>
+            <TouchableOpacity
+              activeOpacity={0.88}
+              onPress={() => router.push({ pathname: "/switch-account", params: { mode: "register" } } as any)}
+              style={{
+                borderRadius: 18,
+                padding: 18,
+                backgroundColor: "#4330A2",
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 14,
+              }}
+            >
+              <View
+                style={{
+                  width: 46,
+                  height: 46,
+                  borderRadius: 23,
+                  backgroundColor: "rgba(255,255,255,0.16)",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Ionicons name="storefront-outline" size={22} color="#FFFFFF" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 15, fontWeight: "700", color: "#FFFFFF" }}>
+                  Want to be a designer or printer?
+                </Text>
+                <Text style={{ fontSize: 12, color: "rgba(255,255,255,0.8)", marginTop: 3, lineHeight: 17 }}>
+                  Register a Designer or Printer account to sell designs or print orders.
+                </Text>
+              </View>
+              <View
+                style={{
+                  backgroundColor: "#FFFFFF",
+                  paddingHorizontal: 12,
+                  paddingVertical: 8,
+                  borderRadius: 999,
+                }}
+              >
+                <Text style={{ fontSize: 12, fontWeight: "700", color: "#4330A2" }}>Register</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        )}
       </ScrollView>
     </View>
   );

@@ -36,6 +36,7 @@ import React, {
 } from "react";
 import {
     ActivityIndicator,
+    Keyboard,
     KeyboardAvoidingView,
     Modal,
     Platform,
@@ -187,6 +188,34 @@ const normalizeOrderDetail = (raw: any) => {
     (body?.customDesignRequest || body?.printRequest ? body : {});
   const printReq = req?.printRequest || {};
   const customReq = req?.customDesignRequest || {};
+
+  const deliveryAmount = Number(
+    body.deliveryAmount ??
+      body.deliveryFee ??
+      req?.deliveryAmount ??
+      req?.deliveryFee ??
+      0,
+  );
+  const printingAmount = Number(body.printingAmount ?? body.printingFee ?? 0);
+  const pickupAmount = Number(body.pickupAmount ?? body.itemPickupAmount ?? 0);
+
+  const hasPrintReq = Boolean(
+    printReq?.id ||
+      printReq?.mockName ||
+      printReq?.mockId ||
+      printReq?.sourceOfItem ||
+      printReq?.size ||
+      printReq?.colour ||
+      printingAmount > 0 ||
+      req?.providerProfile?.profileType === "PRINTER",
+  );
+  const hasCustomReq = Boolean(
+    customReq?.id ||
+      customReq?.theme ||
+      customReq?.purpose ||
+      (Array.isArray(customReq?.mockTypes) && customReq.mockTypes.length > 0) ||
+      req?.providerProfile?.profileType === "DESIGNER",
+  );
   
   const coverImageUrl =
     printReq?.mockItemUrl ||
@@ -201,17 +230,17 @@ const normalizeOrderDetail = (raw: any) => {
     id: body.id,
     title: body.title || req?.title || "",
     description: body.description || "",
-    printingAmount: body.printingAmount || 0,
+    printingAmount,
     designAmount: body.designAmount || 0,
-    pickupAmount: body.pickupAmount || 0,
-    deliveryAmount: body.deliveryAmount || 0,
+    pickupAmount,
+    deliveryAmount,
     totalAmount: body.totalAmount || 0,
     orderStatus: body.orderStatus || "REVIEW",
     deliveryDate: body.deliveryDate || "",
     itemProvidedByCustomer: body.itemProvidedByCustomer || false,
     ref: body.ref || "",
     orderRequestId: req?.id || body?.orderRequestId,
-    orderType: String(req?.orderType || body.orderType || (req?.printRequest ? "PRINT" : req?.customDesignRequest ? "DESIGN" : "")).toUpperCase(),
+    orderType: String(req?.orderType || body.orderType || (hasPrintReq ? "PRINT" : hasCustomReq ? "DESIGN" : "")).toUpperCase(),
     budgetAmount: req?.budgetAmount || 0,
     dateOfDelivery: req?.dateOfDelivery || "",
     
@@ -331,6 +360,24 @@ export default function ChatScreen() {
   );
   const [isInitialLoad, setIsInitialLoad] = useState(true); 
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  const sheetBottomPadding = Math.max(insets.bottom, Platform.OS === "android" ? 48 : 20) + 16;
+
+  useEffect(() => {
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const showSub = Keyboard.addListener(showEvent, (e) => {
+      setKeyboardHeight(e.endCoordinates?.height || 0);
+    });
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      setKeyboardHeight(0);
+    });
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
   
   const [messages, setMessages] = useState<(ChatMessageDto & { imageUrl?: string })[]>(
     initialCachedMessages || [],
@@ -367,6 +414,7 @@ export default function ChatScreen() {
     });
     return map;
   });
+  const [hydratingOrders, setHydratingOrders] = useState(false);
 
   const [showProductDetails, setShowProductDetails] = useState(false);
   const [showCreateOrder, setShowCreateOrder] = useState(false);
@@ -474,8 +522,16 @@ export default function ChatScreen() {
   const isCustomer = currentProfileType === "CUSTOMER";
   const isProvider = isDesigner || isPrinter;
   const isPrintDetail = (detail: any) => {
-    if (detail?.orderType) return String(detail.orderType).toUpperCase().includes('PRINT');
-    return detail?.providerProfile?.profileType === 'PRINTER' || isPrinter;
+    if (!detail) return isPrinter;
+    if (
+      detail?.providerProfile?.profileType === "PRINTER" ||
+      Number(detail?.printingAmount || 0) > 0 ||
+      Boolean(detail?.mockName || detail?.sourceOfItem)
+    ) {
+      return true;
+    }
+    if (detail?.orderType) return String(detail.orderType).toUpperCase().includes("PRINT");
+    return isPrinter;
   };
 
   const displayMessages = useMemo(() => {
@@ -503,55 +559,59 @@ export default function ChatScreen() {
         (m) => m.chatType === "ORDER" || m.chatType === "ORDER_REQUEST",
       );
       if (!orderMessages.length) return;
+      setHydratingOrders(true);
+      try {
+        const results = await Promise.allSettled(
+          orderMessages.map(async (m) => {
+            const oid = getMessageOrderId(m);
+            if (!oid || !Number.isFinite(Number(oid))) return null;
+            const cachePrefix = m.chatType === "ORDER_REQUEST" ? "REQ_" : "ORD_";
+            const cached = getCachedOrderDetail(`${cachePrefix}${oid}`);
+            if (cached) {
+              if (m.chatType === "ORDER") {
+                setOrderDetailsByMessageId((prev) => ({ ...prev, [m.id]: cached }));
+              } else {
+                setOrderRequestDetailsByMessageId((prev) => ({ ...prev, [m.id]: cached }));
+              }
+            }
+            const res =
+              m.chatType === "ORDER_REQUEST"
+                ? await ApiService.getOrderRequestById(oid).catch(() => ApiService.getOrderById(oid))
+                : await ApiService.getOrderById(oid).catch(() => ApiService.getOrderRequestById(oid));
+            const detail = normalizeOrderDetail(res);
+            if (detail) {
+              setCachedOrderDetail(`${cachePrefix}${oid}`, detail);
+            }
+            return {
+              messageId: m.id,
+              data: detail,
+              type: m.chatType,
+            };
+          }),
+        );
 
-      const results = await Promise.allSettled(
-        orderMessages.map(async (m) => {
-          const oid = getMessageOrderId(m);
-          if (!oid || !Number.isFinite(Number(oid))) return null;
-          const cachePrefix = m.chatType === "ORDER_REQUEST" ? "REQ_" : "ORD_";
-          const cached = getCachedOrderDetail(`${cachePrefix}${oid}`);
-          if (cached) {
-            if (m.chatType === "ORDER") {
-              setOrderDetailsByMessageId((prev) => ({ ...prev, [m.id]: cached }));
-            } else {
-              setOrderRequestDetailsByMessageId((prev) => ({ ...prev, [m.id]: cached }));
+        if (cancelled) return;
+        const nextOrders: Record<string, any> = {};
+        const nextRequests: Record<string, any> = {};
+
+        results.forEach((r) => {
+          if (r.status === "fulfilled" && r.value?.data) {
+            if (r.value.type === "ORDER") {
+              nextOrders[r.value.messageId] = r.value.data;
+            } else if (r.value.type === "ORDER_REQUEST") {
+              nextRequests[r.value.messageId] = r.value.data;
             }
           }
-          const res =
-            m.chatType === "ORDER_REQUEST"
-              ? await ApiService.getOrderRequestById(oid).catch(() => ApiService.getOrderById(oid))
-              : await ApiService.getOrderById(oid).catch(() => ApiService.getOrderRequestById(oid));
-          const detail = normalizeOrderDetail(res);
-          if (detail) {
-            setCachedOrderDetail(`${cachePrefix}${oid}`, detail);
-          }
-          return {
-            messageId: m.id,
-            data: detail,
-            type: m.chatType,
-          };
-        }),
-      );
+        });
 
-      if (cancelled) return;
-      const nextOrders: Record<string, any> = {};
-      const nextRequests: Record<string, any> = {};
-
-      results.forEach((r) => {
-        if (r.status === "fulfilled" && r.value?.data) {
-          if (r.value.type === "ORDER") {
-            nextOrders[r.value.messageId] = r.value.data;
-          } else if (r.value.type === "ORDER_REQUEST") {
-            nextRequests[r.value.messageId] = r.value.data;
-          }
+        if (Object.keys(nextOrders).length > 0) {
+          setOrderDetailsByMessageId((prev) => ({ ...prev, ...nextOrders }));
         }
-      });
-
-      if (Object.keys(nextOrders).length > 0) {
-        setOrderDetailsByMessageId((prev) => ({ ...prev, ...nextOrders }));
-      }
-      if (Object.keys(nextRequests).length > 0) {
-        setOrderRequestDetailsByMessageId((prev) => ({ ...prev, ...nextRequests }));
+        if (Object.keys(nextRequests).length > 0) {
+          setOrderRequestDetailsByMessageId((prev) => ({ ...prev, ...nextRequests }));
+        }
+      } finally {
+        if (!cancelled) setHydratingOrders(false);
       }
     };
 
@@ -734,6 +794,38 @@ export default function ChatScreen() {
     setShowScrollToBottom(distanceToBottom > 150);
   };
 
+  const activeConversationId = useMemo(() => {
+    if (conversationId && String(conversationId).trim()) return String(conversationId);
+    if (conversation.id && conversation.id !== "new-conversation") return String(conversation.id);
+    const msgConvId = messages.find((m) => m.conversationId)?.conversationId;
+    return msgConvId ? String(msgConvId) : "";
+  }, [conversationId, conversation.id, messages]);
+
+  const targetProfileId = useMemo(() => {
+    const candidate =
+      conversation.participantId ||
+      (participantId ? Number(participantId) : undefined) ||
+      orderRequestDetail?.providerProfile?.id ||
+      orderRequestDetail?.customerProfile?.id;
+    return candidate && Number.isFinite(Number(candidate)) ? Number(candidate) : undefined;
+  }, [conversation.participantId, participantId, orderRequestDetail]);
+
+  const handleViewProfile = useCallback(() => {
+    if (!targetProfileId) {
+      showAlert({
+        type: "warning",
+        title: "Profile unavailable",
+        message: "This user's profile could not be loaded yet.",
+      });
+      return;
+    }
+    setShowActions(false);
+    router.push({
+      pathname: "/my-shop",
+      params: { profileId: String(targetProfileId) },
+    });
+  }, [targetProfileId, router, showAlert]);
+
   const openActionSheet = () => setShowActions(true);
   const closeAllModals = () => {
     setShowActions(false);
@@ -742,18 +834,46 @@ export default function ChatScreen() {
   };
 
   const handleDeleteConversation = async () => {
-    if (!conversationId) return;
+    const targetId = activeConversationId;
     closeAllModals();
-    await ApiService.deleteConversation(conversationId);
+    if (!targetId) {
+      showAlert({
+        type: "error",
+        title: "Unable to delete",
+        message: "Conversation ID is not available yet.",
+      });
+      return;
+    }
+    try {
+      await ApiService.deleteConversation(targetId);
+      router.back();
+    } catch (err: any) {
+      showAlert({
+        type: "error",
+        title: "Delete failed",
+        message:
+          err?.response?.data?.responseMessage ||
+          err?.message ||
+          "Could not delete this conversation. Please try again.",
+      });
+    }
   };
 
   const handleReportConversation = async (reason: string) => {
-    if (!conversationId) return;
+    const targetId = activeConversationId || String(targetProfileId || "unknown");
     closeAllModals();
     try {
-      await ApiService.reportConversation(conversationId, reason);
-    } finally {
+      await ApiService.reportConversation(targetId, reason, conversation.name);
       setShowReportSuccess(true);
+    } catch (err: any) {
+      showAlert({
+        type: "error",
+        title: "Report failed",
+        message:
+          err?.response?.data?.responseMessage ||
+          err?.message ||
+          "Could not submit your report. Please try again.",
+      });
     }
   };
 
@@ -1063,7 +1183,11 @@ export default function ChatScreen() {
             </TouchableOpacity>
           ) : (
             <View className="items-center justify-center bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700" style={{ width: 112, height: 124 }}>
-              <Image source={require('@/assets/logo01.png')} style={{ width: 76, height: 76 }} contentFit="contain" />
+              <Image
+                source={isDark ? require('@/assets/logo02.png') : require('@/assets/logo01.png')}
+                style={{ width: 76, height: 76 }}
+                contentFit="contain"
+              />
             </View>
           )}
           <Text className="mt-2 text-[11px] text-slate-700 dark:text-slate-200" numberOfLines={1}>
@@ -1123,6 +1247,11 @@ export default function ChatScreen() {
             <Text className="text-[13px] text-slate-700 dark:text-slate-200 text-center mt-2 font-medium">
               Total Amount: {formatCurrency(detail.totalAmount || detail.designAmount || detail.printingAmount)}
             </Text>
+            {(isPrintOrder || Number(detail.deliveryAmount || 0) > 0) && (
+              <Text className="text-[12px] text-slate-500 dark:text-slate-400 text-center mt-1">
+                Delivery Fee: {formatCurrency(detail.deliveryAmount, true)}
+              </Text>
+            )}
             <Text className="text-[12px] text-slate-500 dark:text-slate-400 text-center mt-1">
               Timeline: Due on {formatDateLabel(detail.deliveryDate || detail.dateOfDelivery)}
             </Text>
@@ -1192,12 +1321,32 @@ export default function ChatScreen() {
     );
   };
 
+  const renderOrderPlaceholderCard = (chatType: "ORDER" | "ORDER_REQUEST") => {
+    const isOrder = chatType === "ORDER";
+    return (
+      <View className="mx-2 my-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-4">
+        <View className="flex-row items-center justify-center gap-2">
+          {hydratingOrders ? <ActivityIndicator size="small" color="#4A3298" /> : <Ionicons name="receipt-outline" size={16} color="#4A3298" />}
+          <Text className="text-[13px] font-medium text-slate-600 dark:text-slate-300">
+            {hydratingOrders
+              ? (isOrder ? "Loading order details..." : "Loading order request...")
+              : (isOrder ? "Order update" : "Order request")}
+          </Text>
+        </View>
+      </View>
+    );
+  };
+
   const renderMessage = (message: ChatMessageDto & { imageUrl?: string }) => {
     const orderDetail = orderDetailsByMessageId[message.id];
     const orderRequest = orderRequestDetailsByMessageId[message.id];
 
-    if (message.chatType === "ORDER" && orderDetail) return renderOrderRequestCard(orderDetail);
-    if (message.chatType === "ORDER_REQUEST" && orderRequest) return renderOrderCard(orderRequest);
+    if (message.chatType === "ORDER") {
+      return orderDetail ? renderOrderRequestCard(orderDetail) : renderOrderPlaceholderCard("ORDER");
+    }
+    if (message.chatType === "ORDER_REQUEST") {
+      return orderRequest ? renderOrderCard(orderRequest) : renderOrderPlaceholderCard("ORDER_REQUEST");
+    }
 
     const isMe = message.author === "me";
     const displayUrl = message.imageUrl || (isImageContent(message.text) ? resolveImageUri(message.text) : "");
@@ -1238,13 +1387,20 @@ export default function ChatScreen() {
             <TouchableOpacity onPress={() => router.back()} className="w-10 h-10 items-center justify-center">
               <Ionicons name="arrow-back" size={24} color={themeIconColor} />
             </TouchableOpacity>
-            <View className="flex-1 flex-row items-center gap-3 ml-2">
+            <TouchableOpacity
+              onPress={handleViewProfile}
+              disabled={!targetProfileId}
+              activeOpacity={0.75}
+              className="flex-1 flex-row items-center gap-3 ml-2"
+            >
               <AvatarBadge color={conversation.avatarColor} imageUrl={conversation.avatarThumbnailUrl || conversation.avatarPreviewUrl || conversation.avatarImageUrl} label={conversation.avatarInitials} size={40} />
-              <View>
-                <Text className="text-[17px] font-bold text-slate-900 dark:text-slate-100">{conversation.name}</Text>
-                <Text className="text-[13px] text-slate-500 dark:text-slate-400 mt-0.5">{conversation.updatedAtLabel}</Text>
+              <View className="flex-1">
+                <Text className="text-[17px] font-bold text-slate-900 dark:text-slate-100" numberOfLines={1}>{conversation.name}</Text>
+                <Text className="text-[12px] text-slate-500 dark:text-slate-400 mt-0.5">
+                  {targetProfileId ? "Tap to view profile" : conversation.updatedAtLabel}
+                </Text>
               </View>
-            </View>
+            </TouchableOpacity>
             <TouchableOpacity onPress={() => openActionSheet()} className="w-10 h-10 items-center justify-center">
               <Ionicons name="ellipsis-vertical" size={20} color={themeSecondaryIconColor} />
             </TouchableOpacity>
@@ -1348,6 +1504,15 @@ export default function ChatScreen() {
         <Pressable className="flex-1 justify-end bg-black/40" onPress={closeAllModals}>
           <Pressable className="rounded-t-[32px] bg-white px-6 pb-8 pt-5 dark:bg-[#1E1E1E]" onPress={(event) => event.stopPropagation()}>
             <View className="mb-5 h-1.5 w-14 self-center rounded-full bg-[#E5DFEF] dark:bg-[#3B3B3B]" />
+            {targetProfileId ? (
+              <>
+                <TouchableOpacity className="flex-row items-center py-3" onPress={handleViewProfile}>
+                  <Ionicons name="person-circle-outline" size={22} color="#4A3298" />
+                  <Text className="ml-4 text-base font-semibold text-[#2F2A36] dark:text-white">View profile</Text>
+                </TouchableOpacity>
+                <View className="my-2 h-px bg-[#F1EDF6] dark:bg-[#2F2F2F]" />
+              </>
+            ) : null}
             <TouchableOpacity className="flex-row items-center py-3" onPress={() => { setShowActions(false); setShowDeleteModal(true); }}>
               <Ionicons name="trash-outline" size={22} color="#FF6B63" />
               <Text className="ml-4 text-base font-semibold text-[#2F2A36] dark:text-white">Delete</Text>
@@ -1414,7 +1579,7 @@ export default function ChatScreen() {
         <Pressable className="flex-1 bg-black/40 justify-end" onPress={() => setShowProductDetails(false)}>
           <Pressable
             className="bg-white dark:bg-slate-900 rounded-t-3xl px-5 pt-4"
-            style={{ paddingBottom: Math.max(insets.bottom, 16) + 16 }}
+            style={{ paddingBottom: sheetBottomPadding, maxHeight: "88%" }}
             onPress={(e) => e.stopPropagation()}
           >
             <View className="flex-row justify-between items-center mb-5">
@@ -1438,7 +1603,11 @@ export default function ChatScreen() {
                   />
                 ) : (
                   <View className="items-center justify-center bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700" style={{ width: 140, height: 140 }}>
-                    <Image source={require('@/assets/logo01.png')} style={{ width: 92, height: 92 }} contentFit="contain" />
+                    <Image
+                      source={isDark ? require('@/assets/logo02.png') : require('@/assets/logo01.png')}
+                      style={{ width: 92, height: 92 }}
+                      contentFit="contain"
+                    />
                   </View>
                 )}
                 <Text className="text-[13px] text-slate-500 dark:text-slate-400 mt-2">Item preview</Text>
@@ -1550,15 +1719,16 @@ export default function ChatScreen() {
       {/* Create Order modal */}
       <Modal transparent statusBarTranslucent visible={showCreateOrder} animationType="slide" onRequestClose={() => setShowCreateOrder(false)}>
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
           style={{ flex: 1 }}
         >
           <Pressable className="flex-1 bg-black/40 justify-end" onPress={() => setShowCreateOrder(false)}>
             <Pressable
               className="bg-white dark:bg-slate-900 rounded-t-3xl px-5 pt-4"
               style={{
-                paddingBottom: Math.max(insets.bottom, 16) + 16,
-                maxHeight: "90%",
+                paddingBottom: keyboardHeight > 0 ? 12 : sheetBottomPadding,
+                marginBottom: Platform.OS === "android" ? keyboardHeight : 0,
+                maxHeight: keyboardHeight > 0 ? "82%" : "88%",
               }}
               onPress={(e) => e.stopPropagation()}
             >
@@ -1573,7 +1743,8 @@ export default function ChatScreen() {
               <ScrollView
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
-                contentContainerStyle={{ paddingBottom: 16 }}
+                automaticallyAdjustKeyboardInsets
+                contentContainerStyle={{ paddingBottom: 24 }}
               >
                 <Text className="text-[13px] font-semibold text-slate-800 dark:text-slate-200 mb-1">Order title</Text>
                 <TextInput value={orderTitle} onChangeText={setOrderTitle} placeholder="Write title" placeholderTextColor="#94a3b8" className="border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-[15px] text-slate-900 dark:text-slate-100 mb-4 bg-white dark:bg-slate-800" />
@@ -1656,7 +1827,7 @@ export default function ChatScreen() {
         <Pressable className="flex-1 bg-black/40 justify-end" onPress={() => setShowOrderDetails(false)}>
           <Pressable
             className="bg-white dark:bg-slate-900 rounded-t-3xl px-5 pt-4"
-            style={{ paddingBottom: Math.max(insets.bottom, 16) + 16 }}
+            style={{ paddingBottom: sheetBottomPadding, maxHeight: "88%" }}
             onPress={(e) => e.stopPropagation()}
           >
             <View className="flex-row justify-between items-center mb-2">
@@ -1689,12 +1860,16 @@ export default function ChatScreen() {
                       )}
                     </Text>
                   </View>
-                  {isPrintDetail(selectedOrderDetail) && !isDesigner && (
+                  {(isPrintDetail(selectedOrderDetail) ||
+                    Number(selectedOrderDetail.deliveryAmount || 0) > 0 ||
+                    Number(selectedOrderDetail.printingAmount || 0) > 0) && (
                     <>
-                      <View className="mb-4">
-                        <Text className="text-[13px] font-bold text-slate-900 dark:text-slate-100 mb-1">Printing amount</Text>
-                        <Text className="text-[14px] text-slate-600 dark:text-slate-300">{formatCurrency(selectedOrderDetail.printingAmount, true)}</Text>
-                      </View>
+                      {(isPrintDetail(selectedOrderDetail) || Number(selectedOrderDetail.printingAmount || 0) > 0) && (
+                        <View className="mb-4">
+                          <Text className="text-[13px] font-bold text-slate-900 dark:text-slate-100 mb-1">Printing amount</Text>
+                          <Text className="text-[14px] text-slate-600 dark:text-slate-300">{formatCurrency(selectedOrderDetail.printingAmount, true)}</Text>
+                        </View>
+                      )}
                       <View className="mb-4">
                         <Text className="text-[13px] font-bold text-slate-900 dark:text-slate-100 mb-1">Delivery fee</Text>
                         <Text className="text-[14px] text-slate-600 dark:text-slate-300">{formatCurrency(selectedOrderDetail.deliveryAmount, true)}</Text>

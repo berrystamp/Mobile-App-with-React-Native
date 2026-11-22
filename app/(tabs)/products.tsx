@@ -4,11 +4,12 @@ import { useCustomDesignStore } from "@/context/CustomDesignContext";
 import { useShareAfterDismiss } from "@/hooks/use-share-after-dismiss";
 import { formatNaira } from "@/lib/currency";
 import {
+  isInfluencerDesign,
   matchesProductCategory,
   normalizeDesign,
   normalizeDesignListResponse,
   STANDARD_SIZES,
-} from "@/lib/designs";
+} from '@/lib/designs';
 import { SearchFilters, addSearchHistory, getSearchFilters } from "@/lib/localStorage";
 import { resourceShareUrl, shareResourceLink } from "@/lib/sharing";
 import ApiService from "@/services/apiClient";
@@ -46,8 +47,12 @@ const getLowestPrice = (design: Design) => {
 
 const getMockSizes = (mock?: Mock | null): string[] => {
   if (!mock) return STANDARD_SIZES;
-  const s = (mock as any).sizes || (mock as any).availableSizes || [];
-  const parsed = Array.isArray(s) ? s.map(String).filter(Boolean) : [];
+  const s = (mock as any).sizes ?? (mock as any).availableSizes ?? [];
+  const parsed = Array.isArray(s)
+    ? s.map(String).map((v) => v.trim()).filter(Boolean)
+    : typeof s === 'string'
+      ? s.split(',').map((v) => v.trim()).filter(Boolean)
+      : [];
   return parsed.length ? parsed : STANDARD_SIZES;
 };
 
@@ -71,11 +76,7 @@ function ProductCard({
       design.printerId ||
       design.openForCustomization === false,
   );
-  const isInfluencer = Boolean(
-    design.influencerMerch ||
-      design.influencerDesign ||
-      design.autographMessage,
-  );
+  const isInfluencer = isInfluencerDesign(design);
 
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.8} style={{ width: CARD_WIDTH }} className="mb-6 bg-transparent">
@@ -271,7 +272,7 @@ function ProductDetailScreen({
   const isDark = useColorScheme() === 'dark';
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { show: showAlert } = useAppAlert();
+  const { show: showAlert, element: alertElement } = useAppAlert();
   const { setDesignFor, setTheme, setItems, setProductContext } = useCustomDesignStore();
 
   const [galleryIndex, setGalleryIndex] = useState(0);
@@ -301,6 +302,17 @@ function ProductDetailScreen({
   const mockSizes = useMemo(() => getMockSizes(selectedMock), [selectedMock]);
   const artistName = (design as any).shopName || (design as any).brandName || design.designerName || `${design.profile.firstName} ${design.profile.lastName}`.trim() || design.profile.username || 'Berrystamp Studio';
   const lowestPrice = useMemo(() => getLowestPrice(design), [design]);
+
+  useEffect(() => {
+    const urls = [
+      ...gallery.map((g) => g.uri),
+      ...design.mocks.map((m) => m.imagePath),
+      design.profile?.profilePicturePath,
+    ].filter((u): u is string => Boolean(u && u.startsWith('http')));
+    if (urls.length > 0) {
+      Image.prefetch(Array.from(new Set(urls)), 'memory-disk').catch(() => {});
+    }
+  }, [gallery, design.mocks, design.profile?.profilePicturePath]);
 
   useEffect(() => {
     ApiService.getDesigns({ page: 0, size: 8, designer: design.designerId })
@@ -352,54 +364,65 @@ function ProductDetailScreen({
 
   const handlePrintPreferencesContinue = async (result: PrintPreferencesResult) => {
     setShowPrintModal(false);
-    if (design.printerId && pendingPrintCartItems.length > 0) {
-      try {
-        setAddingToCart(true);
-        const payload = pendingPrintCartItems.map((item) => ({
-          designId: Number(item.designId),
-          colour: item.colour || '',
-          quantity: Number(item.quantity) || 1,
-          size: item.size || '',
-          mockItemId: Number(item.mockId),
-          customDesign: false,
-          sourceOfItem: result.hasOwnItem ? 'From Customer' : 'From Printer',
-          estimatedAmount: Number(item.price || 0) * (Number(item.quantity) || 1),
-          dateOfDelivery: result.dateOfDelivery || '',
-          deliveryAddress: {
-            name: result.deliveryAddress.name,
-            address: result.deliveryAddress.name,
-            latitude: result.deliveryAddress.latitude,
-            longitude: result.deliveryAddress.longitude,
-            country: 'Nigeria',
-          },
-          printerId: Number(design.printerId),
-        }));
-        const res = await ApiService.createPrintOrders(payload);
-        const responseBody: any[] = res?.responseBody ?? res ?? [];
-        const firstOrder = Array.isArray(responseBody) ? responseBody[0] : responseBody;
-        const conversationId = firstOrder?.conversationId;
-        const createdOrderRequestId = firstOrder?.id;
-        onClose();
-        router.push({
-          pathname: '/(tabs)/chat',
-          params: {
-            ...(conversationId ? { conversationId: String(conversationId) } : {}),
-            participantId: String(design.printerId),
-            participantName: design.printerName || 'Assigned Printer',
-            participantRole: 'Printers',
-            ...(createdOrderRequestId ? { orderId: String(createdOrderRequestId) } : {}),
-          },
-        });
-        return;
-      } catch (err: any) {
+    const isLocked = Boolean(design.locked || design.printerId || design.openForCustomization === false);
+    if (isLocked) {
+      if (!design.printerId) {
         showAlert({
           type: 'error',
-          title: 'Order Failed',
-          message: err?.response?.data?.responseMessage || err?.message || 'Unable to send print order.',
+          title: 'Printer Unavailable',
+          message: 'This product is locked, but no printer is attached to it yet.',
         });
         return;
-      } finally {
-        setAddingToCart(false);
+      }
+      if (pendingPrintCartItems.length > 0) {
+        try {
+          setAddingToCart(true);
+          const payload = pendingPrintCartItems.map((item) => ({
+            designId: Number(item.designId),
+            colour: item.colour || '',
+            quantity: Number(item.quantity) || 1,
+            size: item.size || '',
+            mockItemId: Number(item.mockId),
+            customDesign: false,
+            sourceOfItem: result.hasOwnItem ? 'From Customer' : 'From Printer',
+            estimatedAmount: Number(item.price || 0) * (Number(item.quantity) || 1),
+            dateOfDelivery: result.dateOfDelivery || '',
+            deliveryAddress: {
+              name: result.deliveryAddress.name,
+              address: result.deliveryAddress.name,
+              latitude: result.deliveryAddress.latitude,
+              longitude: result.deliveryAddress.longitude,
+              country: 'Nigeria',
+            },
+            printerId: Number(design.printerId),
+          }));
+          const res = await ApiService.createPrintOrders(payload);
+          const responseBody: any[] = res?.responseBody ?? res ?? [];
+          const firstOrder = Array.isArray(responseBody) ? responseBody[0] : responseBody;
+          const conversationId = firstOrder?.conversationId;
+          const createdOrderRequestId = firstOrder?.id;
+          onClose();
+          router.push({
+            pathname: '/(tabs)/chat',
+            params: {
+              ...(conversationId ? { conversationId: String(conversationId) } : {}),
+              participantId: String(design.printerId),
+              participantName: design.printerName || 'Assigned Printer',
+              participantRole: 'Printers',
+              ...(createdOrderRequestId ? { orderId: String(createdOrderRequestId) } : {}),
+            },
+          });
+          return;
+        } catch (err: any) {
+          showAlert({
+            type: 'error',
+            title: 'Order Failed',
+            message: err?.response?.data?.responseMessage || err?.message || 'Unable to send print order.',
+          });
+          return;
+        } finally {
+          setAddingToCart(false);
+        }
       }
     }
     onClose();
@@ -439,6 +462,7 @@ function ProductDetailScreen({
                     style={{ width: "100%", height: "100%" }}
                     contentFit="cover"
                     cachePolicy="memory-disk"
+                    priority="high"
                     transition={120}
                   />
                 ) : (
@@ -492,7 +516,12 @@ function ProductDetailScreen({
               <View className="mt-3 flex-row items-center">
                 <View className="mr-2 h-7 w-7 overflow-hidden rounded-full bg-[#E5E5EA] dark:bg-[#2C2C2E]">
                   {design.profile?.profilePicturePath ? (
-                    <Image source={{ uri: design.profile.profilePicturePath }} className="h-full w-full" />
+                    <Image
+                      source={{ uri: design.profile.profilePicturePath }}
+                      style={{ width: '100%', height: '100%' }}
+                      contentFit="cover"
+                      cachePolicy="memory-disk"
+                    />
                   ) : (
                     <View className="flex-1 items-center justify-center bg-[#3E2F8A]">
                       <Text className="text-[11px] font-bold text-white">{artistName?.charAt(0)?.toUpperCase()}</Text>
@@ -562,6 +591,7 @@ function ProductDetailScreen({
                         style={{ width: '100%', height: '100%' }}
                         contentFit="cover"
                         cachePolicy="memory-disk"
+                        priority="high"
                         transition={120}
                       />
                     ) : (
@@ -592,22 +622,20 @@ function ProductDetailScreen({
             )}
 
             {/* Size Selection */}
-            {!!mockSizes.length && (
-              <View className="mb-8">
-                <Text className="mb-4 text-[16px] font-bold text-[#1C1C1E] dark:text-white">Size</Text>
-                <View className="flex-row flex-wrap gap-3">
-                  {mockSizes.map((size) => (
-                    <TouchableOpacity
-                      key={size}
-                      onPress={() => setSelectedSize(size)}
-                      className={`min-w-[60px] items-center rounded-xl border-2 px-4 py-3 ${selectedSize === size ? 'border-[#3E2F8A] bg-[#3E2F8A]' : 'border-[#E5E5EA] bg-transparent dark:border-[#3A3A3C]'}`}
-                    >
-                      <Text className={`text-[15px] font-bold ${selectedSize === size ? 'text-white' : 'text-[#1C1C1E] dark:text-white'}`}>{size}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+            <View className="mb-8">
+              <Text className="mb-4 text-[16px] font-bold text-[#1C1C1E] dark:text-white">Size</Text>
+              <View className="flex-row flex-wrap gap-3">
+                {(mockSizes.length ? mockSizes : STANDARD_SIZES).map((size) => (
+                  <TouchableOpacity
+                    key={size}
+                    onPress={() => setSelectedSize(size)}
+                    className={`min-w-[60px] items-center rounded-xl border-2 px-4 py-3 ${selectedSize === size ? 'border-[#3E2F8A] bg-[#3E2F8A]' : 'border-[#E5E5EA] bg-transparent dark:border-[#3A3A3C]'}`}
+                  >
+                    <Text className={`text-[15px] font-bold ${selectedSize === size ? 'text-white' : 'text-[#1C1C1E] dark:text-white'}`}>{size}</Text>
+                  </TouchableOpacity>
+                ))}
               </View>
-            )}
+            </View>
 
             {/* Quantity Selector */}
             <View className="mb-10 flex-row items-center justify-between">
@@ -678,6 +706,7 @@ function ProductDetailScreen({
 
       <ShareSheet visible={showShare} design={design} onClose={() => setShowShare(false)} />
       <PrintPreferencesModal visible={showPrintModal} onClose={() => setShowPrintModal(false)} onContinue={handlePrintPreferencesContinue} />
+      {alertElement}
     </View>
   );
 }
@@ -709,6 +738,13 @@ export default function ProductsScreen() {
         const res = await ApiService.fetchDesignById(Number(designId));
         const normalized = normalizeDesign(res?.responseBody || res);
         setSelectedDesign(normalized);
+        const singleUrls = [
+          normalized.imagePath,
+          ...normalized.mocks.map((m) => m.imagePath),
+        ].filter((u): u is string => Boolean(u && u.startsWith('http')));
+        if (singleUrls.length > 0) {
+          Image.prefetch(Array.from(new Set(singleUrls)), 'memory-disk').catch(() => {});
+        }
         return;
       }
 
@@ -730,6 +766,13 @@ export default function ProductsScreen() {
       else if (nextFilters.sortBy === 'High Price') list = list.sort((a, b) => getLowestPrice(b) - getLowestPrice(a));
 
       setProducts(list);
+      const listUrls = list
+        .slice(0, 30)
+        .flatMap((d) => [d.imagePath, ...d.mocks.slice(0, 2).map((m) => m.imagePath)])
+        .filter((u): u is string => Boolean(u && u.startsWith('http')));
+      if (listUrls.length > 0) {
+        Image.prefetch(Array.from(new Set(listUrls)), 'memory-disk').catch(() => {});
+      }
     } catch (err: any) {
       setError(err?.response?.data?.message || 'Unable to load catalog right now.');
     } finally {

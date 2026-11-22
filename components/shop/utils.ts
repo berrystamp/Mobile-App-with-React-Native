@@ -75,21 +75,35 @@ export async function fetchShopData(
   // Use the resolved profileId for collections (owner case had undefined here before)
   const collectionsId = targetProfileId ?? profileId;
 
+  const resolvedProfileType = (
+    String(
+      roleProfile?.profileType ||
+        merged.role ||
+        myProfileResponse?.responseBody?.profileType ||
+        (!targetProfileId ? activeRole : ""),
+    ).toUpperCase() || "DESIGNER"
+  ) as "CUSTOMER" | "DESIGNER" | "PRINTER";
+
+  const isPrinterShop = resolvedProfileType === "PRINTER";
   const currentUser = (await ApiService.getCurrentUser()) as User | null;
   const isOwnerDesigner = !targetProfileId && activeRole === "DESIGNER";
   const [designsResponse, collectionsResponse, paymentResponse] =
     await Promise.all([
-      isOwnerDesigner
-        ? ApiService.getDesignerDesigns(0, 40).catch(() =>
-            ApiService.getDesigns({ page: 0, size: 40, designer: profileId || undefined }),
-          )
-        : ApiService.getDesigns({ page: 0, size: 40, designer: profileId || undefined }),
-      (targetProfileId
-        ? ApiService.getCollections(targetProfileId, 0, 40)
-        : ApiService.getMyCollections(0, 40)
-      ).catch(() => ({
-        content: [],
-      })),
+      isPrinterShop
+        ? Promise.resolve([])
+        : isOwnerDesigner
+          ? ApiService.getDesignerDesigns(0, 40).catch(() =>
+              ApiService.getDesigns({ page: 0, size: 40, designer: profileId || undefined }),
+            )
+          : ApiService.getDesigns({ page: 0, size: 40, designer: profileId || undefined }),
+      isPrinterShop
+        ? Promise.resolve({ content: [] })
+        : (targetProfileId
+            ? ApiService.getCollections(targetProfileId, 0, 40)
+            : ApiService.getMyCollections(0, 40)
+          ).catch(() => ({
+            content: [],
+          })),
       ApiService.getPaymentDetails().catch(() => null),
     ]);
 
@@ -166,14 +180,25 @@ export async function fetchShopData(
     merged.fullName ||
     "My Shop";
 
+  const resolvedLocation = String(
+    merged.address ||
+      [merged.city, merged.state].filter(Boolean).join(", ") ||
+      roleProfile?.location ||
+      roleProfile?.address?.address ||
+      [roleProfile?.address?.city, roleProfile?.address?.state].filter(Boolean).join(", ") ||
+      "",
+  ).trim();
+
   return {
     profile: {
       profileId,
+      profileType: resolvedProfileType,
       fullName: shopName,
       username: merged.username || merged.fullName || "shop",
 
       // Pull bio and categories from the merged root, fallback to roleProfile
       bio: merged.bio || roleProfile?.bio || "",
+      location: resolvedLocation,
       categories: Array.isArray(merged.categories) && merged.categories.length > 0
         ? merged.categories
         : Array.isArray(roleProfile?.categories)

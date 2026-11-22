@@ -111,7 +111,7 @@ function getStatusMeta(status: string, theme: any) {
 export default function OrderDetailScreen() {
   const isDark = useColorScheme() === 'dark';
   const { id } = useLocalSearchParams<{ id: string }>();
-  const role = useAuthStore((state) => state.role);
+  const role = toProfileType(useAuthStore((state) => state.role));
   const [order, setOrder] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [timeLeft, setTimeLeft] = useState<string[]>(['00', '00', '00', '00']);
@@ -729,14 +729,17 @@ export default function OrderDetailScreen() {
               </Text>
             </View>
 
-            {toProfileType(role) !== 'DESIGNER' &&
-              (String(order?.orderRequest?.orderType || order?.orderType || '')
-                .toUpperCase()
-                .includes('PRINT') ||
-                Boolean(order?.orderRequest?.printRequest) ||
-                toProfileType(role) === 'PRINTER' ||
-                Number(order?.printingAmount || 0) > 0 ||
-                Number(order?.deliveryAmount || 0) > 0) && (
+            {(String(order?.orderRequest?.orderType || order?.orderType || '')
+              .toUpperCase()
+              .includes('PRINT') ||
+              Boolean(
+                order?.orderRequest?.printRequest?.id ||
+                  order?.orderRequest?.printRequest?.mockName ||
+                  order?.orderRequest?.providerProfile?.profileType === 'PRINTER',
+              ) ||
+              toProfileType(role) === 'PRINTER' ||
+              Number(order?.printingAmount || 0) > 0 ||
+              Number(order?.deliveryAmount ?? order?.deliveryFee ?? 0) > 0) && (
                 <>
                   <View style={detailRowStyle}>
                     <Text style={{ fontSize: 12, fontWeight: '500', color: theme.subtext, flex: 0.42 }}>
@@ -768,7 +771,7 @@ export default function OrderDetailScreen() {
                         textAlign: 'right',
                       }}
                     >
-                      {formatNaira(order.deliveryAmount || 0)}
+                      {formatNaira(order.deliveryAmount ?? order.deliveryFee ?? 0)}
                     </Text>
                   </View>
 

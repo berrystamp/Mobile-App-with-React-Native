@@ -4,6 +4,7 @@ import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { SectionHeader } from "@/components/SectionHeader";
 import { useHomeData } from "@/hooks/useHomeData";
 import { formatNaira } from "@/lib/currency";
+import { isInfluencerDesign } from "@/lib/designs";
 import { addRecentDesign } from "@/lib/localStorage";
 import { normalizeManageOrderListResponse } from "@/lib/orders";
 import { mergeUserAndProfile, normalizeProfileResponse } from "@/lib/profile";
@@ -64,11 +65,7 @@ function HomeDesignCard({
       design.printerId ||
       design.openForCustomization === false,
   );
-  const isInfluencer = Boolean(
-    design.influencerMerch ||
-      design.influencerDesign ||
-      design.autographMessage,
-  );
+  const isInfluencer = isInfluencerDesign(design);
 
   return (
     <TouchableOpacity
@@ -261,6 +258,7 @@ export default function HomeScreen() {
           ApiService.getWallet().catch(() => null),
           ApiService.getWalletHistory().catch(() => null),
         ]);
+      if (toProfileType(useAuthStore.getState().role) !== activeRole) return;
       const current = (await ApiService.getCurrentUser()) as User | null;
       const normalized = normalizeProfileResponse(profileResponse);
 
@@ -301,6 +299,7 @@ export default function HomeScreen() {
           ApiService.getActivityBarGraph(barInterval).catch(() => null),
           ApiService.getManageOrders({ profileType: activeRole, page: 0, size: 100 }).catch(() => null),
         ]);
+        if (toProfileType(useAuthStore.getState().role) !== activeRole) return;
         setProfileInsight(insightRes?.responseBody || insightRes || null);
         if (ordersRes) {
           const filteredOrders = normalizeManageOrderListResponse(ordersRes, activeRole, Number(profileId));

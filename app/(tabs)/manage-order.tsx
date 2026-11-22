@@ -119,6 +119,7 @@ export default function ManageOrderScreen() {
         ApiService.getMyProfile().catch(() => null),
         ApiService.getManageOrders({ profileType: activeRole }),
       ]);
+      if (toProfileType(useAuthStore.getState().role) !== activeRole) return;
       const rawUser = profileRes?.responseBody || profileRes || {};
       const roleProfile = getAccountProfile(rawUser, activeRole);
       const activeProfileId = roleProfile?.id ? Number(roleProfile.id) : undefined;
