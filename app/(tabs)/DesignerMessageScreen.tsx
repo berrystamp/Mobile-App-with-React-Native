@@ -81,9 +81,9 @@ export default function DesignerMessageScreen({ navigation, route }: Props) {
         <View key={msg.id} style={styles.offerCard}>
           <Text style={styles.offerCardLabel}>Custom order offer</Text>
           <Image
-            source={{ uri: MOCK_OFFER.designImage }}
+            source={MOCK_OFFER.designImage ? { uri: MOCK_OFFER.designImage } : require("@/assets/logo01.png")}
             style={styles.offerImg}
-            resizeMode="cover"
+            resizeMode={MOCK_OFFER.designImage ? "cover" : "contain"}
           />
           <Text style={styles.offerTitle}>{MOCK_OFFER.title}</Text>
           <TouchableOpacity

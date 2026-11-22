@@ -1,5 +1,198 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuthStore } from '@/store/authStore';
 import type { Message } from '@/types';
+
+const READ_CONVERSATIONS_STORAGE_KEY = 'berrystamp_read_conversations_v1';
+const CONVERSATIONS_CACHE_PREFIX = 'berrystamp_conversations_cache_v1_';
+const MESSAGES_CACHE_PREFIX = 'berrystamp_messages_cache_v1_';
+const ORDER_DETAIL_CACHE_KEY = 'berrystamp_order_detail_cache_v1';
+
+const localReadMap = new Map<string, { timestampMs: number; lastMessageId?: string }>();
+const memoryConversationsCache = new Map<string, ConversationSummaryDto[]>();
+const memoryMessagesCache = new Map<string, (ChatMessageDto & { imageUrl?: string })[]>();
+const memoryOrderDetailCache = new Map<string, any>();
+let memoryMyProfileIdByRole: Record<string, number> = {};
+let readMapHydrated = false;
+let orderCacheHydrated = false;
+
+const ensureOrderCacheHydrated = () => {
+  if (orderCacheHydrated) return;
+  orderCacheHydrated = true;
+  AsyncStorage.getItem(ORDER_DETAIL_CACHE_KEY)
+    .then((raw) => {
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        Object.entries(parsed).forEach(([k, v]) => {
+          if (v) memoryOrderDetailCache.set(k, v);
+        });
+      }
+    })
+    .catch(() => {});
+};
+
+export function getMemoryConversations(role?: string): ConversationSummaryDto[] | null {
+  const key = (role || useAuthStore.getState().role || 'CUSTOMER').toUpperCase();
+  return memoryConversationsCache.get(key) || null;
+}
+
+export async function getCachedConversations(role?: string): Promise<ConversationSummaryDto[] | null> {
+  const key = (role || useAuthStore.getState().role || 'CUSTOMER').toUpperCase();
+  const inMem = memoryConversationsCache.get(key);
+  if (inMem && inMem.length > 0) return inMem;
+  try {
+    const raw = await AsyncStorage.getItem(`${CONVERSATIONS_CACHE_PREFIX}${key}`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      memoryConversationsCache.set(key, parsed);
+      return parsed;
+    }
+  } catch {
+    // ignore cache read errors
+  }
+  return null;
+}
+
+export function setCachedConversations(threads: ConversationSummaryDto[], role?: string) {
+  const key = (role || useAuthStore.getState().role || 'CUSTOMER').toUpperCase();
+  memoryConversationsCache.set(key, threads);
+  AsyncStorage.setItem(`${CONVERSATIONS_CACHE_PREFIX}${key}`, JSON.stringify(threads)).catch(() => {});
+}
+
+export function getMemoryConversationMessages(
+  conversationId?: string | number,
+): (ChatMessageDto & { imageUrl?: string })[] | null {
+  if (!conversationId) return null;
+  return memoryMessagesCache.get(String(conversationId)) || null;
+}
+
+export async function getCachedConversationMessages(
+  conversationId?: string | number,
+): Promise<(ChatMessageDto & { imageUrl?: string })[] | null> {
+  if (!conversationId) return null;
+  const key = String(conversationId);
+  const inMem = memoryMessagesCache.get(key);
+  if (inMem && inMem.length > 0) return inMem;
+  try {
+    const raw = await AsyncStorage.getItem(`${MESSAGES_CACHE_PREFIX}${key}`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      memoryMessagesCache.set(key, parsed);
+      return parsed;
+    }
+  } catch {
+    // ignore cache read errors
+  }
+  return null;
+}
+
+export function setCachedConversationMessages(
+  conversationId: string | number,
+  messages: (ChatMessageDto & { imageUrl?: string })[],
+) {
+  if (!conversationId) return;
+  const key = String(conversationId);
+  memoryMessagesCache.set(key, messages);
+  AsyncStorage.setItem(`${MESSAGES_CACHE_PREFIX}${key}`, JSON.stringify(messages.slice(-100))).catch(() => {});
+}
+
+export function getCachedOrderDetail(cacheKey: string): any | null {
+  ensureOrderCacheHydrated();
+  return memoryOrderDetailCache.get(cacheKey) || null;
+}
+
+export function setCachedOrderDetail(cacheKey: string, detail: any) {
+  if (!cacheKey || !detail) return;
+  ensureOrderDetailSaved(cacheKey, detail);
+}
+
+function ensureOrderDetailSaved(cacheKey: string, detail: any) {
+  ensureOrderCacheHydrated();
+  memoryOrderDetailCache.set(cacheKey, detail);
+  const serialized: Record<string, any> = {};
+  memoryOrderDetailCache.forEach((v, k) => {
+    serialized[k] = v;
+  });
+  AsyncStorage.setItem(ORDER_DETAIL_CACHE_KEY, JSON.stringify(serialized)).catch(() => {});
+}
+
+export function getMemoryMyProfileId(role?: string): number | undefined {
+  const key = (role || useAuthStore.getState().role || 'CUSTOMER').toUpperCase();
+  return memoryMyProfileIdByRole[key];
+}
+
+export function setMemoryMyProfileId(profileId: number, role?: string) {
+  if (!profileId || !Number.isFinite(profileId)) return;
+  const key = (role || useAuthStore.getState().role || 'CUSTOMER').toUpperCase();
+  memoryMyProfileIdByRole[key] = Number(profileId);
+}
+
+const ensureReadMapHydrated = () => {
+  if (readMapHydrated) return;
+  readMapHydrated = true;
+  AsyncStorage.getItem(READ_CONVERSATIONS_STORAGE_KEY)
+    .then((raw) => {
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        Object.entries(parsed).forEach(([key, val]: [string, any]) => {
+          if (val && typeof val === 'object') {
+            localReadMap.set(key, {
+              timestampMs: Number(val.timestampMs || 0),
+              lastMessageId: val.lastMessageId ? String(val.lastMessageId) : undefined,
+            });
+          }
+        });
+      }
+    })
+    .catch(() => {});
+};
+
+ensureReadMapHydrated();
+
+export function markConversationReadLocally(
+  conversationId?: string | number,
+  lastMessageId?: string | number,
+  lastMessageTimestamp?: string,
+) {
+  if (conversationId === undefined || conversationId === null) return;
+  const key = String(conversationId);
+  const msgTime = lastMessageTimestamp ? new Date(lastMessageTimestamp).getTime() : 0;
+  const timestampMs = Math.max(Date.now(), Number.isFinite(msgTime) ? msgTime : 0);
+  const existing = localReadMap.get(key);
+  localReadMap.set(key, {
+    timestampMs: Math.max(timestampMs, existing?.timestampMs || 0),
+    lastMessageId: lastMessageId ? String(lastMessageId) : existing?.lastMessageId,
+  });
+
+  const serialized: Record<string, { timestampMs: number; lastMessageId?: string }> = {};
+  localReadMap.forEach((value, k) => {
+    serialized[k] = value;
+  });
+  AsyncStorage.setItem(READ_CONVERSATIONS_STORAGE_KEY, JSON.stringify(serialized)).catch(() => {});
+}
+
+export function isConversationReadLocally(
+  conversationId?: string | number,
+  lastMessageId?: string | number,
+  lastMessageTimestamp?: string,
+): boolean {
+  if (conversationId === undefined || conversationId === null) return false;
+  const entry = localReadMap.get(String(conversationId));
+  if (!entry) return false;
+  if (lastMessageId && entry.lastMessageId && String(lastMessageId) === String(entry.lastMessageId)) {
+    return true;
+  }
+  if (lastMessageTimestamp) {
+    const msgTime = new Date(lastMessageTimestamp).getTime();
+    if (Number.isFinite(msgTime) && entry.timestampMs >= msgTime) {
+      return true;
+    }
+  }
+  return Boolean(!lastMessageTimestamp && !lastMessageId && entry.timestampMs > 0);
+}
 
 export interface BackendMediaAsset {
   id?: number;
@@ -286,9 +479,28 @@ const pickConversationParticipant = (participants: BackendParticipantProfile[] =
 };
 
 export function normalizeConversationsResponse(response: any, myProfileId?: number): ConversationSummaryDto[] {
-  const list = unwrapList(response).filter((item: BackendConversation) =>
-    !myProfileId || !item.participants?.length ||
-    item.participants.some((participant) => Number(participant.id) === myProfileId));
+  ensureReadMapHydrated();
+  const activeProfileType = getCurrentProfileType();
+  const list = unwrapList(response).filter((item: BackendConversation) => {
+    const participants = Array.isArray(item?.participants) ? item.participants : [];
+    if (!participants.length) return true;
+
+    const hasProfileTypes = participants.some((p) => Boolean(p?.profileType));
+    if (myProfileId && hasProfileTypes) {
+      return participants.some(
+        (p) =>
+          Number(p.id) === Number(myProfileId) &&
+          (!p.profileType || String(p.profileType).toUpperCase() === activeProfileType),
+      );
+    }
+    if (myProfileId) {
+      return participants.some((p) => Number(p.id) === Number(myProfileId));
+    }
+    if (hasProfileTypes) {
+      return participants.some((p) => String(p.profileType || '').toUpperCase() === activeProfileType);
+    }
+    return true;
+  });
 
   return list.map((item: BackendConversation | any, index: number) => {
     const participants = Array.isArray(item?.participants) ? item.participants : [];
@@ -301,9 +513,22 @@ export function normalizeConversationsResponse(response: any, myProfileId?: numb
       item?.lastMessage?.timestamp;
     const participantName = resolveProfileName(participant);
     const avatarImageUrl = resolveProfileImage(participant);
+    const convId = String(item?.id || item?.conversationId || participant?.id || index);
+    const lastMsgId = getBackendMessageId(item?.lastMessage);
+    const locallyRead = isConversationReadLocally(convId, lastMsgId, lastMessageTimestamp);
+    const lastMsgFromMe =
+      myProfileId && item?.lastMessage?.sender?.id
+        ? Number(item.lastMessage.sender.id) === Number(myProfileId)
+        : item?.lastMessage?.sender?.profileType
+          ? String(item.lastMessage.sender.profileType).toUpperCase() === activeProfileType
+          : false;
+    const rawUnreadCount = Number(item?.unreadMessageCount || 0);
+    const rawHasUnread = Boolean(item?.hasUnreadMessages || rawUnreadCount > 0) && !item?.lastMessage?.read;
+    const isUnread = !locallyRead && !lastMsgFromMe && rawHasUnread;
+    const unreadCount = isUnread ? Math.max(1, rawUnreadCount) : 0;
 
     return {
-      id: String(item?.id || item?.conversationId || participant?.id || index),
+      id: convId,
       source: 'backend',
       name: participantName || item?.conversationName || 'Unknown user',
       role: normalizeRole(participant?.profileType),
@@ -314,14 +539,14 @@ export function normalizeConversationsResponse(response: any, myProfileId?: numb
       avatarThumbnailUrl: resolveProfileThumbnailImage(participant) || undefined,
       avatarInitials: initialsFromName(participantName),
       lastMessage: resolveMessagePreview(item?.lastMessage),
-      unreadCount: Number(item?.unreadMessageCount || 0),
+      unreadCount,
       updatedAtLabel: relativeTime(lastMessageTimestamp),
       timestamp: lastMessageTimestamp,
       online: participant?.status === 'ACTIVE',
       participantId: participant?.id,
       conversationName: item?.conversationName,
       conversationType: item?.type,
-      hasUnreadMessages: Boolean(item?.hasUnreadMessages),
+      hasUnreadMessages: isUnread,
       participantProfileType: participant?.profileType,
       participantStatus: participant?.status,
       participantBio: participant?.bio,
@@ -357,6 +582,7 @@ export function getBackendMessageId(message?: BackendConversationMessage): strin
 }
 
 export function normalizeMessagesResponse(response: any, myUserId?: number): ChatMessageDto[] {
+  ensureReadMapHydrated();
   const list = unwrapList(response);
 
   return list.map((item: BackendConversationMessage | Message | any, index: number) => {
@@ -366,15 +592,18 @@ export function normalizeMessagesResponse(response: any, myUserId?: number): Cha
     const content = item?.content || item?.text || '';
     const caption = item?.caption || '';
     const createdAt = item?.createdAt || item?.timestamp || item?.readDateTime;
+    const msgId = getBackendMessageId(item) ?? String(index);
+    const locallyRead = isConversationReadLocally(item?.conversationId, msgId, createdAt);
+    const isRead = Boolean(item?.read || item?.readDateTime || locallyRead);
 
     return {
-      id: getBackendMessageId(item) ?? String(index),
+      id: msgId,
       type: 'text',
       author,
       text: content,
       caption,
       createdAtLabel: formatMessageTime(createdAt),
-      status: item?.read ? 'seen' : 'sent',
+      status: isRead ? 'seen' : 'sent',
       sender: sender,
       receiver: item?.receiver,
       readDateTime: item?.readDateTime,

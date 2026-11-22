@@ -7,7 +7,7 @@ import React, { useMemo } from 'react';
 import { View } from 'react-native';
 
 const HIDE_HEADER_ROUTES = [
-  '/chat', '/checkout', '/Search', '/Filter',
+  '/cart', '/chat', '/checkout', '/Search', '/Filter',
   '/filter-product-category', '/filter-design-category',
   '/select-printer', '/select-designer',
   '/products', '/my-shop', '/custom-design',

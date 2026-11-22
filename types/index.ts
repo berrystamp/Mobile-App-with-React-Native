@@ -70,6 +70,7 @@ export interface Mock {
   price: number;
   available: boolean;
   availableQty?: number;
+  limitedStatus?: boolean;
   colours?: string[];
   sizes?: string[];
 }
@@ -102,9 +103,14 @@ export interface Design {
   designerId?: number;
   designerName?: string;
   designerShopName?: string;
+  printerId?: number;
+  printerName?: string;
+  openForCustomization?: boolean;
+  locked?: boolean;
   // Influencer Merch: fixed pricing, direct checkout, an assigned printer,
   // and instant purchase are all bundled together (no negotiation).
   influencerMerch?: boolean;
+  influencerDesign?: boolean;
   autographMessage?: string;
 }
 
@@ -237,8 +243,11 @@ export interface ManageOrderItem {
   status: ManageOrderStatus;
   description: string;
   designer: string;
+  orderType?: string;
+  providerId?: number;
   providerName?: string;
   providerRole?: string;
+  customerId?: number;
   customerName?: string;
   updatedAt: string;
   createdAt: string;

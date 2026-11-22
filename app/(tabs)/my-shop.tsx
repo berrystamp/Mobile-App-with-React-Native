@@ -1,11 +1,12 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   FlatList,
   Image,
   Modal,
+  Pressable,
   RefreshControl,
   ScrollView,
   Share,
@@ -105,9 +106,21 @@ function DesignCard({ item, theme, readOnly, username, onMenu, onPress }: { item
             <Ionicons name="image-outline" size={28} color={theme.muted} />
           </View>
         )}
+        {item.locked && (
+          <View style={{ position: 'absolute', top: 6, left: 6, width: 26, height: 26, borderRadius: 13, backgroundColor: 'rgba(255,255,255,0.88)', alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name="lock-closed" size={13} color={theme.primary} />
+          </View>
+        )}
         {item.influencerMerch ? <InfluencerBadge /> : null}
         {!readOnly && (
-          <TouchableOpacity onPress={onMenu} style={{ position: 'absolute', top: 6, right: 6, width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.85)', alignItems: 'center', justifyContent: 'center' }}>
+          <TouchableOpacity
+            onPress={(e) => {
+              e.stopPropagation?.();
+              onMenu();
+            }}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            style={{ position: 'absolute', top: 6, right: 6, width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.85)', alignItems: 'center', justifyContent: 'center' }}
+          >
             <Ionicons name="ellipsis-horizontal" size={16} color="#444" />
           </TouchableOpacity>
         )}
@@ -115,7 +128,15 @@ function DesignCard({ item, theme, readOnly, username, onMenu, onPress }: { item
       <View style={{ padding: 8 }}>
         <Text style={{ fontSize: 14, fontWeight: '600', color: theme.text }} numberOfLines={1}>{item.title || 'Untitled'}</Text>
         <Text style={{ fontSize: 12, color: theme.muted, marginTop: 2 }} numberOfLines={1}>By {username}</Text>
-        {item.price ? <Text style={{ fontSize: 13, fontWeight: '700', color: theme.primary, marginTop: 4 }}>{formatNaira(item.price)}</Text> : null}
+        {item.price ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: theme.primary }}>{formatNaira(item.price)}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              {item.influencerMerch ? <MaterialCommunityIcons name="crown" size={13} color="#F9A70D" /> : null}
+              {item.locked ? <Ionicons name="lock-closed" size={13} color={theme.primary} /> : null}
+            </View>
+          </View>
+        ) : null}
       </View>
     </TouchableOpacity>
   );
@@ -132,7 +153,14 @@ function CollectionCard({ item, theme, onMenu, onPress, readOnly }: { item: Coll
           <Ionicons name="albums-outline" size={28} color={theme.muted} />
         )}
         {!readOnly && (
-          <TouchableOpacity onPress={onMenu} style={{ position: 'absolute', top: 6, right: 6, width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.85)', alignItems: 'center', justifyContent: 'center' }}>
+          <TouchableOpacity
+            onPress={(e) => {
+              e.stopPropagation?.();
+              onMenu();
+            }}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            style={{ position: 'absolute', top: 6, right: 6, width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.85)', alignItems: 'center', justifyContent: 'center' }}
+          >
             <Ionicons name="ellipsis-horizontal" size={16} color="#444" />
           </TouchableOpacity>
         )}
@@ -149,15 +177,15 @@ function CollectionCard({ item, theme, onMenu, onPress, readOnly }: { item: Coll
 function QuickActionsSheet({ visible, theme, onClose, onCreateCollection, onUploadDesign }: { visible: boolean; theme: ReturnType<typeof useTheme>; onClose: () => void; onCreateCollection: () => void; onUploadDesign: () => void }) {
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <TouchableOpacity style={S.backdrop} activeOpacity={1} onPress={onClose}>
-        <View style={[S.sheet, { backgroundColor: theme.surface }]}>
+      <Pressable style={S.backdrop} onPress={onClose}>
+        <Pressable style={[S.sheet, { backgroundColor: theme.surface }]} onPress={(e) => e.stopPropagation()}>
           <SheetHandle />
           <Text style={[S.sheetTitle, { color: theme.text }]}>Quick Actions</Text>
           <SheetRow color={theme.text} label="Create Collection" icon="albums-outline" onPress={() => { onClose(); onCreateCollection(); }} />
           {/* <SheetRow color={theme.text} label="Upload Design" icon="cloud-upload-outline" onPress={() => { onClose(); onUploadDesign(); }} /> */}
           <View style={{ height: 10 }} />
-        </View>
-      </TouchableOpacity>
+        </Pressable>
+      </Pressable>
     </Modal>
   );
 }
@@ -170,8 +198,8 @@ function DesignMenuSheet({ visible, theme, onClose, onUpdate, onAddToCollection,
   const sharing = useShareAfterDismiss(visible);
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} onDismiss={sharing.onDismiss}>
-      <TouchableOpacity style={S.backdrop} activeOpacity={1} onPress={onClose}>
-        <View style={[S.sheet, { backgroundColor: theme.surface }]}>
+      <Pressable style={S.backdrop} onPress={onClose}>
+        <Pressable style={[S.sheet, { backgroundColor: theme.surface }]} onPress={(e) => e.stopPropagation()}>
           <SheetHandle />
           {/* <SheetRow color={theme.text} label="Update Design" icon="create-outline" onPress={() => { onClose(); onUpdate(); }} /> */}
           <SheetRow color={theme.text} label="Add to collection" icon="add-circle-outline" onPress={() => { onClose(); onAddToCollection(); }} />
@@ -179,8 +207,8 @@ function DesignMenuSheet({ visible, theme, onClose, onUpdate, onAddToCollection,
           <SheetRow color={theme.text} label="Share design" icon="share-social-outline" onPress={() => sharing.share(onShare, onClose)} />
           <SheetRow label="Delete Design" icon="trash-outline" color={theme.red} onPress={() => { onClose(); onDelete(); }} />
           <View style={{ height: 10 }} />
-        </View>
-      </TouchableOpacity>
+        </Pressable>
+      </Pressable>
     </Modal>
   );
 }
@@ -194,14 +222,14 @@ function CollectionMenuSheet({ visible, theme, onClose, onUpdate, onShare, onDel
   const sharing = useShareAfterDismiss(visible);
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} onDismiss={sharing.onDismiss}>
-      <TouchableOpacity style={S.backdrop} activeOpacity={1} onPress={onClose}>
-        <View style={[S.sheet, { backgroundColor: theme.surface, paddingBottom: Math.max(insets.bottom, 12) }]}>
+      <Pressable style={S.backdrop} onPress={onClose}>
+        <Pressable style={[S.sheet, { backgroundColor: theme.surface, paddingBottom: Math.max(insets.bottom, 12) }]} onPress={(e) => e.stopPropagation()}>
           <SheetHandle />
           <SheetRow color={theme.text} label="Update Collection" icon="create-outline" onPress={() => { onClose(); onUpdate(); }} />
           <SheetRow color={theme.text} label="Share collection" icon="share-social-outline" onPress={() => sharing.share(onShare, onClose)} />
           <SheetRow label="Delete Collection" icon="trash-outline" color={theme.red} onPress={() => { onClose(); onDelete(); }} />
-        </View>
-      </TouchableOpacity>
+        </Pressable>
+      </Pressable>
     </Modal>
   );
 }
@@ -266,17 +294,18 @@ function PaymentPromptModal({ visible, theme, onClose, onAddNow }: { visible: bo
 
 // ─── PostInsightSheet ─────────────────────────────────────────────────────────
 function PostInsightSheet({ visible, theme, insight, loading, onClose }: { visible: boolean; theme: ReturnType<typeof useTheme>; insight: any; loading: boolean; onClose: () => void }) {
-  const body = insight?.responseBody?.insight || insight?.responseBody?.data || insight?.responseBody || insight?.data || insight?.insight || insight || {};
+  const rawBody = insight?.responseBody?.insight || insight?.responseBody?.data || insight?.responseBody || insight?.data || insight?.insight || insight || {};
+  const body = rawBody?.metrics || rawBody?.analytics || rawBody?.postInsight || rawBody?.insight || rawBody;
   const numberValue = (...values: any[]) => {
     const value = values.find((item) => item !== undefined && item !== null && item !== '');
     if (value === undefined) return null;
     const numeric = Number(value);
     return Number.isFinite(numeric) && numeric >= 0 ? numeric : null;
   };
-  const accountReached = numberValue(body?.accountReached, body?.accountsReached, body?.reach, body?.totalAccountsReached);
-  const postClicks = numberValue(body?.postClicks, body?.clicks, body?.profileClicks, body?.totalClicks);
-  const noOfSales = numberValue(body?.sales, body?.noOfSales, body?.numberOfSales, body?.totalSales);
-  const totalImpressions = numberValue(body?.totalImpressions, body?.impressions, body?.views, body?.totalViews);
+  const accountReached = numberValue(body?.accountReached, body?.accountsReached, body?.accounts_reached, body?.reach, body?.totalAccountsReached, body?.totalReach);
+  const postClicks = numberValue(body?.postClicks, body?.clicks, body?.profileClicks, body?.totalClicks, body?.linkClicks);
+  const noOfSales = numberValue(body?.sales, body?.noOfSales, body?.numberOfSales, body?.totalSales, body?.salesCount);
+  const totalImpressions = numberValue(body?.totalImpressions, body?.impressions, body?.views, body?.totalViews, body?.viewCount);
   const followersPct = numberValue(body?.followersReachedPercentage, body?.followersPercentage, body?.followersReachPercentage);
   const nonFollowersPct = numberValue(body?.nonFollowersReachedPercentage, body?.nonFollowersPercentage, body?.nonFollowersReachPercentage);
 
@@ -773,8 +802,19 @@ function MoveToCollectionSheet({ visible, theme, designId, fromCollectionId, onC
             id: item?.id,
             name: item?.name || item?.title || 'Untitled',
             description: item?.description || '',
-            imagePath: toAbsoluteImage(item?.picture || item?.imagePath || item?.coverPath || ''),
-            designCount: Number(item?.designCount || item?.designs?.length || 0),
+            imagePath: toAbsoluteImage(
+              item?.coverImage?.url ||
+                item?.coverImage?.originalUrl ||
+                item?.picture ||
+                item?.imagePath ||
+                item?.coverPath ||
+                '',
+            ),
+            designCount: Number(
+              Array.isArray(item?.designs)
+                ? item.designs.length
+                : item?.designCount || 0,
+            ),
           })));
       })
       .catch(() => {})
@@ -949,8 +989,13 @@ function FollowersScreen({ visible, theme, profileId, currentProfileId, initialT
             contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12 }}
             renderItem={({ item }) => {
               const id = item?.id || item?.profileId;
-              const name = item?.username || item?.fullName || item?.name || 'User';
-              const avatar = toAbsoluteImage(item?.profilePicturePath || item?.avatar || item?.profilePic);
+              const name = item?.userName || item?.username || item?.fullName || item?.name || 'User';
+              const avatar = toAbsoluteImage(
+                item?.profileImage?.url ||
+                  item?.profilePic ||
+                  item?.profilePicturePath ||
+                  item?.avatar,
+              );
 
 
               return (
@@ -979,7 +1024,7 @@ function FollowersScreen({ visible, theme, profileId, currentProfileId, initialT
 }
 
 // ─── CollectionDetailScreen (modal overlay) ───────────────────────────────────
-function CollectionDetailScreen({ visible, theme, collection, username, readOnly, onClose, onRefresh, onShareDesign }: { visible: boolean; theme: ReturnType<typeof useTheme>; collection: CollectionItem | null; username: string; readOnly: boolean; onClose: () => void; onRefresh: () => void; onShareDesign: (design: any) => void }) {
+function CollectionDetailScreen({ visible, theme, collection, username, readOnly, onClose, onRefresh, onShareDesign, onShareCollection }: { visible: boolean; theme: ReturnType<typeof useTheme>; collection: CollectionItem | null; username: string; readOnly: boolean; onClose: () => void; onRefresh: () => void; onShareDesign: (design: any) => void; onShareCollection?: (collection: CollectionItem) => void }) {
   const router = useRouter();
   const [designs, setDesigns] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -1005,11 +1050,14 @@ function CollectionDetailScreen({ visible, theme, collection, username, readOnly
             ? [...d.mocks].sort((a: any, b: any) => Number(a?.id || 0) - Number(b?.id || 0))[0]
             : null;
           const stableImage =
+            d?.imageUrlFront ||
+            d?.coverImage?.url ||
             d?.frontImageUrl ||
             d?.imagePath ||
             d?.imageUrl ||
             d?.coverImageUrl ||
             stableMock?.imageUrl ||
+            stableMock?.image?.url ||
             stableMock?.imagePath ||
             '';
           return {
@@ -1061,9 +1109,20 @@ function CollectionDetailScreen({ visible, theme, collection, username, readOnly
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: theme.background }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 56, paddingBottom: 12 }}>
-          <TouchableOpacity onPress={onClose} style={{ marginRight: 12 }}><Ionicons name="arrow-back" size={22} color={theme.text} /></TouchableOpacity>
-          <Text style={{ fontSize: 18, fontWeight: '700', color: theme.text }}>Collection</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 56, paddingBottom: 12 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <TouchableOpacity onPress={onClose} style={{ marginRight: 12 }}><Ionicons name="arrow-back" size={22} color={theme.text} /></TouchableOpacity>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: theme.text }}>Collection</Text>
+          </View>
+          {onShareCollection && collection ? (
+            <TouchableOpacity
+              onPress={() => onShareCollection(collection)}
+              style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: theme.inputBg, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999 }}
+            >
+              <Ionicons name="share-social-outline" size={16} color={theme.primary} style={{ marginRight: 6 }} />
+              <Text style={{ fontSize: 12, fontWeight: '600', color: theme.primary }}>Share</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
         <ScrollView showsVerticalScrollIndicator={false}>
           {collection.imagePath ? (
@@ -1115,8 +1174,8 @@ function CollectionDetailScreen({ visible, theme, collection, username, readOnly
         {/* Design menu — owner only */}
         {!readOnly && (
           <Modal visible={Boolean(menuDesign)} transparent animationType="slide" onRequestClose={() => setMenuDesign(null)} onDismiss={sharing.onDismiss}>
-            <TouchableOpacity style={S.backdrop} activeOpacity={1} onPress={() => setMenuDesign(null)}>
-              <View style={[S.sheet, { backgroundColor: theme.surface }]}>
+            <Pressable style={S.backdrop} onPress={() => setMenuDesign(null)}>
+              <Pressable style={[S.sheet, { backgroundColor: theme.surface }]} onPress={(e) => e.stopPropagation()}>
                 <SheetHandle />
                 {/* <SheetRow color={theme.text} label="Update Design" icon="create-outline"
                   onPress={() => { const d = menuDesign; setMenuDesign(null); router.push({ pathname: '/upload-design', params: { designId: String(d?.id) } }); }} /> */}
@@ -1129,8 +1188,8 @@ function CollectionDetailScreen({ visible, theme, collection, username, readOnly
                 <SheetRow label="Delete Design" icon="trash-outline" color={theme.red}
                   onPress={() => { setDeleteTarget(menuDesign); setMenuDesign(null); }} />
                 <View style={{ height: 10 }} />
-              </View>
-            </TouchableOpacity>
+              </Pressable>
+            </Pressable>
           </Modal>
         )}
 
@@ -1242,14 +1301,18 @@ export default function MyShopScreen() {
 
   // ── Derived data ──
   const designItems: any[] = useMemo(() =>
-    (shop?.designs || []).map((item: any) => ({
-      id: item.id,
-      title: item.title || item.name || 'Untitled design',
-      imagePath: toAbsoluteImage(item.imagePath || item.frontImageUrl || item.mocks?.[0]?.imagePath),
-      price: item.amount || item.price || 0,
-      type: 'design',
-      influencerMerch: Boolean(item.influencerMerch),
-    })), [shop?.designs]);
+    (shop?.designs || []).map((item: any) => {
+      const isLocked = Boolean(item.locked || item.printerId || item.printer?.id || item.openForCustomization === false);
+      return {
+        id: item.id,
+        title: item.title || item.name || 'Untitled design',
+        imagePath: toAbsoluteImage(item.imagePath || item.frontImageUrl || item.mocks?.[0]?.imagePath),
+        price: item.amount || item.price || 0,
+        type: 'design',
+        locked: isLocked,
+        influencerMerch: Boolean(item.influencerMerch || item.influencerDesign || item.autographMessage),
+      };
+    }), [shop?.designs]);
 
   const collectionItems: CollectionItem[] = useMemo(() =>
     (shop?.collections || []).map((item: any) => ({
@@ -1279,15 +1342,26 @@ export default function MyShopScreen() {
   };
 
   const shareResource = useCallback(async (title: string, type: 'design' | 'collection' | 'profile', id?: string | number) => {
+    let resourceUrl: string;
     try {
       if (id == null || String(id).trim() === '') {
         throw new Error('This item is unavailable. Please refresh and try again.');
       }
-      const resourceUrl = resourceShareUrl(type, id, shop?.profile?.profileId ?? profileId);
+      resourceUrl = resourceShareUrl(type, id, shop?.profile?.profileId ?? profileId);
+    } catch (error: any) {
+      if (error?.message) {
+        Alert.alert('Share failed', error.message);
+      }
+      return;
+    }
+
+    const fullMessage = `${title}\n${resourceUrl}`;
+    try {
       await shareResourceLink(title, resourceUrl);
     } catch (error: any) {
       if (error?.message && !String(error.message).toLowerCase().includes('cancel')) {
-        Alert.alert('Share failed', error.message);
+        setShareTitle(fullMessage);
+        setShowShare(true);
       }
     }
   }, [shop, profileId]);
@@ -1657,6 +1731,7 @@ export default function MyShopScreen() {
         onClose={() => { setShowCollectionDetail(false); setDismissedCollectionLink(collectionLinkKey); }}
         onRefresh={() => loadShop()}
         onShareDesign={handleShareDesign}
+        onShareCollection={handleShareCollection}
       />
     </View>
   );

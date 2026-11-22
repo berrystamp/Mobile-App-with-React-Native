@@ -1,10 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
     ActivityIndicator,
     FlatList,
-    Image,
     SafeAreaView,
     Text,
     TouchableOpacity,
@@ -39,8 +39,8 @@ export default function FavoritesScreen() {
       }
 
       const favoriteRes = await ApiService.getFavoriteDesigns(100, 0);
-      const favoriteDesigns = normalizeDesignListResponse(favoriteRes).filter(
-        (design) => design.liked,
+      const favoriteDesigns = normalizeDesignListResponse(favoriteRes).map(
+        (design) => ({ ...design, liked: true }),
       );
       setDesigns(favoriteDesigns);
     } catch (error: any) {
@@ -183,8 +183,10 @@ export default function FavoritesScreen() {
                     {imageUri ? (
                       <Image
                         source={{ uri: imageUri }}
-                        className="h-full w-full"
-                        resizeMode="cover"
+                        style={{ width: "100%", height: "100%" }}
+                        contentFit="cover"
+                        cachePolicy="memory-disk"
+                        transition={120}
                       />
                     ) : null}
                   </View>

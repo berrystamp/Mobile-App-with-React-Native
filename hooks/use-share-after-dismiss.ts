@@ -10,7 +10,7 @@ export function useShareAfterDismiss(visible: boolean) {
   }, []);
 
   useEffect(() => {
-    if (visible || Platform.OS === 'ios') return;
+    if (visible) return;
     const timer = setTimeout(onDismiss, 350);
     return () => clearTimeout(timer);
   }, [visible, onDismiss]);

@@ -65,7 +65,7 @@ export default function ReferralScreen() {
 
       const statsPayload = summaryResponse?.responseBody || summaryResponse || {};
       setStats(statsPayload);
-
+      console.log(codeResponse)
       const codePayload = codeResponse?.responseBody || codeResponse || {};
       const code = codePayload?.referralCode || '';
       setReferralCode(code);

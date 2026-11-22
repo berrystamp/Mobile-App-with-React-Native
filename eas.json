@@ -1,6 +1,12 @@
 {
+  "cli": {
+    "appVersionSource": "remote"
+  },
   "build": {
     "preview": {
+      "autoIncrement": true,
+      "channel": "preview",
+      "distribution": "internal",
       "android": {
         "buildType": "apk"
       },
@@ -13,8 +19,18 @@
       "distribution": "internal"
     },
     "production": {
+      "autoIncrement": true,
+      "channel": "production",
       "android": {
         "buildType": "app-bundle"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "android": {
+        "track": "production",
+        "releaseStatus": "completed"
       }
     }
   }

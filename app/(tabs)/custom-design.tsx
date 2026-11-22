@@ -1,15 +1,17 @@
 import { formatNaira } from '@/lib/currency';
 import ApiService from '@/services/apiClient';
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import {
-  ActivityIndicator, FlatList, Image, RefreshControl,
+  ActivityIndicator, FlatList, RefreshControl,
   Text, TouchableOpacity, View, useColorScheme
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const BASE_URL = 'https://berrystamp-backend-production.up.railway.app';
+let cachedCustomDesigns: any[] | null = null;
 
 const toImageUrl = (path?: string) => {
   if (!path) return null;
@@ -21,8 +23,8 @@ export default function CustomDesignHubScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const isDark = useColorScheme() === 'dark';
-  const [designs, setDesigns] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [designs, setDesigns] = useState<any[]>(cachedCustomDesigns || []);
+  const [loading, setLoading] = useState(!cachedCustomDesigns);
   const [refreshing, setRefreshing] = useState(false);
 
   const bg = isDark ? '#121212' : '#F8F8FB';
@@ -34,15 +36,16 @@ export default function CustomDesignHubScreen() {
 
   const loadDesigns = useCallback(async (isRefresh = false) => {
     try {
-      if (!isRefresh) setLoading(true);
+      if (!isRefresh && !cachedCustomDesigns) setLoading(true);
       const response = await ApiService.getCustomDesigns(0, 20);
       const body = response?.responseBody || response?.data || response || {};
       const list = Array.isArray(body) ? body
         : Array.isArray(body?.content) ? body.content
           : [];
+      cachedCustomDesigns = list;
       setDesigns(list);
     } catch {
-      setDesigns([]);
+      if (!cachedCustomDesigns) setDesigns([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -102,17 +105,37 @@ export default function CustomDesignHubScreen() {
             </View>
           }
           renderItem={({ item }) => {
-            const imageUrl = toImageUrl(item?.frontImageUrl || item?.imagePath || item?.imageUrl);
+            const imageUrl = toImageUrl(
+              item?.imageUrlFront ||
+                item?.coverImage?.url ||
+                item?.coverImage?.originalUrl ||
+                item?.designs?.[0]?.url ||
+                item?.frontImageUrl ||
+                item?.imagePath ||
+                item?.imageUrl,
+            );
             const price = Number(item?.amount || item?.price || 0);
+            const isCompleted = Boolean(item?.completed || item?.finalDesign || item?.status === 'ACTIVE');
+            const statusLabel = item?.finalDesign
+              ? 'Final Design'
+              : item?.completed
+                ? 'Completed'
+                : item?.status || 'In Progress';
             return (
               <TouchableOpacity
-                onPress={() => router.push({ pathname: '/products', params: { designId: String(item.id) } })}
+                onPress={() => {
+                  if (item?.orderId && !item?.mocks?.length) {
+                    router.push(`/order/${item.orderId}`);
+                  } else {
+                    router.push({ pathname: '/products', params: { designId: String(item.id) } });
+                  }
+                }}
                 style={{ flex: 1, backgroundColor: surface, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: border }}
                 activeOpacity={0.85}
               >
                 <View style={{ height: 140, backgroundColor: isDark ? '#2A2A2A' : '#F2F0FB', alignItems: 'center', justifyContent: 'center' }}>
                   {imageUrl ? (
-                    <Image source={{ uri: imageUrl }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                    <Image source={{ uri: imageUrl }} style={{ width: '100%', height: '100%' }} contentFit="cover" cachePolicy="memory-disk" transition={150} />
                   ) : (
                     <Ionicons name="image-outline" size={32} color={subtext} />
                   )}
@@ -125,9 +148,9 @@ export default function CustomDesignHubScreen() {
                     <Text style={{ fontSize: 13, fontWeight: '700', color: primary }}>{formatNaira(price)}</Text>
                   )}
                   <View style={{ marginTop: 5, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                    <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: item?.status === 'ACTIVE' ? '#22B573' : '#F59E0B' }} />
+                    <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: isCompleted ? '#22B573' : '#F59E0B' }} />
                     <Text style={{ fontSize: 11, color: subtext }}>
-                      {item?.status === 'ACTIVE' ? 'Active' : item?.status || 'Pending'}
+                      {statusLabel}
                     </Text>
                   </View>
                 </View>

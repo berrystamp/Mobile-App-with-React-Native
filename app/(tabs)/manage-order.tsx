@@ -1,5 +1,5 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator, Dimensions, RefreshControl, ScrollView,
@@ -9,6 +9,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 import { useAppAlert } from '@/components/common/AppAlert';
+import { getAccountProfile } from '@/lib/accountProfile';
 import { formatNaira } from '@/lib/currency';
 import { normalizeManageOrderListResponse } from '@/lib/orders';
 import ApiService from '@/services/apiClient';
@@ -111,22 +112,30 @@ export default function ManageOrderScreen() {
   };
 
   const loadOrders = useCallback(async (isRefresh = false) => {
-  try {
-    if (!isRefresh) setLoading(true);
+    try {
+      if (!isRefresh) setLoading(true);
+      const activeRole = toProfileType(role);
+      const [profileRes, response] = await Promise.all([
+        ApiService.getMyProfile().catch(() => null),
+        ApiService.getManageOrders({ profileType: activeRole }),
+      ]);
+      const rawUser = profileRes?.responseBody || profileRes || {};
+      const roleProfile = getAccountProfile(rawUser, activeRole);
+      const activeProfileId = roleProfile?.id ? Number(roleProfile.id) : undefined;
+      setOrders(normalizeManageOrderListResponse(response, activeRole, activeProfileId));
+    } catch (error: any) {
+      showAlert({ type: 'error', title: 'Unable to load orders', message: error?.response?.data?.responseMessage || error?.message || 'Please try again.' });
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [role]);
 
-    const response = await ApiService.getManageOrders({ profileType: toProfileType(role) });
-    setOrders(normalizeManageOrderListResponse(response));
-  } catch (error: any) {
-    showAlert({ type: 'error', title: 'Unable to load orders', message: error?.response?.data?.responseMessage || error?.message || 'Please try again.' });
-  } finally {
-    setLoading(false);
-    setRefreshing(false);
-  }
-}, [role]);
-
-  useEffect(() => {
-    void Promise.resolve().then(() => loadOrders());
-  }, [loadOrders]);
+  useFocusEffect(
+    useCallback(() => {
+      void loadOrders();
+    }, [loadOrders]),
+  );
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);

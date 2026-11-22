@@ -1,10 +1,10 @@
 import { formatNaira } from "@/lib/currency";
 import { Design } from "@/types";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import React, { useEffect, useState } from "react";
 import {
   Dimensions,
-  Image,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -74,6 +74,16 @@ export const DesignCard: React.FC<DesignCardProps> = ({
   };
 
   const lowestPrice = getLowestPrice();
+  const isLocked = Boolean(
+    design.locked ||
+      design.printerId ||
+      design.openForCustomization === false,
+  );
+  const isInfluencer = Boolean(
+    design.influencerMerch ||
+      design.influencerDesign ||
+      design.autographMessage,
+  );
 
   return (
     <TouchableOpacity
@@ -86,11 +96,51 @@ export const DesignCard: React.FC<DesignCardProps> = ({
           <Image
             source={{ uri: imageUrl }}
             style={styles.image}
-            resizeMode="cover"
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            transition={150}
+            recyclingKey={String(design.id)}
           />
         ) : (
           <View style={[styles.image, { backgroundColor: theme.border }]}>
             <Ionicons name="image-outline" size={48} color={theme.subtext} />
+          </View>
+        )}
+        {isLocked && (
+          <View
+            style={{
+              position: "absolute",
+              top: 8,
+              left: 8,
+              width: 28,
+              height: 28,
+              borderRadius: 14,
+              backgroundColor: "rgba(255,255,255,0.9)",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Ionicons name="lock-closed" size={14} color="#3E2F8A" />
+          </View>
+        )}
+        {isInfluencer && (
+          <View
+            style={{
+              position: "absolute",
+              bottom: 8,
+              left: 8,
+              flexDirection: "row",
+              alignItems: "center",
+              backgroundColor: "rgba(0,80,186,0.92)",
+              borderRadius: 999,
+              paddingHorizontal: 8,
+              paddingVertical: 3,
+            }}
+          >
+            <MaterialCommunityIcons name="crown" size={11} color="#F9A70D" />
+            <Text style={{ color: "#FFFFFF", fontSize: 9, fontWeight: "700", marginLeft: 4 }}>
+              INFLUENCER
+            </Text>
           </View>
         )}
         <TouchableOpacity
@@ -117,9 +167,19 @@ export const DesignCard: React.FC<DesignCardProps> = ({
           By {artistName}
         </Text>
         {showPrice && lowestPrice > 0 && (
-          <Text style={[styles.price, { color: theme.text }]}>
-            {formatNaira(lowestPrice)}
-          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+            <Text style={[styles.price, { color: theme.text }]}>
+              {formatNaira(lowestPrice)}
+            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+              {isInfluencer && (
+                <MaterialCommunityIcons name="crown" size={14} color="#F9A70D" />
+              )}
+              {isLocked && (
+                <Ionicons name="lock-closed" size={14} color={isDark ? "#A993FF" : "#3E2F8A"} />
+              )}
+            </View>
+          </View>
         )}
       </View>
     </TouchableOpacity>

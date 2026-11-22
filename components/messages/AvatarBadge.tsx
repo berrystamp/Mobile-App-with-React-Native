@@ -23,7 +23,14 @@ export function AvatarBadge({ color, emoji, imageUrl, label, size = 54 }: Avatar
         },
       ]}>
       {imageUrl ? (
-        <Image source={{ uri: imageUrl }} style={{ width: size, height: size, borderRadius: size / 2 }} contentFit="cover" />
+        <Image
+          source={{ uri: imageUrl }}
+          style={{ width: size, height: size, borderRadius: size / 2 }}
+          contentFit="cover"
+          cachePolicy="memory-disk"
+          transition={120}
+          recyclingKey={imageUrl}
+        />
       ) : (
         <Text style={[styles.label, { fontSize: size * 0.34 }]}>
           {String(label || emoji || '?').slice(0, 2).toUpperCase()}

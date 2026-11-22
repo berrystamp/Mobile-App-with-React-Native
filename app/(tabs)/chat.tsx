@@ -6,8 +6,17 @@ import { useFileUpload } from "@/hooks/useFileUpload";
 import { ENV } from "@/lib/config/env";
 import {
     getBackendMessageId,
+    getCachedConversationMessages,
+    getCachedOrderDetail,
+    getMemoryConversationMessages,
+    getMemoryConversations,
+    getMemoryMyProfileId,
+    markConversationReadLocally,
     normalizeConversationsResponse,
     normalizeMessagesResponse,
+    setCachedConversationMessages,
+    setCachedOrderDetail,
+    setMemoryMyProfileId,
     type ChatMessageDto,
     type ConversationSummaryDto,
 } from "@/lib/messages";
@@ -66,9 +75,13 @@ const formatDateLabel = (value?: string) => {
 
 const formatDateForApi = (date: Date) => date.toISOString().slice(0, 10);
 
-const formatCurrency = (value?: string | number) => {
-  const numeric = Number(value || 0);
-  if (!numeric) return "N/A";
+const formatCurrency = (value?: string | number, showZero: boolean = false) => {
+  if (value === undefined || value === null || value === "") {
+    return showZero ? "\u20a60" : "N/A";
+  }
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return "N/A";
+  if (!numeric && !showZero) return "N/A";
   return `\u20a6${numeric.toLocaleString()}`;
 };
 
@@ -105,21 +118,26 @@ const getMessageOrderId = (
   message?: Partial<ChatMessageDto & { raw?: any }>,
 ) => {
   const raw = message?.raw || {};
-  const candidates = [
+  const idList = [
+    raw?.messageIdentifier,
+    message?.messageIdentifier,
     raw?.orderId,
     raw?.order?.id,
+    raw?.orderRequest?.order?.id,
+    raw?.orderRequest?.id,
     raw?.content,
     message?.text,
-    raw?.id,
-    raw?.orderRequest?.order?.id,
   ];
 
-  const value = candidates.find((candidate) => {
-    const numeric = Number(candidate);
+  const value = idList.find((item) => {
+    if (item === undefined || item === null) return false;
+    const trimmed = String(item).trim();
+    if (!/^\d+$/.test(trimmed)) return false;
+    const numeric = Number(trimmed);
     return Number.isFinite(numeric) && numeric > 0;
   });
 
-  return value ? String(value) : "";
+  return value ? String(value).trim() : "";
 };
 
 const getMessageKey = (
@@ -208,7 +226,17 @@ const normalizeOrderDetail = (raw: any) => {
     colour: printReq?.colour || "",
     size: printReq?.size || "",
     sourceOfItem: printReq?.sourceOfItem || "",
+    deliveryAddress:
+      printReq?.deliveryAddress?.address ||
+      printReq?.deliveryAddress?.name ||
+      (typeof printReq?.deliveryAddress === "string" ? printReq.deliveryAddress : ""),
     mockItemUrl: resolveImageUri(printReq?.mockItemUrl || ""),
+    designFrontImageUrl: resolveImageUri(
+      printReq?.designFrontImageUrl ||
+        printReq?.designCoverImage?.url ||
+        printReq?.designCoverImage?.previewUrl ||
+        "",
+    ),
 
     coverImageUrl: resolveImageUri(coverImageUrl),
     customerProfile: req?.customerProfile || null,
@@ -293,11 +321,20 @@ export default function ChatScreen() {
     participants: [],
   });
 
-  const [isLoading, setIsLoading] = useState(true);
+  const initialCachedMessages = useMemo(
+    () => getMemoryConversationMessages(conversationId),
+    [conversationId],
+  );
+
+  const [isLoading, setIsLoading] = useState(
+    !initialCachedMessages || initialCachedMessages.length === 0,
+  );
   const [isInitialLoad, setIsInitialLoad] = useState(true); 
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   
-  const [messages, setMessages] = useState<(ChatMessageDto & { imageUrl?: string })[]>([]);
+  const [messages, setMessages] = useState<(ChatMessageDto & { imageUrl?: string })[]>(
+    initialCachedMessages || [],
+  );
   const [draft, setDraft] = useState("");
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [showActions, setShowActions] = useState(false);
@@ -305,9 +342,31 @@ export default function ChatScreen() {
   const [showReportReasons, setShowReportReasons] = useState(false);
   const [showReportSuccess, setShowReportSuccess] = useState(false);
 
-  const [orderRequestDetail, setOrderRequestDetail] = useState<any>(null);
-  const [orderDetailsByMessageId, setOrderDetailsByMessageId] = useState<Record<string, any>>({});
-  const [orderRequestDetailsByMessageId, setOrderRequestDetailsByMessageId] = useState<Record<string, any>>({});
+  const [orderRequestDetail, setOrderRequestDetail] = useState<any>(() =>
+    orderId ? getCachedOrderDetail(`REQ_${orderId}`) || getCachedOrderDetail(`ORD_${orderId}`) : null,
+  );
+  const [orderDetailsByMessageId, setOrderDetailsByMessageId] = useState<Record<string, any>>(() => {
+    const map: Record<string, any> = {};
+    (initialCachedMessages || []).forEach((m) => {
+      if (m.chatType === "ORDER") {
+        const oid = getMessageOrderId(m);
+        const cached = oid ? getCachedOrderDetail(`ORD_${oid}`) : null;
+        if (cached) map[m.id] = cached;
+      }
+    });
+    return map;
+  });
+  const [orderRequestDetailsByMessageId, setOrderRequestDetailsByMessageId] = useState<Record<string, any>>(() => {
+    const map: Record<string, any> = {};
+    (initialCachedMessages || []).forEach((m) => {
+      if (m.chatType === "ORDER_REQUEST") {
+        const oid = getMessageOrderId(m);
+        const cached = oid ? getCachedOrderDetail(`REQ_${oid}`) : null;
+        if (cached) map[m.id] = cached;
+      }
+    });
+    return map;
+  });
 
   const [showProductDetails, setShowProductDetails] = useState(false);
   const [showCreateOrder, setShowCreateOrder] = useState(false);
@@ -324,10 +383,14 @@ export default function ChatScreen() {
   const [orderTitle, setOrderTitle] = useState("");
   const [orderDescription, setOrderDescription] = useState("");
   const [orderAmount, setOrderAmount] = useState("");
+  const [orderDeliveryAmount, setOrderDeliveryAmount] = useState("");
+  const [orderPickupAmount, setOrderPickupAmount] = useState("");
+  const [itemProvidedByCustomer, setItemProvidedByCustomer] = useState(false);
   const [orderDeliveryDate, setOrderDeliveryDate] = useState("");
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [creatingOrder, setCreatingOrder] = useState(false);
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
+  const [failedOrderImages, setFailedOrderImages] = useState<Record<string, boolean>>({});
 
   const normalizeChatMessages = useCallback(
     (
@@ -362,65 +425,44 @@ export default function ChatScreen() {
 
   const lastReadMessage = useRef<string | null>(null);
   const markUnreadAsRead = useCallback(
-    async (items: (ChatMessageDto & { imageUrl?: string })[]) => {
+    async (items: (ChatMessageDto & { imageUrl?: string })[], myProfileId?: number) => {
       if (!conversationId || !items.length) {
-        console.log('[ChatRead] Skipped: no conversation or loaded messages', { conversationId, messageCount: items.length });
         return items;
       }
-      try {
-        // Fetch the newest page so chats with over 100 messages use the actual last message.
-        const latestResponse = await ApiService.getConversationMessages(String(conversationId), 0, 1, 'createdAt,desc');
-        const latest = normalizeMessagesResponse(latestResponse)[0];
-        if (!latest) {
-          console.log('[ChatRead] Skipped: latest-message query returned no messages', { conversationId });
-          return items;
-        }
-        const messageId = getBackendMessageId(latest.raw);
-        console.log('[ChatRead] Latest message before read', {
-          conversationId, messageId,
-          id: latest.raw?.id,
-          backendMessageId: latest.raw?.messageId,
-          messageIdentifier: latest.raw?.messageIdentifier,
-          read: latest.raw?.read,
-          readDateTime: latest.raw?.readDateTime,
-        });
-        if (!messageId) {
-          throw new Error('The latest message has no id, messageId, or messageIdentifier.');
-        }
+      const latest = items[items.length - 1];
+      const messageId = getBackendMessageId(latest?.raw) || latest?.id;
+      const latestTimestamp =
+        latest?.raw?.createdAt ||
+        latest?.raw?.timestamp ||
+        latest?.readDateTime;
+      markConversationReadLocally(conversationId, messageId, latestTimestamp);
+
+      if (messageId) {
         const key = `${conversationId}:${messageId}`;
-        if (lastReadMessage.current === key) {
-          console.log('[ChatRead] Skipped: already marked and confirmed clear', { conversationId, messageId });
-          return items;
-        }
-        await ApiService.markMessageAsRead(String(messageId));
-        const response = await ApiService.getConversations(0, 80);
-        useConversationStore.getState().setResponse(response);
-        const refreshed = normalizeConversationsResponse(response).find((item) => item.id === String(conversationId));
-        console.log('[ChatRead] Conversation after read and refresh', {
-          conversationId, messageId,
-          conversationFound: Boolean(refreshed),
-          hasUnreadMessages: refreshed?.raw?.hasUnreadMessages,
-          unreadMessageCount: refreshed?.raw?.unreadMessageCount,
-        });
-        // Retry on the next poll if the backend still reports unread messages.
-        if (refreshed && !refreshed.hasUnreadMessages && refreshed.unreadCount === 0) {
+        if (lastReadMessage.current !== key) {
           lastReadMessage.current = key;
-        } else {
-          console.warn('[ChatRead] Conversation still unread after read request', {
-            conversationId, messageId,
-            hasUnreadMessages: refreshed?.hasUnreadMessages,
-            unreadMessageCount: refreshed?.unreadCount,
-          });
+          void (async () => {
+            try {
+              await ApiService.markMessageAsRead(String(messageId)).catch(() => {});
+              const unreadIncomingIds = items
+                .filter((m) => m.author === "other" && m.status !== "seen")
+                .map((m) => getBackendMessageId(m.raw) || m.id)
+                .filter((id): id is string => Boolean(id && String(id) !== String(messageId)));
+              if (unreadIncomingIds.length > 0) {
+                await Promise.allSettled(
+                  unreadIncomingIds.slice(-5).map((id) => ApiService.markMessageAsRead(String(id))),
+                );
+              }
+              const response = await ApiService.getConversations(0, 80);
+              useConversationStore.getState().setResponse(response);
+              normalizeConversationsResponse(response, myProfileId);
+            } catch {
+              // Non-blocking background read sync
+            }
+          })();
         }
-      } catch (error) {
-        const failure = error as { message?: string; response?: { status?: number; data?: { responseMessage?: string } } };
-        console.warn('[ChatRead] Failed to mark conversation as read or refresh badges', {
-          conversationId,
-          status: failure.response?.status,
-          message: failure.response?.data?.responseMessage || failure.message,
-        });
       }
-      return items;
+      return items.map((m) => ({ ...m, status: "seen" as const }));
     },
     [conversationId],
   );
@@ -450,102 +492,188 @@ export default function ChatScreen() {
     });
   }, [messages]);
 
-  // Load Initial Details
+  // Load Initial Details (Cache-first + Background Revalidation)
   useEffect(() => {
+    let cancelled = false;
+
+    const hydrateOrdersForMessages = async (
+      msgList: (ChatMessageDto & { imageUrl?: string })[],
+    ) => {
+      const orderMessages = msgList.filter(
+        (m) => m.chatType === "ORDER" || m.chatType === "ORDER_REQUEST",
+      );
+      if (!orderMessages.length) return;
+
+      const results = await Promise.allSettled(
+        orderMessages.map(async (m) => {
+          const oid = getMessageOrderId(m);
+          if (!oid || !Number.isFinite(Number(oid))) return null;
+          const cachePrefix = m.chatType === "ORDER_REQUEST" ? "REQ_" : "ORD_";
+          const cached = getCachedOrderDetail(`${cachePrefix}${oid}`);
+          if (cached) {
+            if (m.chatType === "ORDER") {
+              setOrderDetailsByMessageId((prev) => ({ ...prev, [m.id]: cached }));
+            } else {
+              setOrderRequestDetailsByMessageId((prev) => ({ ...prev, [m.id]: cached }));
+            }
+          }
+          const res =
+            m.chatType === "ORDER_REQUEST"
+              ? await ApiService.getOrderRequestById(oid).catch(() => ApiService.getOrderById(oid))
+              : await ApiService.getOrderById(oid).catch(() => ApiService.getOrderRequestById(oid));
+          const detail = normalizeOrderDetail(res);
+          if (detail) {
+            setCachedOrderDetail(`${cachePrefix}${oid}`, detail);
+          }
+          return {
+            messageId: m.id,
+            data: detail,
+            type: m.chatType,
+          };
+        }),
+      );
+
+      if (cancelled) return;
+      const nextOrders: Record<string, any> = {};
+      const nextRequests: Record<string, any> = {};
+
+      results.forEach((r) => {
+        if (r.status === "fulfilled" && r.value?.data) {
+          if (r.value.type === "ORDER") {
+            nextOrders[r.value.messageId] = r.value.data;
+          } else if (r.value.type === "ORDER_REQUEST") {
+            nextRequests[r.value.messageId] = r.value.data;
+          }
+        }
+      });
+
+      if (Object.keys(nextOrders).length > 0) {
+        setOrderDetailsByMessageId((prev) => ({ ...prev, ...nextOrders }));
+      }
+      if (Object.keys(nextRequests).length > 0) {
+        setOrderRequestDetailsByMessageId((prev) => ({ ...prev, ...nextRequests }));
+      }
+    };
+
     const load = async () => {
+      const activeRole = useAuthStore.getState().role;
       try {
-        setIsLoading(true);
-        const profileResponse = await ApiService.getMyProfile();
-        const me = profileResponse?.responseBody || profileResponse;
+        // 1. Show cached conversation metadata & messages immediately if available
+        const cachedConvos = getMemoryConversations(activeRole);
+        const cachedSelected = cachedConvos?.find(
+          (item) =>
+            (conversationId && item.id === String(conversationId)) ||
+            (participantId && Number(item.participantId) === Number(participantId)),
+        );
+        if (cachedSelected) {
+          setConversation((c) => ({ ...c, ...cachedSelected }));
+        }
 
         if (conversationId) {
-          const [convoRes, messagesRes] = await Promise.all([
-            ApiService.getConversations(0, 80),
-            ApiService.getConversationMessages(String(conversationId), 0, 100),
-          ]);
-
-          const allConversations = normalizeConversationsResponse(convoRes, getAccountProfile(me, useAuthStore.getState().role)?.id);
-          const selected = allConversations.find(
-            (item) => item.id === String(conversationId),
-          );
-          if (selected) setConversation((c) => ({ ...c, ...selected }));
-
-          const myId = getAccountProfile(me, useAuthStore.getState().role)?.id;
-          const normalized = normalizeChatMessages(messagesRes, myId, selected);
-          const readMessages = await markUnreadAsRead(normalized);
-
-          const orderMessages = readMessages.filter(
-            (m) => m.chatType === "ORDER" || m.chatType === "ORDER_REQUEST"
-          );
-
-          if (orderMessages.length > 0) {
-            const results = await Promise.allSettled(
-              orderMessages.map(async (m) => {
-                const oid = getMessageOrderId(m);
-                if (!oid || !Number.isFinite(Number(oid))) return null;
-                const res =
-                  m.chatType === "ORDER_REQUEST"
-                    ? await ApiService.getOrderRequestById(oid)
-                    : await ApiService.getOrderById(oid);
-                return {
-                  messageId: m.id,
-                  data: normalizeOrderDetail(res),
-                  type: m.chatType,
-                };
-              })
-            );
-
-            const nextOrders: Record<string, any> = {};
-            const nextRequests: Record<string, any> = {};
-
-            results.forEach((r) => {
-              if (r.status === "fulfilled" && r.value?.data) {
-                if (r.value.type === "ORDER") {
-                  nextOrders[r.value.messageId] = r.value.data;
-                } else if (r.value.type === "ORDER_REQUEST") {
-                  nextRequests[r.value.messageId] = r.value.data;
-                }
-              }
-            });
-
-            setOrderDetailsByMessageId((prev) => ({ ...prev, ...nextOrders }));
-            setOrderRequestDetailsByMessageId((prev) => ({
-              ...prev,
-              ...nextRequests,
-            }));
+          const storedMsgs = await getCachedConversationMessages(conversationId);
+          if (!cancelled && storedMsgs && storedMsgs.length > 0) {
+            setMessages(storedMsgs);
+            setIsLoading(false);
           }
+        }
 
+        // 2. Resolve myId from memory/storage while fetching messages in parallel
+        let myId = getMemoryMyProfileId(activeRole);
+        const messagesPromise = conversationId
+          ? ApiService.getConversationMessages(String(conversationId), 0, 100)
+          : participantId
+            ? ApiService.getConversationMessagesByProfile(String(participantId), 0, 100)
+            : Promise.resolve([]);
+
+        const [cachedUser, messagesRes] = await Promise.all([
+          myId ? Promise.resolve(null) : ApiService.getCurrentUser().catch(() => null),
+          messagesPromise,
+        ]);
+
+        if (cancelled) return;
+
+        if (!myId && cachedUser) {
+          const meObj = cachedUser?.responseBody || cachedUser;
+          myId = getAccountProfile(meObj, activeRole)?.id;
+          if (myId) setMemoryMyProfileId(myId, activeRole);
+        }
+        if (!myId) {
+          const profileResponse = await ApiService.getMyProfile().catch(() => null);
+          const me = profileResponse?.responseBody || profileResponse;
+          myId = getAccountProfile(me, activeRole)?.id;
+          if (myId) setMemoryMyProfileId(myId, activeRole);
+        }
+
+        if (cancelled) return;
+
+        // 3. Render fresh messages immediately and update cache
+        const normalized = normalizeChatMessages(messagesRes, myId, cachedSelected || conversation);
+        const readMessages = await markUnreadAsRead(normalized, myId);
+        if (!cancelled) {
           setMessages(readMessages);
-          
-          if (orderId) {
-             const req = await ApiService.getOrderById(String(orderId)).catch(()=> ApiService.getOrderRequestById(String(orderId)));
-             setOrderRequestDetail(normalizeOrderDetail(req));
+          setIsLoading(false);
+          const resolvedConvId = conversationId || readMessages[0]?.conversationId;
+          if (resolvedConvId) {
+            setCachedConversationMessages(resolvedConvId, readMessages);
           }
+        }
+
+        // 4. Hydrate order/request cards & conversation header in the background (non-blocking)
+        void hydrateOrdersForMessages(readMessages);
+
+        if (orderId) {
+          void ApiService.getOrderRequestById(String(orderId))
+            .catch(() => ApiService.getOrderById(String(orderId)))
+            .then((req) => {
+              if (cancelled) return;
+              const detail = normalizeOrderDetail(req);
+              if (detail) {
+                setOrderRequestDetail(detail);
+                setCachedOrderDetail(`REQ_${orderId}`, detail);
+              }
+            })
+            .catch(() => {});
+        }
+
+        if (!cachedSelected && (conversationId || participantId)) {
+          void (conversationId
+            ? ApiService.getConversationById(conversationId)
+            : ApiService.getConversationByProfileId(String(participantId))
+          )
+            .then((convRes) => {
+              if (cancelled || !convRes) return;
+              const normalizedConv = normalizeConversationsResponse([convRes], myId)[0];
+              if (normalizedConv) {
+                setConversation((c) => ({ ...c, ...normalizedConv }));
+              }
+            })
+            .catch(() => {});
         }
       } catch (err) {
         console.error("Failed to load chat", err);
-        setMessages([]);
       } finally {
-        setIsLoading(false);
+        if (!cancelled) setIsLoading(false);
       }
     };
     load();
+    return () => {
+      cancelled = true;
+    };
   }, [conversationId, markUnreadAsRead, normalizeChatMessages, participantId, orderId]);
 
   // Background polling for new messages
   useEffect(() => {
-    if (!conversationId || isLoading) return;
+    if ((!conversationId && !participantId) || isLoading) return;
 
     let cancelled = false;
     const refreshMessages = async () => {
       try {
-        const [profileResponse, messagesRes] = await Promise.all([
-          ApiService.getMyProfile(),
-          ApiService.getConversationMessages(String(conversationId), 0, 100),
-        ]);
+        const activeRole = useAuthStore.getState().role;
+        const myId = getMemoryMyProfileId(activeRole);
+        const messagesRes = conversationId
+          ? await ApiService.getConversationMessages(String(conversationId), 0, 100)
+          : await ApiService.getConversationMessagesByProfile(String(participantId), 0, 100);
         if (cancelled) return;
-        const me = profileResponse?.responseBody || profileResponse;
-        const myId = getAccountProfile(me, useAuthStore.getState().role)?.id;
         const normalized = normalizeChatMessages(messagesRes, myId, conversation);
         
         const missingOrders = normalized.filter((m) => {
@@ -560,8 +688,14 @@ export default function ChatScreen() {
             const results = await Promise.allSettled(
                 missingOrders.map(async (m) => {
                   const oid = getMessageOrderId(m);
-                  const res = m.chatType === "ORDER_REQUEST" ? await ApiService.getOrderRequestById(oid) : await ApiService.getOrderById(oid);
-                  return { messageId: m.id, data: normalizeOrderDetail(res), type: m.chatType };
+                  const cachePrefix = m.chatType === "ORDER_REQUEST" ? "REQ_" : "ORD_";
+                  const res =
+                    m.chatType === "ORDER_REQUEST"
+                      ? await ApiService.getOrderRequestById(oid).catch(() => ApiService.getOrderById(oid))
+                      : await ApiService.getOrderById(oid).catch(() => ApiService.getOrderRequestById(oid));
+                  const detail = normalizeOrderDetail(res);
+                  if (detail) setCachedOrderDetail(`${cachePrefix}${oid}`, detail);
+                  return { messageId: m.id, data: detail, type: m.chatType };
                 })
             );
             
@@ -576,8 +710,11 @@ export default function ChatScreen() {
                 return next;
             });
         }
-        const readMessages = await markUnreadAsRead(normalized);
-        if (!cancelled) setMessages(readMessages);
+        const readMessages = await markUnreadAsRead(normalized, myId);
+        if (!cancelled) {
+          setMessages(readMessages);
+          if (conversationId) setCachedConversationMessages(conversationId, readMessages);
+        }
       } catch {
         // Silently fail on background refresh
       }
@@ -588,7 +725,7 @@ export default function ChatScreen() {
       cancelled = true;
       clearInterval(timer);
     };
-  }, [conversation, conversationId, isLoading, markUnreadAsRead, normalizeChatMessages, orderDetailsByMessageId, orderRequestDetailsByMessageId]);
+  }, [conversation, conversationId, isLoading, markUnreadAsRead, normalizeChatMessages, orderDetailsByMessageId, orderRequestDetailsByMessageId, participantId]);
 
   const handleScroll = (event: any) => {
     const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
@@ -630,10 +767,16 @@ export default function ChatScreen() {
 
   type ChatType = "ORDER" | "ORDER_REQUEST" | "DIRECT" | "FILE";
   const resolvePayloadChatType = (isFile = false): ChatType =>
-    isFile ? "FILE" : (orderId ? "ORDER" : "DIRECT");
+    isFile ? "FILE" : "DIRECT";
 
   const buildPayload = (content: string, caption: string, isFile = false) => {
-    const recipientProfileId = Number(conversation.participantId || participantId || 0);
+    const recipientProfileId = Number(
+      conversation.participantId ||
+        participantId ||
+        orderRequestDetail?.providerProfile?.id ||
+        orderRequestDetail?.customerProfile?.id ||
+        0,
+    );
     if (!recipientProfileId) {
       throw new Error("This conversation has no valid recipient profile.");
     }
@@ -647,11 +790,19 @@ export default function ChatScreen() {
   };
 
   const dispatchMessage = async (payload: ReturnType<typeof buildPayload>) => {
-    if (orderId) {
-      await ApiService.sendOrderMessage(String(orderId), payload);
-    } else {
-      await ApiService.sendMessage(payload);
+    const activeOrderId = Object.values(orderDetailsByMessageId)[0]?.id;
+    if (activeOrderId) {
+      try {
+        await ApiService.sendOrderMessage(String(activeOrderId), {
+          ...payload,
+          chatType: payload.chatType === "FILE" ? "FILE" : "ORDER",
+        });
+        return;
+      } catch {
+        // Fall through to standard direct message send if order message route rejects
+      }
     }
+    await ApiService.sendMessage(payload);
   };
 
   const handleSend = async () => {
@@ -667,7 +818,11 @@ export default function ChatScreen() {
       status: "sent",
     };
 
-    setMessages((c) => [...c, newMessage]);
+    setMessages((c) => {
+      const next = [...c, newMessage];
+      if (conversationId) setCachedConversationMessages(conversationId, next);
+      return next;
+    });
     setDraft("");
 
     try {
@@ -709,7 +864,17 @@ export default function ChatScreen() {
     }
   };
 
+  const openCreateOrderModal = (orderReq: any) => {
+    setSelectedOrderRequest(orderReq);
+    const sourceFromCustomer = String(orderReq?.sourceOfItem || "")
+      .toLowerCase()
+      .includes("customer");
+    setItemProvidedByCustomer(sourceFromCustomer);
+    setShowCreateOrder(true);
+  };
+
   const handleCreateOrder = async () => {
+    const isPrintReq = isPrintDetail(selectedOrderRequest) || isPrinter;
     if (!orderTitle.trim() || !orderAmount.trim() || !orderDeliveryDate.trim()) {
       showAlert({ type: "warning", title: "Missing fields", message: "Please fill in title, amount, and delivery date." });
       return;
@@ -717,12 +882,18 @@ export default function ChatScreen() {
     if (!selectedOrderRequest?.id) return;
     setCreatingOrder(true);
     try {
+      const deliveryFeeNumeric = isPrintReq ? Number(orderDeliveryAmount || 0) : 0;
+      const pickupFeeNumeric =
+        isPrintReq && itemProvidedByCustomer ? Number(orderPickupAmount || 0) : 0;
       const res = await ApiService.createOrder({
         orderRequestId: Number(selectedOrderRequest.id),
         title: orderTitle.trim(),
         description: orderDescription.trim(),
         amount: Number(orderAmount),
         deliveryDate: orderDeliveryDate.trim(),
+        deliveryAmount: Number.isFinite(deliveryFeeNumeric) ? deliveryFeeNumeric : 0,
+        itemPickupAmount: Number.isFinite(pickupFeeNumeric) ? pickupFeeNumeric : 0,
+        itemProvidedByCustomer: isPrintReq ? itemProvidedByCustomer : false,
       });
       const created = normalizeOrderDetail(res);
       setOrderRequestDetail({ ...(created || orderRequestDetail), hasOffer: true });
@@ -741,6 +912,9 @@ export default function ChatScreen() {
       setOrderTitle("");
       setOrderDescription("");
       setOrderAmount("");
+      setOrderDeliveryAmount("");
+      setOrderPickupAmount("");
+      setItemProvidedByCustomer(false);
       setOrderDeliveryDate("");
       setShowCreateOrder(false);
       setShowOrderSuccess(true);
@@ -806,7 +980,13 @@ export default function ChatScreen() {
     setInitializingPayment(true);
     try {
       const callbackUrl = `/order/${detail.id}`;
-      const res = await ApiService.payForOrder(detail.id, { callback: callbackUrl, orderId: Number(detail.id) });
+      const res = await ApiService.payForOrder(detail.id, {
+        callback: callbackUrl,
+        orderId: Number(detail.id),
+        // The backend must forward this list to Paystack's transaction
+        // initialization request as the `channels` field.
+        channels: ["card", "bank", "bank_transfer", "ussd", "qr", "mobile_money", "eft"],
+      });
       const body = res?.responseBody || res || {};
       const authorizationUrl = body?.authorizationUrl || body?.authorization_url || body?.data?.authorization_url || body?.data?.authorizationUrl || body?.paymentUrl || body?.url || "";
       if (!authorizationUrl) throw new Error("Payment could not be initialized. No authorization URL received.");
@@ -851,8 +1031,20 @@ export default function ChatScreen() {
   // This renders an ORDER_REQUEST card inside the chat thread
   const renderOrderCard = (orderDetail: any) => {
     if (!orderDetail) return null;
-    const imageUrl = orderDetail.coverImageUrl;
     const isPrintOrder = isPrintDetail(orderDetail);
+    const rawImageUrl = isPrintOrder
+      ? orderDetail.designFrontImageUrl ||
+        orderDetail.coverImageUrl ||
+        orderDetail.mockItemUrl ||
+        ""
+      : orderDetail.coverImageUrl ||
+        orderDetail.companyLogoUrl ||
+        orderDetail.companyLogo ||
+        orderDetail.businessLogoUrl ||
+        orderDetail.logoUrl ||
+        "";
+    const cardKey = String(orderDetail.id || orderDetail.orderRequestId || orderDetail.title || "card");
+    const imageUrl = !failedOrderImages[cardKey] ? rawImageUrl : "";
     const labelText = isPrintOrder ? "Print order request" : "Custom order request";
     const fallbackTitle = isPrintOrder ? (orderDetail.mockName || "Print Order") : "Custom Order";
 
@@ -862,11 +1054,16 @@ export default function ChatScreen() {
         <View style={{ width: 128 }}>
           {imageUrl ? (
             <TouchableOpacity onPress={() => setSelectedImage(imageUrl)} activeOpacity={0.85}>
-              <Image source={{ uri: imageUrl }} style={{ width: 112, height: 124, borderRadius: 8 }} contentFit="cover" />
+              <Image
+                source={{ uri: imageUrl }}
+                style={{ width: 112, height: 124, borderRadius: 8 }}
+                contentFit="cover"
+                onError={() => setFailedOrderImages((prev) => ({ ...prev, [cardKey]: true }))}
+              />
             </TouchableOpacity>
           ) : (
-            <View className="items-center justify-center bg-slate-100 dark:bg-slate-800 rounded-lg" style={{ width: 112, height: 124 }}>
-              <Ionicons name="image-outline" size={24} color={themeSecondaryIconColor} />
+            <View className="items-center justify-center bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700" style={{ width: 112, height: 124 }}>
+              <Image source={require('@/assets/logo01.png')} style={{ width: 76, height: 76 }} contentFit="contain" />
             </View>
           )}
           <Text className="mt-2 text-[11px] text-slate-700 dark:text-slate-200" numberOfLines={1}>
@@ -888,10 +1085,7 @@ export default function ChatScreen() {
             <TouchableOpacity
               className="mt-2 items-center rounded border border-[#4A3298] bg-transparent py-2"
               style={{ width: 112 }}
-              onPress={() => {
-                setSelectedOrderRequest(orderDetail);
-                setShowCreateOrder(true);
-              }}
+              onPress={() => openCreateOrderModal(orderDetail)}
             >
               <Text className="text-[11px] font-semibold text-[#4A3298]">Create Offer</Text>
             </TouchableOpacity>
@@ -1084,11 +1278,22 @@ export default function ChatScreen() {
               {isLoading ? (
                 <ChatSkeleton />
               ) : (
-                displayMessages.map((message, index) => (
-                  <React.Fragment key={getMessageKey(message, index)}>
-                    {renderMessage(message)}
-                  </React.Fragment>
-                ))
+                <>
+                  {orderRequestDetail &&
+                    !displayMessages.some(
+                      (m) =>
+                        String(orderRequestDetailsByMessageId[m.id]?.id || orderDetailsByMessageId[m.id]?.id || "") ===
+                        String(orderRequestDetail.id),
+                    ) &&
+                    (orderRequestDetail.hasOffer
+                      ? renderOrderRequestCard(orderRequestDetail)
+                      : renderOrderCard(orderRequestDetail))}
+                  {displayMessages.map((message, index) => (
+                    <React.Fragment key={getMessageKey(message, index)}>
+                      {renderMessage(message)}
+                    </React.Fragment>
+                  ))}
+                </>
               )}
             </ScrollView>
 
@@ -1205,9 +1410,13 @@ export default function ChatScreen() {
       </Modal>
 
       {/* Product Details modal (Viewing Request Info) */}
-      <Modal transparent visible={showProductDetails} animationType="slide" onRequestClose={() => setShowProductDetails(false)}>
+      <Modal transparent statusBarTranslucent visible={showProductDetails} animationType="slide" onRequestClose={() => setShowProductDetails(false)}>
         <Pressable className="flex-1 bg-black/40 justify-end" onPress={() => setShowProductDetails(false)}>
-          <Pressable className="bg-white dark:bg-slate-900 rounded-t-3xl px-5 pt-4 pb-8" onPress={(e) => e.stopPropagation()}>
+          <Pressable
+            className="bg-white dark:bg-slate-900 rounded-t-3xl px-5 pt-4"
+            style={{ paddingBottom: Math.max(insets.bottom, 16) + 16 }}
+            onPress={(e) => e.stopPropagation()}
+          >
             <View className="flex-row justify-between items-center mb-5">
               <View className="w-6" />
               <Text className="text-[17px] font-semibold text-slate-900 dark:text-slate-100">Product details and specifications</Text>
@@ -1216,13 +1425,24 @@ export default function ChatScreen() {
               </TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 480 }}>
-              {selectedOrderRequest?.coverImageUrl && (
-                <View className="items-center mb-5">
-                  <Image source={{ uri: selectedOrderRequest.coverImageUrl }} style={{ width: 140, height: 140, borderRadius: 8 }} contentFit="cover" />
-                  <Text className="text-[13px] text-slate-500 dark:text-slate-400 mt-2">Item preview</Text>
-                </View>
-              )}
+            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 460 }}>
+              <View className="items-center mb-5">
+                {selectedOrderRequest?.coverImageUrl && !failedOrderImages[`modal-${selectedOrderRequest?.id}`] ? (
+                  <Image
+                    source={{ uri: selectedOrderRequest.coverImageUrl }}
+                    style={{ width: 140, height: 140, borderRadius: 8 }}
+                    contentFit="cover"
+                    onError={() =>
+                      setFailedOrderImages((prev) => ({ ...prev, [`modal-${selectedOrderRequest?.id}`]: true }))
+                    }
+                  />
+                ) : (
+                  <View className="items-center justify-center bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700" style={{ width: 140, height: 140 }}>
+                    <Image source={require('@/assets/logo01.png')} style={{ width: 92, height: 92 }} contentFit="contain" />
+                  </View>
+                )}
+                <Text className="text-[13px] text-slate-500 dark:text-slate-400 mt-2">Item preview</Text>
+              </View>
               
               {isPrintDetail(selectedOrderRequest) ? (
                 <>
@@ -1256,6 +1476,24 @@ export default function ChatScreen() {
                       <Text className="text-[15px] font-semibold text-slate-900 dark:text-slate-100">{selectedOrderRequest.sourceOfItem}</Text>
                     </View>
                   )}
+                  {selectedOrderRequest?.budgetAmount > 0 && (
+                    <View className="mb-4">
+                      <Text className="text-[13px] text-slate-400 dark:text-slate-500 mb-1">Budget Estimate</Text>
+                      <Text className="text-[15px] font-semibold text-slate-900 dark:text-slate-100">{formatCurrency(selectedOrderRequest.budgetAmount)}</Text>
+                    </View>
+                  )}
+                  {selectedOrderRequest?.dateOfDelivery ? (
+                    <View className="mb-4">
+                      <Text className="text-[13px] text-slate-400 dark:text-slate-500 mb-1">Preferred date of delivery</Text>
+                      <Text className="text-[15px] font-semibold text-slate-900 dark:text-slate-100">{formatDateLabel(selectedOrderRequest.dateOfDelivery)}</Text>
+                    </View>
+                  ) : null}
+                  {selectedOrderRequest?.deliveryAddress ? (
+                    <View className="mb-4">
+                      <Text className="text-[13px] text-slate-400 dark:text-slate-500 mb-1">Delivery Address</Text>
+                      <Text className="text-[15px] font-semibold text-slate-900 dark:text-slate-100">{selectedOrderRequest.deliveryAddress}</Text>
+                    </View>
+                  ) : null}
                 </>
               ) : (
                 <>
@@ -1277,13 +1515,31 @@ export default function ChatScreen() {
                       <Text className="text-[15px] font-semibold text-slate-900 dark:text-slate-100">{selectedOrderRequest.mockTypes.join(", ")}</Text>
                     </View>
                   ) : null}
+                  {selectedOrderRequest?.budgetAmount > 0 && (
+                    <View className="mb-4">
+                      <Text className="text-[13px] text-slate-400 dark:text-slate-500 mb-1">Budget Estimate</Text>
+                      <Text className="text-[15px] font-semibold text-slate-900 dark:text-slate-100">{formatCurrency(selectedOrderRequest.budgetAmount)}</Text>
+                    </View>
+                  )}
+                  {selectedOrderRequest?.dateOfDelivery ? (
+                    <View className="mb-4">
+                      <Text className="text-[13px] text-slate-400 dark:text-slate-500 mb-1">Preferred date of delivery</Text>
+                      <Text className="text-[15px] font-semibold text-slate-900 dark:text-slate-100">{formatDateLabel(selectedOrderRequest.dateOfDelivery)}</Text>
+                    </View>
+                  ) : null}
                 </>
               )}
             </ScrollView>
 
             {/* View Details also retains the Create Offer for Providers */}
             {isProvider && isReviewStatus(selectedOrderRequest?.orderStatus) && !selectedOrderRequest?.hasOffer && (
-              <TouchableOpacity className="bg-[#4A3298] rounded-full py-4 items-center mt-4" onPress={() => { setShowProductDetails(false); setShowCreateOrder(true); }}>
+              <TouchableOpacity
+                className="bg-[#4A3298] rounded-full py-4 items-center mt-4"
+                onPress={() => {
+                  setShowProductDetails(false);
+                  openCreateOrderModal(selectedOrderRequest);
+                }}
+              >
                 <Text className="text-white text-[16px] font-bold">Create Offer</Text>
               </TouchableOpacity>
             )}
@@ -1292,42 +1548,117 @@ export default function ChatScreen() {
       </Modal>
 
       {/* Create Order modal */}
-      <Modal transparent visible={showCreateOrder} animationType="slide" onRequestClose={() => setShowCreateOrder(false)}>
-        <Pressable className="flex-1 bg-black/40 justify-end" onPress={() => setShowCreateOrder(false)}>
-          <Pressable className="bg-white dark:bg-slate-900 rounded-t-3xl px-5 pt-4 pb-8" onPress={(e) => e.stopPropagation()}>
-            <View className="flex-row items-center mb-1">
-              <TouchableOpacity onPress={() => setShowCreateOrder(false)} className="mr-3">
-                <Ionicons name="arrow-back" size={22} color={themeIconColor} />
-              </TouchableOpacity>
-              <Text className="text-[18px] font-bold text-slate-900 dark:text-slate-100">Create New Order</Text>
-            </View>
-            <Text className="text-[13px] text-slate-500 dark:text-slate-400 mb-5">Enter details agreed with clients for their acceptance and order generation</Text>
+      <Modal transparent statusBarTranslucent visible={showCreateOrder} animationType="slide" onRequestClose={() => setShowCreateOrder(false)}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={{ flex: 1 }}
+        >
+          <Pressable className="flex-1 bg-black/40 justify-end" onPress={() => setShowCreateOrder(false)}>
+            <Pressable
+              className="bg-white dark:bg-slate-900 rounded-t-3xl px-5 pt-4"
+              style={{
+                paddingBottom: Math.max(insets.bottom, 16) + 16,
+                maxHeight: "90%",
+              }}
+              onPress={(e) => e.stopPropagation()}
+            >
+              <View className="flex-row items-center mb-1">
+                <TouchableOpacity onPress={() => setShowCreateOrder(false)} className="mr-3">
+                  <Ionicons name="arrow-back" size={22} color={themeIconColor} />
+                </TouchableOpacity>
+                <Text className="text-[18px] font-bold text-slate-900 dark:text-slate-100">Create New Order</Text>
+              </View>
+              <Text className="text-[13px] text-slate-500 dark:text-slate-400 mb-4">Enter details agreed with clients for their acceptance and order generation</Text>
 
-            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 460 }}>
-              <Text className="text-[13px] font-semibold text-slate-800 dark:text-slate-200 mb-1">Order title</Text>
-              <TextInput value={orderTitle} onChangeText={setOrderTitle} placeholder="Write title" placeholderTextColor="#94a3b8" className="border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-[15px] text-slate-900 dark:text-slate-100 mb-4 bg-white dark:bg-slate-800" />
-              <Text className="text-[13px] font-semibold text-slate-800 dark:text-slate-200 mb-1">Brief description of order agreed specifications</Text>
-              <TextInput value={orderDescription} onChangeText={setOrderDescription} placeholder="Write description" placeholderTextColor="#94a3b8" multiline numberOfLines={3} className="border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-[15px] text-slate-900 dark:text-slate-100 mb-4 bg-white dark:bg-slate-800" textAlignVertical="top" style={{ minHeight: 80 }} />
-              <Text className="text-[13px] font-semibold text-slate-800 dark:text-slate-200 mb-1">Agreed amount (u20a6)</Text>
-              <TextInput value={orderAmount} onChangeText={setOrderAmount} placeholder="Enter amount" placeholderTextColor="#94a3b8" keyboardType="numeric" className="border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-[15px] text-slate-900 dark:text-slate-100 mb-4 bg-white dark:bg-slate-800" />
-              <Text className="text-[13px] font-semibold text-slate-800 dark:text-slate-200 mb-1">Agreed date of delivery</Text>
-              <TouchableOpacity className="flex-row items-center border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 mb-3 bg-white dark:bg-slate-800" onPress={() => setShowDatePicker(true)}>
-                <Text className={`flex-1 text-[15px] ${orderDeliveryDate ? "text-slate-900 dark:text-slate-100" : "text-slate-400"}`}>{orderDeliveryDate ? formatDateLabel(orderDeliveryDate) : "Select date"}</Text>
-                <Ionicons name="calendar-outline" size={20} color={themeSecondaryIconColor} />
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={{ paddingBottom: 16 }}
+              >
+                <Text className="text-[13px] font-semibold text-slate-800 dark:text-slate-200 mb-1">Order title</Text>
+                <TextInput value={orderTitle} onChangeText={setOrderTitle} placeholder="Write title" placeholderTextColor="#94a3b8" className="border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-[15px] text-slate-900 dark:text-slate-100 mb-4 bg-white dark:bg-slate-800" />
+                <Text className="text-[13px] font-semibold text-slate-800 dark:text-slate-200 mb-1">Brief description of order agreed specifications</Text>
+                <TextInput value={orderDescription} onChangeText={setOrderDescription} placeholder="Write description" placeholderTextColor="#94a3b8" multiline numberOfLines={3} className="border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-[15px] text-slate-900 dark:text-slate-100 mb-4 bg-white dark:bg-slate-800" textAlignVertical="top" style={{ minHeight: 80 }} />
+                <Text className="text-[13px] font-semibold text-slate-800 dark:text-slate-200 mb-1">Agreed amount ({"\u20a6"})</Text>
+                <TextInput value={orderAmount} onChangeText={setOrderAmount} placeholder="Enter amount" placeholderTextColor="#94a3b8" keyboardType="numeric" className="border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-[15px] text-slate-900 dark:text-slate-100 mb-4 bg-white dark:bg-slate-800" />
+
+                {(isPrintDetail(selectedOrderRequest) || isPrinter) && (
+                  <>
+                    <Text className="text-[13px] font-semibold text-slate-800 dark:text-slate-200 mb-1">Delivery fee ({"\u20a6"})</Text>
+                    <TextInput
+                      value={orderDeliveryAmount}
+                      onChangeText={setOrderDeliveryAmount}
+                      placeholder="Enter delivery fee"
+                      placeholderTextColor="#94a3b8"
+                      keyboardType="numeric"
+                      className="border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-[15px] text-slate-900 dark:text-slate-100 mb-4 bg-white dark:bg-slate-800"
+                    />
+                    <Text className="text-[13px] font-semibold text-slate-800 dark:text-slate-200 mb-2">Select agreed Item source</Text>
+                    <View className="flex-row gap-3 mb-4">
+                      <TouchableOpacity
+                        className={`flex-1 rounded-xl border py-3 items-center ${
+                          !itemProvidedByCustomer
+                            ? "border-[#4A3298] bg-[#4A3298]/10"
+                            : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
+                        }`}
+                        onPress={() => setItemProvidedByCustomer(false)}
+                      >
+                        <Text className={`text-[13px] font-semibold ${!itemProvidedByCustomer ? "text-[#4A3298]" : "text-slate-600 dark:text-slate-300"}`}>
+                          From Printer
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        className={`flex-1 rounded-xl border py-3 items-center ${
+                          itemProvidedByCustomer
+                            ? "border-[#4A3298] bg-[#4A3298]/10"
+                            : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
+                        }`}
+                        onPress={() => setItemProvidedByCustomer(true)}
+                      >
+                        <Text className={`text-[13px] font-semibold ${itemProvidedByCustomer ? "text-[#4A3298]" : "text-slate-600 dark:text-slate-300"}`}>
+                          From Customer
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                    {itemProvidedByCustomer && (
+                      <>
+                        <Text className="text-[13px] font-semibold text-slate-800 dark:text-slate-200 mb-1">Pickup fee ({"\u20a6"})</Text>
+                        <TextInput
+                          value={orderPickupAmount}
+                          onChangeText={setOrderPickupAmount}
+                          placeholder="Enter pickup fee"
+                          placeholderTextColor="#94a3b8"
+                          keyboardType="numeric"
+                          className="border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-[15px] text-slate-900 dark:text-slate-100 mb-4 bg-white dark:bg-slate-800"
+                        />
+                      </>
+                    )}
+                  </>
+                )}
+
+                <Text className="text-[13px] font-semibold text-slate-800 dark:text-slate-200 mb-1">Agreed date of delivery</Text>
+                <TouchableOpacity className="flex-row items-center border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 mb-3 bg-white dark:bg-slate-800" onPress={() => setShowDatePicker(true)}>
+                  <Text className={`flex-1 text-[15px] ${orderDeliveryDate ? "text-slate-900 dark:text-slate-100" : "text-slate-400"}`}>{orderDeliveryDate ? formatDateLabel(orderDeliveryDate) : "Select date"}</Text>
+                  <Ionicons name="calendar-outline" size={20} color={themeSecondaryIconColor} />
+                </TouchableOpacity>
+                {showDatePicker && <DateTimePicker value={orderDeliveryDate ? new Date(orderDeliveryDate) : new Date()} mode="date" display={Platform.OS === "ios" ? "inline" : "default"} minimumDate={new Date()} onChange={handleDeliveryDateChange} />}
+              </ScrollView>
+              <TouchableOpacity className={`rounded-full py-4 items-center mt-2 ${creatingOrder ? "bg-slate-400" : "bg-[#4A3298]"}`} onPress={handleCreateOrder} disabled={creatingOrder}>
+                {creatingOrder ? <ActivityIndicator size="small" color="#fff" /> : <Text className="text-white text-[16px] font-bold">Create Order</Text>}
               </TouchableOpacity>
-              {showDatePicker && <DateTimePicker value={orderDeliveryDate ? new Date(orderDeliveryDate) : new Date()} mode="date" display={Platform.OS === "ios" ? "inline" : "default"} minimumDate={new Date()} onChange={handleDeliveryDateChange} />}
-            </ScrollView>
-            <TouchableOpacity className={`rounded-full py-4 items-center ${creatingOrder ? "bg-slate-400" : "bg-[#4A3298]"}`} onPress={handleCreateOrder} disabled={creatingOrder}>
-              {creatingOrder ? <ActivityIndicator size="small" color="#fff" /> : <Text className="text-white text-[16px] font-bold">Create Order</Text>}
-            </TouchableOpacity>
+            </Pressable>
           </Pressable>
-        </Pressable>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Order Details modal (Viewing Created Order) */}
-      <Modal transparent visible={showOrderDetails} animationType="slide" onRequestClose={() => setShowOrderDetails(false)}>
+      <Modal transparent statusBarTranslucent visible={showOrderDetails} animationType="slide" onRequestClose={() => setShowOrderDetails(false)}>
         <Pressable className="flex-1 bg-black/40 justify-end" onPress={() => setShowOrderDetails(false)}>
-          <Pressable className="bg-white dark:bg-slate-900 rounded-t-3xl px-5 pt-4 pb-8" onPress={(e) => e.stopPropagation()}>
+          <Pressable
+            className="bg-white dark:bg-slate-900 rounded-t-3xl px-5 pt-4"
+            style={{ paddingBottom: Math.max(insets.bottom, 16) + 16 }}
+            onPress={(e) => e.stopPropagation()}
+          >
             <View className="flex-row justify-between items-center mb-2">
               <View className="w-6" />
               <Text className="text-[17px] font-semibold text-slate-900 dark:text-slate-100">Order details</Text>
@@ -1337,7 +1668,7 @@ export default function ChatScreen() {
             </View>
             <Text className="text-[13px] text-slate-500 dark:text-slate-400 mb-5">Review information to ensure details is exactly as agreed before processing</Text>
 
-            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 480 }}>
+            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 460 }}>
               {selectedOrderDetail && (
                 <>
                   <View className="mb-4">
@@ -1350,28 +1681,55 @@ export default function ChatScreen() {
                   </View>
                   <View className="mb-4">
                     <Text className="text-[13px] font-bold text-slate-900 dark:text-slate-100 mb-1">Design amount</Text>
-                    <Text className="text-[14px] text-slate-600 dark:text-slate-300">{formatCurrency(selectedOrderDetail.designAmount)}</Text>
+                    <Text className="text-[14px] text-slate-600 dark:text-slate-300">
+                      {formatCurrency(
+                        selectedOrderDetail.designAmount ||
+                          (!isPrintDetail(selectedOrderDetail) ? selectedOrderDetail.totalAmount : 0),
+                        true,
+                      )}
+                    </Text>
                   </View>
-                  <View className="mb-4">
-                    <Text className="text-[13px] font-bold text-slate-900 dark:text-slate-100 mb-1">Printing amount</Text>
-                    <Text className="text-[14px] text-slate-600 dark:text-slate-300">{formatCurrency(selectedOrderDetail.printingAmount)}</Text>
-                  </View>
-                  <View className="mb-4">
-                    <Text className="text-[13px] font-bold text-slate-900 dark:text-slate-100 mb-1">Delivery amount</Text>
-                    <Text className="text-[14px] text-slate-600 dark:text-slate-300">{formatCurrency(selectedOrderDetail.deliveryAmount)}</Text>
-                  </View>
-                  <View className="mb-4">
-                    <Text className="text-[13px] font-bold text-slate-900 dark:text-slate-100 mb-1">Pickup amount</Text>
-                    <Text className="text-[14px] text-slate-600 dark:text-slate-300">{formatCurrency(selectedOrderDetail.pickupAmount)}</Text>
-                  </View>
+                  {isPrintDetail(selectedOrderDetail) && !isDesigner && (
+                    <>
+                      <View className="mb-4">
+                        <Text className="text-[13px] font-bold text-slate-900 dark:text-slate-100 mb-1">Printing amount</Text>
+                        <Text className="text-[14px] text-slate-600 dark:text-slate-300">{formatCurrency(selectedOrderDetail.printingAmount, true)}</Text>
+                      </View>
+                      <View className="mb-4">
+                        <Text className="text-[13px] font-bold text-slate-900 dark:text-slate-100 mb-1">Delivery fee</Text>
+                        <Text className="text-[14px] text-slate-600 dark:text-slate-300">{formatCurrency(selectedOrderDetail.deliveryAmount, true)}</Text>
+                      </View>
+                      {(selectedOrderDetail.itemProvidedByCustomer || Number(selectedOrderDetail.pickupAmount || 0) > 0) && (
+                        <View className="mb-4">
+                          <Text className="text-[13px] font-bold text-slate-900 dark:text-slate-100 mb-1">Pickup amount</Text>
+                          <Text className="text-[14px] text-slate-600 dark:text-slate-300">{formatCurrency(selectedOrderDetail.pickupAmount, true)}</Text>
+                        </View>
+                      )}
+                      <View className="mb-4">
+                        <Text className="text-[13px] font-bold text-slate-900 dark:text-slate-100 mb-1">Total amount</Text>
+                        <Text className="text-[14px] font-bold text-slate-900 dark:text-slate-100">
+                          {formatCurrency(
+                            selectedOrderDetail.totalAmount ||
+                              Number(selectedOrderDetail.designAmount || 0) +
+                                Number(selectedOrderDetail.printingAmount || 0) +
+                                Number(selectedOrderDetail.deliveryAmount || 0) +
+                                Number(selectedOrderDetail.pickupAmount || 0),
+                            true,
+                          )}
+                        </Text>
+                      </View>
+                    </>
+                  )}
                   <View className="mb-4">
                     <Text className="text-[13px] font-bold text-slate-900 dark:text-slate-100 mb-1">Agreed date of delivery</Text>
                     <Text className="text-[14px] text-slate-600 dark:text-slate-300">{selectedOrderDetail.deliveryDate || "N/A"}</Text>
                   </View>
-                  <View className="mb-4">
-                    <Text className="text-[13px] font-bold text-slate-900 dark:text-slate-100 mb-1">Need pickup logistics</Text>
-                    <Text className="text-[14px] text-slate-600 dark:text-slate-300">{selectedOrderDetail.itemProvidedByCustomer ? "Yes" : "No"}</Text>
-                  </View>
+                  {isPrintDetail(selectedOrderDetail) && !isDesigner && (
+                    <View className="mb-4">
+                      <Text className="text-[13px] font-bold text-slate-900 dark:text-slate-100 mb-1">Need pickup logistics</Text>
+                      <Text className="text-[14px] text-slate-600 dark:text-slate-300">{selectedOrderDetail.itemProvidedByCustomer ? "Yes" : "No"}</Text>
+                    </View>
+                  )}
                 </>
               )}
             </ScrollView>

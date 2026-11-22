@@ -10,8 +10,9 @@ import ApiService from "@/services/apiClient";
 import { toProfileType, useAuthStore } from "@/store/authStore";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
+import * as Location from "expo-location";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     ActivityIndicator,
     Image,
@@ -27,6 +28,7 @@ import {
     View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { WebView } from "react-native-webview";
 
 // ─── Backend stubs — wire these up when your API is ready ───────────────────
 async function deactivateAccount(): Promise<void> {
@@ -97,7 +99,6 @@ function DeactivateDeleteScreen({
         logout();
       }
     } catch {
-      // stub — will work once backend is wired
       showAlert({
         type: 'warning',
         title: confirmModal === "deactivate" ? "Deactivate" : "Delete",
@@ -248,6 +249,7 @@ export default function EditProfileScreen() {
   const { uploading, uploadFile } = useFileUpload();
   const { show: showAlert, element: alertElement } = useAppAlert();
   const { section } = useLocalSearchParams<{ section?: string }>();
+  
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [fullName, setFullName] = useState("");
@@ -267,6 +269,10 @@ export default function EditProfileScreen() {
   const [locationSearch, setLocationSearch] = useState("");
   const [locationSuggestions, setLocationSuggestions] = useState<GeocodedAddress[]>([]);
   const [locationSearching, setLocationSearching] = useState(false);
+  const [fetchingCurrentLocation, setFetchingCurrentLocation] = useState(false);
+  const [selectedLocation, setSelectedLocation] = useState<
+    (GeocodedAddress & { city?: string; state?: string; country?: string; postalCode?: string }) | null
+  >(null);
   const [savingLocation, setSavingLocation] = useState(false);
   const [nextLocationUpdate, setNextLocationUpdate] = useState<Date | null>(null);
   const locationStorageKey = 'shop-location-updated:' + user?.id + ':' + role;
@@ -310,7 +316,6 @@ export default function EditProfileScreen() {
       setFullName(merged.fullName || "");
       setBrandName(currentProfile?.name || currentProfile?.userName || "");
       setBio(currentProfile?.bio || "");
-      // categories is the field used by the API (same as what my-shop reads)
       setSpecifications(
         currentProfile?.categories ||
         currentProfile?.specifications ||
@@ -332,9 +337,20 @@ export default function EditProfileScreen() {
 
   const pickImage = async (setter: (uri: string) => void, aspect: [number, number]) => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") { showAlert({ type: 'warning', title: 'Permission required', message: 'Allow access to your photos.' }); return; }
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: "images" as any, aspect, quality: 0.85 });
-    if (!result.canceled && result.assets?.[0]?.uri) setter(result.assets[0].uri);
+    if (status !== "granted") { 
+        showAlert({ type: 'warning', title: 'Permission required', message: 'Allow access to your photos.' }); 
+        return; 
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({ 
+        mediaTypes: ImagePicker.MediaTypeOptions.Images, 
+        allowsEditing: true, 
+        aspect, 
+        quality: 0.85 
+    });
+    
+    if (!result.canceled && result.assets?.[0]?.uri) {
+        setter(result.assets[0].uri);
+    }
   };
 
   const handleSave = async () => {
@@ -347,31 +363,29 @@ export default function EditProfileScreen() {
         const uploaded = await uploadFile(avatarUri);
         avatarPath = uploaded.path;
       }
-      if (!isCustomer && coverUri && (coverUri.startsWith("file:") || coverUri.startsWith("content:"))) {
+      
+      // Cover pics shouldn't be blocked just because they are a customer if the API expects it
+      if (coverUri && (coverUri.startsWith("file:") || coverUri.startsWith("content:"))) {
         const uploaded = await uploadFile(coverUri);
         coverPath = uploaded.path;
       }
 
-      const payload: any = {
-        name: isCustomer ? fullName.trim() : brandName.trim() || fullName.trim(),
-        ...(isCustomer ? {} : { bio: bio.trim() }),
-        profilePic: avatarPath.replace("https://berry-stamp-prod.s3.amazonaws.com/", "") || undefined,
-        ...(isCustomer ? {} : { coverPic: coverPath.replace("https://berry-stamp-prod.s3.amazonaws.com/", "") || undefined }),
-        // send both field names so the backend accepts whichever it expects
-        ...(role === "DESIGNER" || role === "PRINTER"
-          ? {
-            categories: specifications.filter(Boolean),
-          }
-          : {}),
+      // Exact backend payload requirement
+      const payload = {
+        name: isCustomer ? fullName.trim() : (brandName.trim() || fullName.trim()),
+        profilePic: avatarPath ? avatarPath.replace("https://berry-stamp-prod.s3.amazonaws.com/", "") : "",
+        coverPic: coverPath ? coverPath.replace("https://berry-stamp-prod.s3.amazonaws.com/", "") : "",
+        bio: bio.trim() || "",
+        categories: specifications.filter(Boolean) || [],
       };
 
       await ApiService.updateMyProfile(payload);
       await refreshUser();
+      
       setStoredAvatarPath(avatarPath);
       setStoredCoverPath(coverPath);
       showAlert({ type: 'success', title: 'Saved', message: 'Profile updated successfully.' });
     } catch (error: any) {
-      // Extract the most descriptive message the backend returned
       const msg =
         error?.response?.data?.responseMessage ||
         error?.response?.data?.message ||
@@ -384,6 +398,65 @@ export default function EditProfileScreen() {
       setSaving(false);
     }
   };
+
+  const fetchCurrentLocation = useCallback(async () => {
+    setFetchingCurrentLocation(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        setFetchingCurrentLocation(false);
+        return;
+      }
+
+      const loc = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      const { latitude, longitude } = loc.coords;
+
+      const places = await Location.reverseGeocodeAsync({ latitude, longitude }).catch(() => []);
+      if (places.length > 0) {
+        const p = places[0];
+        const parts = [p.name, p.street, p.district, p.city, p.region, p.country].filter(Boolean);
+        const unique = parts.filter((part, idx) => parts.indexOf(part) === idx);
+        const formatted = unique.join(", ") || `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+        setLocationSearch(formatted);
+        setSelectedLocation({
+          name: formatted,
+          latitude,
+          longitude,
+          city: p.city || p.subregion || "",
+          state: p.region || "",
+          country: p.country || "Nigeria",
+          postalCode: p.postalCode || "",
+        });
+      } else {
+        const fallback = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+        setLocationSearch(fallback);
+        setSelectedLocation({
+          name: fallback,
+          latitude,
+          longitude,
+          country: "Nigeria",
+        });
+      }
+    } catch {
+      // Allow manual search if GPS is unavailable
+    } finally {
+      setFetchingCurrentLocation(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (section === "location") {
+      setShowLocationModal(true);
+    }
+  }, [section]);
+
+  useEffect(() => {
+    if (showLocationModal && (role === "DESIGNER" || role === "PRINTER")) {
+      fetchCurrentLocation();
+    }
+  }, [showLocationModal, role, fetchCurrentLocation]);
 
   const handleLocationSearch = (query: string) => {
     setLocationSearch(query);
@@ -400,13 +473,16 @@ export default function EditProfileScreen() {
     }, 400);
   };
 
-  const handleSelectLocation = useCallback(async (address: GeocodedAddress) => {
+  const handleSelectLocation = useCallback(async (
+    address: GeocodedAddress & { city?: string; state?: string; country?: string; postalCode?: string }
+  ) => {
     if (savingLocation) return;
     if (nextLocationUpdate && nextLocationUpdate.getTime() > Date.now()) {
       showAlert({ type: 'warning', title: 'Location update unavailable', message: 'You can update your shop location again on ' + nextLocationUpdate.toLocaleDateString() + '.' });
       return;
     }
     setLocationSearch(address.name);
+    setSelectedLocation(address);
     setLocationSuggestions([]);
     setSavingLocation(true);
     try {
@@ -414,6 +490,10 @@ export default function EditProfileScreen() {
         latitude: address.latitude,
         longitude: address.longitude,
         address: address.name,
+        city: address.city,
+        state: address.state,
+        country: address.country,
+        postalCode: address.postalCode,
       });
       const updatedAt = new Date().toISOString();
       await AsyncStorage.setItem(locationStorageKey, updatedAt);
@@ -657,14 +737,41 @@ export default function EditProfileScreen() {
               <Text style={{ fontSize: 17, fontWeight: "600", color: text }}>Update Shop Location</Text>
             </View>
 
-            <View style={{ padding: 20 }}>
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
               <Text style={{ fontSize: 14, color: textMuted, marginBottom: 12, lineHeight: 20 }}>
-                Search for your shop&apos;s address so customers nearby can find you.
+                Your current location is automatically detected via Google Maps, or you can search for your shop&apos;s address below.
                 {'\n'}Shop location can be updated once every two months.
                 {nextLocationUpdate
                   ? '\nNext update: ' + nextLocationUpdate.toLocaleDateString() : ''}
               </Text>
-              <View style={{ flexDirection: "row", alignItems: "center", borderWidth: 1, borderRadius: 10, borderColor: inputBorder, backgroundColor: surface, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 8 }}>
+
+              <TouchableOpacity
+                onPress={fetchCurrentLocation}
+                disabled={fetchingCurrentLocation || savingLocation}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: isDark ? "#282249" : "#F3F0FF",
+                  borderRadius: 10,
+                  paddingVertical: 11,
+                  paddingHorizontal: 14,
+                  marginBottom: 12,
+                  borderWidth: 1,
+                  borderColor: primary,
+                }}
+              >
+                {fetchingCurrentLocation ? (
+                  <ActivityIndicator size="small" color={primary} style={{ marginRight: 8 }} />
+                ) : (
+                  <Ionicons name="locate-outline" size={18} color={primary} style={{ marginRight: 8 }} />
+                )}
+                <Text style={{ fontSize: 13, fontWeight: "600", color: primary }}>
+                  {fetchingCurrentLocation ? "Detecting current location..." : "Use Current Location (Google Map)"}
+                </Text>
+              </TouchableOpacity>
+
+              <View style={{ flexDirection: "row", alignItems: "center", borderWidth: 1, borderRadius: 10, borderColor: inputBorder, backgroundColor: surface, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 12 }}>
                 <Ionicons name="search-outline" size={18} color={textMuted} style={{ marginRight: 8 }} />
                 <TextInput
                   value={locationSearch}
@@ -672,33 +779,90 @@ export default function EditProfileScreen() {
                   placeholder="Search address (e.g. Yaba, Lagos)"
                   placeholderTextColor={textMuted}
                   style={{ flex: 1, fontSize: 14, color: text }}
-                  autoFocus={section === "location"}
                 />
                 {locationSearching && <ActivityIndicator size="small" color={primary} style={{ marginLeft: 8 }} />}
               </View>
 
               {locationSuggestions.length > 0 && (
-                <View style={{ backgroundColor: surface, borderRadius: 10, borderWidth: 1, borderColor: border, overflow: "hidden" }}>
+                <View style={{ backgroundColor: surface, borderRadius: 10, borderWidth: 1, borderColor: border, overflow: "hidden", marginBottom: 14 }}>
                   {locationSuggestions.map((addr, i) => (
                     <TouchableOpacity
                       key={`${addr.latitude}-${addr.longitude}`}
-                      onPress={() => handleSelectLocation(addr)}
+                      onPress={() => {
+                        setSelectedLocation(addr);
+                        setLocationSearch(addr.name);
+                        setLocationSuggestions([]);
+                      }}
                       disabled={savingLocation}
                       style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 14, paddingVertical: 14, borderBottomWidth: i < locationSuggestions.length - 1 ? StyleSheet.hairlineWidth : 0, borderBottomColor: border }}
                     >
                       <Ionicons name="location-outline" size={16} color={primary} style={{ marginRight: 10 }} />
                       <Text style={{ flex: 1, fontSize: 13, color: text, lineHeight: 18 }}>{addr.name}</Text>
-                      {savingLocation && <ActivityIndicator size="small" color={primary} />}
                     </TouchableOpacity>
                   ))}
                 </View>
               )}
 
-              {locationSearch.length >= 3 && !locationSearching && locationSuggestions.length === 0 && (
+              {selectedLocation && (
+                <View style={{ borderRadius: 14, overflow: "hidden", borderWidth: 1, borderColor: border, backgroundColor: surface, marginBottom: 16 }}>
+                  <View style={{ height: 220, width: "100%" }}>
+                    <WebView
+                      source={{
+                        uri: `https://maps.google.com/maps?q=${selectedLocation.latitude},${selectedLocation.longitude}&z=15&output=embed`,
+                      }}
+                      style={{ flex: 1 }}
+                      scrollEnabled={false}
+                    />
+                  </View>
+                  <View style={{ padding: 12, flexDirection: "row", alignItems: "center" }}>
+                    <Ionicons name="location" size={18} color={primary} style={{ marginRight: 8 }} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 13, fontWeight: "600", color: text }} numberOfLines={2}>
+                        {selectedLocation.name}
+                      </Text>
+                      <Text style={{ fontSize: 11, color: textMuted, marginTop: 2 }}>
+                        Lat: {selectedLocation.latitude.toFixed(5)}, Lng: {selectedLocation.longitude.toFixed(5)}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              )}
+
+              {locationSearch.length >= 3 && !locationSearching && locationSuggestions.length === 0 && !selectedLocation && (
                 <Text style={{ textAlign: "center", color: textMuted, fontSize: 13, marginTop: 20 }}>
                   No results found. Try a different search.
                 </Text>
               )}
+            </ScrollView>
+
+            <View style={{ paddingHorizontal: 20, paddingTop: 12, paddingBottom: Math.max(insets.bottom, 16) + 8, backgroundColor: surface, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: border }}>
+              <TouchableOpacity
+                onPress={() => {
+                  if (selectedLocation) {
+                    handleSelectLocation(selectedLocation);
+                  } else if (locationSuggestions[0]) {
+                    handleSelectLocation(locationSuggestions[0]);
+                  } else {
+                    showAlert({ type: "warning", title: "Select a location", message: "Please allow location access or search and select an address first." });
+                  }
+                }}
+                disabled={savingLocation || (!selectedLocation && locationSuggestions.length === 0)}
+                style={{
+                  backgroundColor: savingLocation || (!selectedLocation && locationSuggestions.length === 0) ? "#9E97B8" : primary,
+                  borderRadius: 999,
+                  paddingVertical: 15,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                {savingLocation ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={{ color: "#FFFFFF", fontSize: 15, fontWeight: "700" }}>
+                    Update Location
+                  </Text>
+                )}
+              </TouchableOpacity>
             </View>
           </KeyboardAvoidingView>
         </Modal>

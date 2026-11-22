@@ -71,6 +71,12 @@ const buildPaystackHtml = (opts: PaystackPaymentOptions): string => {
   const amountInKobo = Math.round(opts.amount * 100);
   const key = ENV.PAYSTACK_PUBLIC_KEY;
   const currency = opts.currency ?? 'NGN';
+  // Serialize dynamic values as JavaScript literals to avoid breaking the
+  // checkout script when customer data contains quotes or special characters.
+  const keyLiteral = JSON.stringify(key);
+  const emailLiteral = JSON.stringify(opts.email);
+  const currencyLiteral = JSON.stringify(currency);
+  const orderIdLiteral = JSON.stringify(String(opts.orderId));
 
   return `
 <!DOCTYPE html>
@@ -114,14 +120,17 @@ const buildPaystackHtml = (opts: PaystackPaymentOptions): string => {
     window.addEventListener('load', function () {
       try {
         var handler = PaystackPop.setup({
-          key: '${key}',
-          email: '${opts.email}',
+          key: ${keyLiteral},
+          email: ${emailLiteral},
           amount: ${amountInKobo},
-          currency: '${currency}',
-          ref: 'order_${opts.orderId}_' + Date.now(),
+          currency: ${currencyLiteral},
+          // Ask Paystack to expose every generally supported Nigerian channel.
+          // Availability is still controlled by the merchant's Paystack account.
+          channels: ['card', 'bank', 'bank_transfer', 'ussd', 'qr', 'mobile_money', 'eft'],
+          ref: 'order_' + ${orderIdLiteral} + '_' + Date.now(),
           metadata: {
             custom_fields: [],
-            orderId: '${opts.orderId}'
+            orderId: ${orderIdLiteral}
           },
           callback: function (response) {
             postMsg({ type: 'success', reference: response.reference });
