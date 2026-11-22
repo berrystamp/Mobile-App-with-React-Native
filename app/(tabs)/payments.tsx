@@ -1,3 +1,4 @@
+import { TransactionDetailsSheet } from '@/components/wallet/TransactionDetailsSheet';
 import { transactionDirection } from '@/lib/wallet';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -41,6 +42,7 @@ export default function WalletScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [wallet, setWallet] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
+  const [selectedTransaction, setSelectedTransaction] = useState<any | null>(null);
   const [showBalance, setShowBalance] = useState(true);
   const [activeFilter, setActiveFilter] = useState<FilterTab>('All');
 
@@ -258,8 +260,12 @@ export default function WalletScreen() {
               const amount = Number(item.amount || 0);
               const isLast = index === filtered.length - 1;
               return (
-                <View
+                <TouchableOpacity
                   key={String(item.id || index)}
+                  onPress={() => setSelectedTransaction(item)}
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel={`View transaction details: ${item.description || item.narration || (isCredit ? 'Credit' : 'Debit')}`}
                   style={{
                     flexDirection: 'row', alignItems: 'center',
                     paddingHorizontal: 16, paddingVertical: 14,
@@ -304,12 +310,16 @@ export default function WalletScreen() {
                       </Text>
                     </View>
                   </View>
-                </View>
+                </TouchableOpacity>
               );
             })}
           </View>
         )}
       </ScrollView>
+      <TransactionDetailsSheet
+        transaction={selectedTransaction}
+        onClose={() => setSelectedTransaction(null)}
+      />
     </SafeAreaView>
   );
 }

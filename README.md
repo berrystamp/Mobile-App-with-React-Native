@@ -35,6 +35,15 @@ npm run reset-project
 
 This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
 
+## Shared links
+
+Profile, collection, and design shares use `https://berrystamp.com` by default.
+The website must serve the Expo web routes `/products?designId=...` and
+`/my-shop?profileId=...` (with `collectionId=...` for a collection).
+Set `EXPO_PUBLIC_SHARE_ORIGIN` before building to use a different web deployment.
+Opening HTTPS links directly in the installed app also requires domain association
+files on the website and native universal/app link configuration.
+
 ## Learn more
 
 To learn more about developing your project with Expo, look at the following resources:

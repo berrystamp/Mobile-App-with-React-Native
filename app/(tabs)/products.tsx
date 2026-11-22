@@ -1,6 +1,7 @@
 import { useAppAlert } from "@/components/common/AppAlert";
 import PrintPreferencesModal, { type PrintPreferencesResult } from "@/components/PrintPreferencesModal";
 import { useCustomDesignStore } from "@/context/CustomDesignContext";
+import { useShareAfterDismiss } from "@/hooks/use-share-after-dismiss";
 import { formatNaira } from "@/lib/currency";
 import {
   matchesProductCategory,
@@ -9,6 +10,7 @@ import {
   STANDARD_SIZES,
 } from "@/lib/designs";
 import { SearchFilters, addSearchHistory, getSearchFilters } from "@/lib/localStorage";
+import { resourceShareUrl, shareResourceLink } from "@/lib/sharing";
 import ApiService from "@/services/apiClient";
 import { Design, Mock } from "@/types";
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -23,7 +25,6 @@ import {
   Modal,
   Pressable,
   ScrollView,
-  Share,
   Text,
   TextInput,
   TouchableOpacity,
@@ -158,40 +159,42 @@ function ShareSheet({
   design: Design | null;
   onClose: () => void;
 }) {
-  if (!design) return null;
   const isDark = useColorScheme() === 'dark';
+  const sharing = useShareAfterDismiss(visible);
+  if (!design) return null;
 
   const handleSocialShare = async (platform: string) => {
-    const message = `Check out "${design.title}" on Berrystamp!`;
+    const url = resourceShareUrl('design', design.id);
+    const message = `Check out "${design.title}" on Berrystamp!\n${url}`;
     const encodedMessage = encodeURIComponent(message);
-    const productUrl = encodeURIComponent(`https://berrystamp.com/design/${design.id}`); 
+    const productUrl = encodeURIComponent(url);
     
     let appUrl = '';
     let webUrl = '';
 
     switch (platform) {
       case 'Whatsapp':
-        appUrl = `whatsapp://send?text=${encodedMessage} ${productUrl}`;
-        webUrl = `https://wa.me/?text=${encodedMessage} ${productUrl}`;
+        appUrl = `whatsapp://send?text=${encodedMessage}`;
+        webUrl = `https://wa.me/?text=${encodedMessage}`;
         break;
       case 'X':
-        appUrl = `twitter://post?message=${encodedMessage}&url=${productUrl}`;
-        webUrl = `https://twitter.com/intent/tweet?text=${encodedMessage}&url=${productUrl}`;
+        appUrl = `twitter://post?message=${encodedMessage}`;
+        webUrl = `https://twitter.com/intent/tweet?text=${encodedMessage}`;
         break;
       case 'Facebook':
-        appUrl = `fb://`;
         webUrl = `https://www.facebook.com/sharer/sharer.php?u=${productUrl}&quote=${encodedMessage}`;
         break;
       case 'LinkedIn':
-        appUrl = `linkedin://`;
         webUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${productUrl}`;
         break;
     }
 
     try {
-      await Linking.openURL(appUrl).catch(() => {
-        return Linking.openURL(webUrl);
-      });
+      if (appUrl) {
+        await Linking.openURL(appUrl).catch(() => (webUrl ? Linking.openURL(webUrl) : undefined));
+      } else if (webUrl) {
+        await Linking.openURL(webUrl);
+      }
     } catch (e) {
       console.warn(`Could not open ${platform}`, e);
     }
@@ -200,16 +203,15 @@ function ShareSheet({
 
   const handleCopy = async () => {
     try {
-      await Share.share({
-        message: `Check out "${design.title}" on Berrystamp! ${design.description || ''}`,
-        title: design.title,
-      });
+      await shareResourceLink(
+        `Check out "${design.title}" on Berrystamp.`,
+        resourceShareUrl('design', design.id),
+      );
     } catch { }
-    onClose();
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} onDismiss={sharing.onDismiss}>
       <Pressable className="flex-1 justify-end bg-black/50" onPress={onClose}>
         <View 
           onStartShouldSetResponder={() => true} 
@@ -245,7 +247,7 @@ function ShareSheet({
                 Berrystamp Exclusives
               </Text>
             </View>
-            <TouchableOpacity onPress={handleCopy} className="ml-3 rounded-xl bg-[#3E2F8A] px-5 py-3">
+            <TouchableOpacity onPress={() => sharing.share(handleCopy, onClose)} className="ml-3 rounded-xl bg-[#3E2F8A] px-5 py-3">
               <Text className="text-[14px] font-bold text-white">Share link</Text>
             </TouchableOpacity>
           </View>
