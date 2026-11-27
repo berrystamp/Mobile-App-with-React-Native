@@ -13,7 +13,8 @@
       "buildNumber": "1",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSUserNotificationsUsageDescription": "Berrystamp uses notifications to keep you updated on orders, messages, and promotions."
+        "NSUserNotificationsUsageDescription": "Berrystamp uses notifications to keep you updated on orders, messages, and promotions.",
+        "NSLocationWhenInUseUsageDescription": "Berrystamp uses your current location to set your shop location automatically."
       }
     },
     "android": {
@@ -24,7 +25,11 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.berrystamp.app",
-      "versionCode": 1
+      "versionCode": 1,
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION"
+      ]
     },
     "web": {
       "output": "single",
@@ -49,7 +54,13 @@
       "expo-splash-screen",
       "expo-status-bar",
       "expo-web-browser",
-      "expo-asset"
+      "expo-asset",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Berrystamp uses your current location to set your shop location automatically."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

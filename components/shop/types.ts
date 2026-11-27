@@ -24,7 +24,14 @@ export type ShopProfile = {
   following: number;
   reviews: number;
   uploads: number;
+  rating?: number;
+  jobSuccess?: number;
   isFollowing?: boolean;
+};
+
+export type GalleryItem = {
+  id: number | string;
+  imageUrl: string;
 };
 
 export type ReviewItem = {
@@ -49,6 +56,7 @@ export type ShopData = {
   designs: Design[];
   collections: CollectionItem[];
   reviews: ReviewItem[];
+  gallery: GalleryItem[];
   followers: any[];
   following: any[];
   shouldPromptPayment: boolean;

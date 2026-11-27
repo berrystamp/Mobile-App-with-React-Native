@@ -1615,6 +1615,29 @@ class ApiService {
     return response.data;
   }
 
+  async getProfileGallery(profileId?: string | number) {
+    if (!profileId) return [];
+    try {
+      const response = await api.get('/gallery', { params: { profileId: Number(profileId) } });
+      return response.data;
+    } catch (error: any) {
+      if (error?.response?.status && ![400, 404].includes(error.response.status)) {
+        throw error;
+      }
+      return [];
+    }
+  }
+
+  async addToGallery(url: string) {
+    const response = await api.post('/gallery', { url }, { headers: { profileType: getProfileType() } });
+    return response.data;
+  }
+
+  async removeFromGallery(id: string | number) {
+    const response = await api.delete(`/gallery/${id}`, { headers: { profileType: getProfileType() } });
+    return response.data;
+  }
+
   async getShopReviews(profileId?: string | number, _page: number = 0, _size: number = 20) {
     if (!profileId) {
       return { content: [] };

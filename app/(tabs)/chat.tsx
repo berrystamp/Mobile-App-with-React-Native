@@ -1,3 +1,4 @@
+import BottomSheetModal from "@/components/common/BottomSheetModal";
 import { getAccountProfile } from '@/lib/accountProfile';
 import { toProfileType, useAuthStore } from '@/store/authStore';
 import { useAppAlert } from "@/components/common/AppAlert";
@@ -362,8 +363,6 @@ export default function ChatScreen() {
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
 
-  const sheetBottomPadding = Math.max(insets.bottom, Platform.OS === "android" ? 48 : 20) + 16;
-
   useEffect(() => {
     const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
     const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
@@ -378,6 +377,22 @@ export default function ChatScreen() {
       hideSub.remove();
     };
   }, []);
+
+  const offerScrollRef = useRef<ScrollView>(null);
+  const offerFieldY = useRef<Record<string, number>>({});
+  const fieldProps = (key: string) => ({
+    onLayout: (e: any) => {
+      offerFieldY.current[key] = e.nativeEvent.layout.y;
+    },
+    onFocus: () => {
+      setTimeout(() => {
+        offerScrollRef.current?.scrollTo({
+          y: Math.max((offerFieldY.current[key] ?? 0) - 24, 0),
+          animated: true,
+        });
+      }, 250);
+    },
+  });
   
   const [messages, setMessages] = useState<(ChatMessageDto & { imageUrl?: string })[]>(
     initialCachedMessages || [],
@@ -1575,13 +1590,7 @@ export default function ChatScreen() {
       </Modal>
 
       {/* Product Details modal (Viewing Request Info) */}
-      <Modal transparent statusBarTranslucent visible={showProductDetails} animationType="slide" onRequestClose={() => setShowProductDetails(false)}>
-        <Pressable className="flex-1 bg-black/40 justify-end" onPress={() => setShowProductDetails(false)}>
-          <Pressable
-            className="bg-white dark:bg-slate-900 rounded-t-3xl px-5 pt-4"
-            style={{ paddingBottom: sheetBottomPadding, maxHeight: "88%" }}
-            onPress={(e) => e.stopPropagation()}
-          >
+      <BottomSheetModal visible={showProductDetails} onClose={() => setShowProductDetails(false)}>
             <View className="flex-row justify-between items-center mb-5">
               <View className="w-6" />
               <Text className="text-[17px] font-semibold text-slate-900 dark:text-slate-100">Product details and specifications</Text>
@@ -1712,26 +1721,10 @@ export default function ChatScreen() {
                 <Text className="text-white text-[16px] font-bold">Create Offer</Text>
               </TouchableOpacity>
             )}
-          </Pressable>
-        </Pressable>
-      </Modal>
+      </BottomSheetModal>
 
       {/* Create Order modal */}
-      <Modal transparent statusBarTranslucent visible={showCreateOrder} animationType="slide" onRequestClose={() => setShowCreateOrder(false)}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-          style={{ flex: 1 }}
-        >
-          <Pressable className="flex-1 bg-black/40 justify-end" onPress={() => setShowCreateOrder(false)}>
-            <Pressable
-              className="bg-white dark:bg-slate-900 rounded-t-3xl px-5 pt-4"
-              style={{
-                paddingBottom: keyboardHeight > 0 ? 12 : sheetBottomPadding,
-                marginBottom: Platform.OS === "android" ? keyboardHeight : 0,
-                maxHeight: keyboardHeight > 0 ? "82%" : "88%",
-              }}
-              onPress={(e) => e.stopPropagation()}
-            >
+      <BottomSheetModal visible={showCreateOrder} onClose={() => setShowCreateOrder(false)} maxHeight="92%">
               <View className="flex-row items-center mb-1">
                 <TouchableOpacity onPress={() => setShowCreateOrder(false)} className="mr-3">
                   <Ionicons name="arrow-back" size={22} color={themeIconColor} />
@@ -1741,23 +1734,23 @@ export default function ChatScreen() {
               <Text className="text-[13px] text-slate-500 dark:text-slate-400 mb-4">Enter details agreed with clients for their acceptance and order generation</Text>
 
               <ScrollView
+                ref={offerScrollRef}
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
-                automaticallyAdjustKeyboardInsets
-                contentContainerStyle={{ paddingBottom: 24 }}
+                contentContainerStyle={{ paddingBottom: keyboardHeight > 0 ? 240 : 24 }}
               >
                 <Text className="text-[13px] font-semibold text-slate-800 dark:text-slate-200 mb-1">Order title</Text>
-                <TextInput value={orderTitle} onChangeText={setOrderTitle} placeholder="Write title" placeholderTextColor="#94a3b8" className="border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-[15px] text-slate-900 dark:text-slate-100 mb-4 bg-white dark:bg-slate-800" />
+                <TextInput {...fieldProps("title")} value={orderTitle} onChangeText={setOrderTitle} placeholder="Write title" placeholderTextColor="#94a3b8" className="border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-[15px] text-slate-900 dark:text-slate-100 mb-4 bg-white dark:bg-slate-800" />
                 <Text className="text-[13px] font-semibold text-slate-800 dark:text-slate-200 mb-1">Brief description of order agreed specifications</Text>
-                <TextInput value={orderDescription} onChangeText={setOrderDescription} placeholder="Write description" placeholderTextColor="#94a3b8" multiline numberOfLines={3} className="border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-[15px] text-slate-900 dark:text-slate-100 mb-4 bg-white dark:bg-slate-800" textAlignVertical="top" style={{ minHeight: 80 }} />
+                <TextInput {...fieldProps("desc")} value={orderDescription} onChangeText={setOrderDescription} placeholder="Write description" placeholderTextColor="#94a3b8" multiline numberOfLines={3} className="border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-[15px] text-slate-900 dark:text-slate-100 mb-4 bg-white dark:bg-slate-800" textAlignVertical="top" style={{ minHeight: 80 }} />
                 <Text className="text-[13px] font-semibold text-slate-800 dark:text-slate-200 mb-1">Agreed amount ({"\u20a6"})</Text>
-                <TextInput value={orderAmount} onChangeText={setOrderAmount} placeholder="Enter amount" placeholderTextColor="#94a3b8" keyboardType="numeric" className="border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-[15px] text-slate-900 dark:text-slate-100 mb-4 bg-white dark:bg-slate-800" />
+                <TextInput {...fieldProps("amount")} value={orderAmount} onChangeText={setOrderAmount} placeholder="Enter amount" placeholderTextColor="#94a3b8" keyboardType="numeric" className="border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-[15px] text-slate-900 dark:text-slate-100 mb-4 bg-white dark:bg-slate-800" />
 
                 {(isPrintDetail(selectedOrderRequest) || isPrinter) && (
                   <>
                     <Text className="text-[13px] font-semibold text-slate-800 dark:text-slate-200 mb-1">Delivery fee ({"\u20a6"})</Text>
                     <TextInput
-                      value={orderDeliveryAmount}
+                      {...fieldProps("delivery")} value={orderDeliveryAmount}
                       onChangeText={setOrderDeliveryAmount}
                       placeholder="Enter delivery fee"
                       placeholderTextColor="#94a3b8"
@@ -1795,7 +1788,7 @@ export default function ChatScreen() {
                       <>
                         <Text className="text-[13px] font-semibold text-slate-800 dark:text-slate-200 mb-1">Pickup fee ({"\u20a6"})</Text>
                         <TextInput
-                          value={orderPickupAmount}
+                          {...fieldProps("pickup")} value={orderPickupAmount}
                           onChangeText={setOrderPickupAmount}
                           placeholder="Enter pickup fee"
                           placeholderTextColor="#94a3b8"
@@ -1817,19 +1810,10 @@ export default function ChatScreen() {
               <TouchableOpacity className={`rounded-full py-4 items-center mt-2 ${creatingOrder ? "bg-slate-400" : "bg-[#4A3298]"}`} onPress={handleCreateOrder} disabled={creatingOrder}>
                 {creatingOrder ? <ActivityIndicator size="small" color="#fff" /> : <Text className="text-white text-[16px] font-bold">Create Order</Text>}
               </TouchableOpacity>
-            </Pressable>
-          </Pressable>
-        </KeyboardAvoidingView>
-      </Modal>
+      </BottomSheetModal>
 
       {/* Order Details modal (Viewing Created Order) */}
-      <Modal transparent statusBarTranslucent visible={showOrderDetails} animationType="slide" onRequestClose={() => setShowOrderDetails(false)}>
-        <Pressable className="flex-1 bg-black/40 justify-end" onPress={() => setShowOrderDetails(false)}>
-          <Pressable
-            className="bg-white dark:bg-slate-900 rounded-t-3xl px-5 pt-4"
-            style={{ paddingBottom: sheetBottomPadding, maxHeight: "88%" }}
-            onPress={(e) => e.stopPropagation()}
-          >
+      <BottomSheetModal visible={showOrderDetails} onClose={() => setShowOrderDetails(false)}>
             <View className="flex-row justify-between items-center mb-2">
               <View className="w-6" />
               <Text className="text-[17px] font-semibold text-slate-900 dark:text-slate-100">Order details</Text>
@@ -1927,9 +1911,7 @@ export default function ChatScreen() {
                 </TouchableOpacity>
               </View>
             )}
-          </Pressable>
-        </Pressable>
-      </Modal>
+      </BottomSheetModal>
 
       {/* Paystack Payment Modal */}
       <Modal visible={showPaystackWebView} animationType="slide" onRequestClose={() => setShowPaystackWebView(false)}>

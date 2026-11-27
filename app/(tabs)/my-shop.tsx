@@ -1278,6 +1278,7 @@ export default function MyShopScreen() {
 
   // ── Follow ──
   const [followLoading, setFollowLoading] = useState(false);
+  const [galleryUploading, setGalleryUploading] = useState(false);
 
   // ── Load ──
   const loadShop = useCallback(async (isRefresh = false) => {
@@ -1469,6 +1470,46 @@ export default function MyShopScreen() {
     router.push({ pathname: '/chat', params: { localConversationId: conversationId, participantId: String(shop.profile.profileId), participantName: shop.profile.username, participantRole: 'Designer' } });
   };
 
+  const handleUploadWork = async () => {
+    if (galleryUploading) return;
+    try {
+      const picked = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: false,
+        quality: 0.8,
+      });
+      if (picked.canceled || !picked.assets?.[0]?.uri) return;
+      setGalleryUploading(true);
+      const uploaded: any = await ApiService.uploadSingleFile(picked.assets[0].uri);
+      const url = String(uploaded?.url || uploaded?.originalUrl || uploaded?.path || uploaded?.originalFilePath || '').trim();
+      if (!url) throw new Error('Upload failed. Please try again.');
+      await ApiService.addToGallery(url);
+      await loadShop(true);
+    } catch (e: any) {
+      Alert.alert('Unable to upload work', e?.response?.data?.responseMessage || e?.message || 'Please try again.');
+    } finally {
+      setGalleryUploading(false);
+    }
+  };
+
+  const handleRemoveWork = (id: string | number) => {
+    Alert.alert('Remove work', 'Remove this image from your work gallery?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await ApiService.removeFromGallery(id);
+            await loadShop(true);
+          } catch (e: any) {
+            Alert.alert('Unable to remove', e?.response?.data?.responseMessage || e?.message || 'Please try again.');
+          }
+        },
+      },
+    ]);
+  };
+
   if (loading && !shop) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.background }}>
@@ -1520,11 +1561,17 @@ export default function MyShopScreen() {
           <Text style={{ fontSize: 22, fontWeight: '800', color: theme.text }}>{profile?.fullName || 'My Shop'}</Text>
           {/* Stars */}
           <View style={{ flexDirection: 'row', marginTop: 4, marginBottom: 8 }}>
-            {[1,2,3,4,5].map((s) => <Ionicons key={s} name="star-outline" size={16} color={theme.muted} style={{ marginRight: 2 }} />)}
+            {[1,2,3,4,5].map((s) => {
+              const r = Number(profile?.rating || 0);
+              const filled = r >= s;
+              const half = !filled && r >= s - 0.5;
+              return <Ionicons key={s} name={filled ? 'star' : half ? 'star-half' : 'star-outline'} size={16} color={r > 0 ? '#F5B301' : theme.muted} style={{ marginRight: 2 }} />;
+            })}
+            {isPrinterShop && Number(profile?.rating || 0) > 0 ? <Text style={{ color: theme.muted, fontSize: 13, marginLeft: 4 }}>{Number(profile.rating).toFixed(1)}</Text> : null}
           </View>
           {/* Stats row */}
           <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
-            <Text style={{ color: theme.text, fontSize: 13 }}>{profile?.reviews || 0} Reviews</Text>
+            <Text style={{ color: theme.text, fontSize: 13 }}>{isPrinterShop ? toCountLabel(profile?.uploads || 0, 'Work') : `${profile?.reviews || 0} Reviews`}</Text>
             <Text style={{ color: theme.muted, marginHorizontal: 6 }}>|</Text>
             <TouchableOpacity onPress={() => { setFollowersInitialTab('followers'); setShowFollowers(true); }}>
               <Text style={{ color: theme.primary, fontSize: 13, fontWeight: '600' }}>{profile?.followers || 0} Followers</Text>
@@ -1534,6 +1581,21 @@ export default function MyShopScreen() {
               <Text style={{ color: theme.primary, fontSize: 13, fontWeight: '600' }}>{profile?.following || 0} Following</Text>
             </TouchableOpacity>
           </View>
+          {isPrinterShop ? (
+            <View style={{ marginBottom: 10 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={{ color: theme.text, fontSize: 13, fontWeight: '600' }}>Printer</Text>
+                <Text style={{ color: theme.muted, marginHorizontal: 6 }}>|</Text>
+                <Text style={{ color: '#2E9F4D', fontSize: 13, fontWeight: '600' }}>{Number(profile?.jobSuccess || 0)}% Job Success</Text>
+              </View>
+              {profile?.location ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 }}>
+                  <Ionicons name="location-outline" size={15} color={theme.primary} />
+                  <Text style={{ color: theme.text, fontSize: 13, flex: 1 }}>{profile.location}</Text>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
           {/* Bio */}
           {profile?.bio ? (
             <View style={{ marginBottom: 12 }}>
@@ -1572,38 +1634,42 @@ export default function MyShopScreen() {
 
         {isPrinterShop ? (
           <View style={{ paddingHorizontal: 16, paddingTop: 4, gap: 14 }}>
-            <View style={{ backgroundColor: theme.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: theme.border }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                <Text style={{ fontSize: 16, fontWeight: '700', color: theme.text }}>Print Shop Overview</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: theme.primary + '16', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 }}>
-                  <Ionicons name="print-outline" size={14} color={theme.primary} />
-                  <Text style={{ color: theme.primary, fontSize: 12, fontWeight: '600' }}>Printer</Text>
-                </View>
+            {!readOnly && (
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <TouchableOpacity onPress={() => router.push('/manage-order' as any)} style={[S.outlineBtn, { flex: 1, borderColor: theme.border }]}>
+                  <Text style={{ color: theme.text, fontWeight: '600', fontSize: 13 }}>Print Orders</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => router.push('/influencer-merch-orders' as any)} style={[S.outlineBtn, { flex: 1, borderColor: theme.border }]}>
+                  <MaterialCommunityIcons name="crown" size={15} color="#F9A70D" style={{ marginRight: 5 }} />
+                  <Text style={{ color: theme.text, fontWeight: '600', fontSize: 13 }}>Influencer Jobs</Text>
+                </TouchableOpacity>
               </View>
-              <Text style={{ color: theme.muted, fontSize: 14, lineHeight: 20 }}>
-                {profile?.bio || 'Custom printing & production services.'}
-              </Text>
-              {profile?.location ? (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 }}>
-                  <Ionicons name="location-outline" size={16} color={theme.primary} />
-                  <Text style={{ color: theme.text, fontSize: 13, flex: 1 }}>{profile.location}</Text>
-                </View>
-              ) : null}
-              {!readOnly && (
-                <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
-                  <TouchableOpacity
-                    onPress={() => router.push('/manage-order' as any)}
-                    style={[S.outlineBtn, { flex: 1, borderColor: theme.border }]}
-                  >
-                    <Text style={{ color: theme.text, fontWeight: '600', fontSize: 13 }}>Print Orders</Text>
+            )}
+
+            <View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: theme.border, paddingBottom: 10, marginBottom: 14 }}>
+                <Text style={{ fontSize: 17, fontWeight: '700', color: theme.text }}>Work Gallery</Text>
+                {!readOnly ? (
+                  <TouchableOpacity onPress={handleUploadWork} disabled={galleryUploading} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: theme.primary, borderRadius: 18, paddingHorizontal: 14, paddingVertical: 8, opacity: galleryUploading ? 0.7 : 1 }}>
+                    {galleryUploading ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="add" size={16} color="#fff" />}
+                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13, marginLeft: 4 }}>Upload work</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => router.push('/influencer-merch-orders' as any)}
-                    style={[S.outlineBtn, { flex: 1, borderColor: theme.border }]}
-                  >
-                    <MaterialCommunityIcons name="crown" size={15} color="#F9A70D" style={{ marginRight: 5 }} />
-                    <Text style={{ color: theme.text, fontWeight: '600', fontSize: 13 }}>Influencer Jobs</Text>
-                  </TouchableOpacity>
+                ) : null}
+              </View>
+              {!(shop?.gallery?.length) ? (
+                <Text style={{ textAlign: 'center', color: theme.muted, marginVertical: 24 }}>No work uploaded yet.</Text>
+              ) : (
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -3 }}>
+                  {shop.gallery.map((g: any) => (
+                    <TouchableOpacity
+                      key={String(g.id)}
+                      activeOpacity={0.85}
+                      onLongPress={!readOnly ? () => handleRemoveWork(g.id) : undefined}
+                      style={{ width: '33.333%', aspectRatio: 1, padding: 3 }}
+                    >
+                      <ExpoImage source={{ uri: g.imageUrl }} style={{ width: '100%', height: '100%', borderRadius: 8, backgroundColor: theme.inputBg }} contentFit="cover" cachePolicy="memory-disk" transition={120} />
+                    </TouchableOpacity>
+                  ))}
                 </View>
               )}
             </View>

@@ -6,7 +6,7 @@ import {
 } from "@/lib/profile";
 import ApiService from "@/services/apiClient";
 import type { User } from "@/types";
-import type { CollectionItem, ReviewItem, ShopData } from "./types";
+import type { CollectionItem, GalleryItem, ReviewItem, ShopData } from "./types";
 
 const API_ORIGIN = "https://berrystamp-backend-production.up.railway.app";
 export const FALLBACK_COVER =
@@ -107,7 +107,7 @@ export async function fetchShopData(
       ApiService.getPaymentDetails().catch(() => null),
     ]);
 
-  const [followerResponse, followingResponse, reviewResponse, connectionResponse] =
+  const [followerResponse, followingResponse, reviewResponse, connectionResponse, galleryResponse] =
     await Promise.all([
       ApiService.getFollowers(profileId || undefined, 0, 100).catch(() => []),
       ApiService.getFollowing(profileId || undefined, 0, 100).catch(() => []),
@@ -117,7 +117,25 @@ export async function fetchShopData(
       targetProfileId
         ? ApiService.getFollowConnection(targetProfileId).catch(() => null)
         : Promise.resolve(null),
+      isPrinterShop
+        ? ApiService.getProfileGallery(profileId || undefined).catch(() => [])
+        : Promise.resolve([]),
     ]);
+
+  const gallery = unwrapList(galleryResponse)
+    .map(
+      (item: any, index: number): GalleryItem => ({
+        id: item?.id ?? `gallery-${index}`,
+        imageUrl: toAbsoluteImage(
+          item?.image?.url ||
+            item?.url ||
+            item?.image?.originalUrl ||
+            item?.image?.path ||
+            "",
+        ),
+      }),
+    )
+    .filter((item: GalleryItem) => Boolean(item.imageUrl));
 
   const designs = normalizeDesignListResponse(designsResponse);
   const collections = unwrapList(collectionsResponse).map(
@@ -220,12 +238,19 @@ export async function fetchShopData(
       followers: Number(merged.followersCount || insight.totalFollowers || followers.length || 0),
       following: Number(merged.followingCount || insight.totalFollowing || following.length || 0),
       reviews: Number(insight.totalReviews || reviews.length || 0),
-      uploads: Number(insight.totalUploads || designs.length || 0),
+      uploads: Number(
+        isPrinterShop
+          ? gallery.length || insight.totalUploads || 0
+          : insight.totalUploads || designs.length || 0,
+      ),
+      rating: Number(insight?.rating?.avgStars ?? insight?.rating ?? 0) || 0,
+      jobSuccess: Number(insight?.jobSuccessPercentage ?? 0) || 0,
 
       isFollowing,
     },
     designs,
     collections,
+    gallery,
     reviews,
     followers,
     following,
